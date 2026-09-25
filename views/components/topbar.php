@@ -22,7 +22,7 @@ $initials = strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2));
 ?>
 
 <header
-    class="bg-white/70 backdrop-blur-md border-b border-[#E0E0E0] px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-40">
+    class="bg-white/70 backdrop-blur-md border-b border-[#E0E0E0] px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between sticky top-0 z-30">
 
     <!-- Left: Mobile menu + Title -->
     <div class="flex items-center gap-3">

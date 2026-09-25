@@ -134,7 +134,7 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
     <div class="flex min-h-screen">
 
         <div id="sidebarOverlay" onclick="closeSidebar()"
-            class="fixed inset-0 bg-black/40 z-30 hidden md:hidden backdrop-blur-sm"></div>
+            class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
         <?php
         $activePage = 'payroll';

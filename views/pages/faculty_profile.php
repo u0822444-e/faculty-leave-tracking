@@ -32,7 +32,7 @@ $initials = strtoupper(substr($me['first_name'] ?? '', 0, 1) . substr($me['last_
 </head>
 <body class="bg-gradient-to-br from-[#F1FDF6] via-[#eafaf1] to-[#dcf3e5] min-h-screen">
     <div class="flex min-h-screen">
-        <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 bg-black/40 z-30 hidden md:hidden backdrop-blur-sm"></div>
+        <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
         <?php $activePage = 'faculty_profile'; require __DIR__ . '/../components/sidebar.php'; ?>
         <div class="flex-1 md:ml-64 w-full min-w-0">
             <?php

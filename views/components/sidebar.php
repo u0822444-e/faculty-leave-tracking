@@ -12,7 +12,7 @@ function navClass($key, $activePage)
 ?>
 
 <aside id="sidebar"
-    class="w-64 bg-gradient-to-b from-[#0F5E3D] to-[#0a4a2f] text-white flex flex-col fixed h-full z-40 transition-transform duration-300 -translate-x-full md:translate-x-0 shadow-xl">
+    class="w-64 bg-gradient-to-b from-[#0F5E3D] to-[#0a4a2f] text-white flex flex-col fixed h-full z-50 transition-transform duration-300 -translate-x-full md:translate-x-0 shadow-xl">
     <div class="flex items-center gap-3 py-6 px-5 border-b border-white/10">
         <img src="/assets/images/dammc-logo.png" alt="DAMMC Logo" class="w-11 h-11 object-contain shrink-0">
         <span class="font-bold text-white tracking-wide text-sm leading-tight">

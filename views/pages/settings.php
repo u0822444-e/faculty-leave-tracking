@@ -40,7 +40,7 @@ function s($settings, $key, $default = '') {
 
         <!-- Mobile overlay -->
         <div id="sidebarOverlay" onclick="closeSidebar()"
-            class="fixed inset-0 bg-black/40 z-30 hidden md:hidden backdrop-blur-sm"></div>
+            class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
         <?php
         $activePage = 'settings';

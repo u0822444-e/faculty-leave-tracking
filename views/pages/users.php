@@ -121,7 +121,7 @@ $roleLabels = [
 
                 <!-- Toolbar -->
                 <div
-                    class="relative z-30 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
+                    class="relative z-20 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
 
                         <div class="flex flex-wrap items-center gap-2">

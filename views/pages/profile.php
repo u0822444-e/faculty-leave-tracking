@@ -87,6 +87,31 @@ $activePage = 'profile';
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
+
+    <style>
+        /* Password requirements checklist */
+        .pw-req {
+            color: #6b7280;
+            transition: color .15s ease;
+        }
+        .pw-req .req-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 9999px;
+            background-color: #d1d5db;
+            transition: background-color .15s ease, box-shadow .15s ease;
+            flex-shrink: 0;
+        }
+        .pw-req.is-ok {
+            color: #0F5E3D;
+            font-weight: 500;
+        }
+        .pw-req.is-ok .req-dot {
+            background-color: #0F5E3D;
+            box-shadow: 0 0 0 3px rgba(15, 94, 61, 0.15);
+        }
+    </style>
 </head>
 
 <body class="bg-gradient-to-br from-[#F1FDF6] via-[#eafaf1] to-[#dcf3e5] min-h-screen">
@@ -374,7 +399,7 @@ $activePage = 'profile';
                                     <div>
                                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">New Password *</label>
                                         <input type="password" name="new_password" id="newPassword" required
-                                            minlength="8" oninput="checkProfilePasswordStrength()"
+                                            minlength="8"
                                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
                                             placeholder="At least 8 characters">
 
@@ -395,7 +420,7 @@ $activePage = 'profile';
                                     <div>
                                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">Confirm New Password *</label>
                                         <input type="password" name="confirm_password" id="confirmPassword" required
-                                            minlength="8" oninput="checkProfilePasswordMatch()"
+                                            minlength="8"
                                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
                                             placeholder="Re-enter new password">
                                         <p id="pwMatchHint" class="mt-1 text-[11px] text-gray-400 hidden">Passwords must match.</p>
@@ -425,26 +450,26 @@ $activePage = 'profile';
                                 <div class="lg:border-l lg:border-[#E0E0E0] lg:pl-6">
                                     <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-3">Password Requirements</p>
 
-                                    <ul id="pwRequirements" class="space-y-1.5 text-xs text-[#2C3E50]/60">
-                                        <li data-req="length" class="flex items-center gap-2">
-                                            <span class="req-dot w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                            At least 8 characters
+                                    <ul id="pwRequirements" class="space-y-1.5 text-xs">
+                                        <li data-req="length" class="pw-req flex items-center gap-2">
+                                            <span class="req-dot"></span>
+                                            <span class="req-text">At least 8 characters</span>
                                         </li>
-                                        <li data-req="upper" class="flex items-center gap-2">
-                                            <span class="req-dot w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                            One uppercase letter (A–Z)
+                                        <li data-req="upper" class="pw-req flex items-center gap-2">
+                                            <span class="req-dot"></span>
+                                            <span class="req-text">One uppercase letter (A–Z)</span>
                                         </li>
-                                        <li data-req="lower" class="flex items-center gap-2">
-                                            <span class="req-dot w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                            One lowercase letter (a–z)
+                                        <li data-req="lower" class="pw-req flex items-center gap-2">
+                                            <span class="req-dot"></span>
+                                            <span class="req-text">One lowercase letter (a–z)</span>
                                         </li>
-                                        <li data-req="number" class="flex items-center gap-2">
-                                            <span class="req-dot w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                            One number (0–9)
+                                        <li data-req="number" class="pw-req flex items-center gap-2">
+                                            <span class="req-dot"></span>
+                                            <span class="req-text">One number (0–9)</span>
                                         </li>
-                                        <li data-req="special" class="flex items-center gap-2">
-                                            <span class="req-dot w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                                            One special character (!@#$%^&*)
+                                        <li data-req="special" class="pw-req flex items-center gap-2">
+                                            <span class="req-dot"></span>
+                                            <span class="req-text">One special character (!@#$%^&*)</span>
                                         </li>
                                     </ul>
 

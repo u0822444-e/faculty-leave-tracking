@@ -3,39 +3,58 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: /login');
     exit;
 }
-if ($_SESSION['role'] !== 'admin') {
-    header('Location: /login');
-    exit;
-}
 
 require_once __DIR__ . '/../../config/database.php';
 
-// Fetch latest 200 activity logs
-$stmt = $pdo->query("
-    SELECT * FROM activity_logs
-    ORDER BY created_at DESC
-    LIMIT 200
-");
-$logs = $stmt->fetchAll();
+$userId = (int) $_SESSION['user_id'];
+$role   = $_SESSION['role'] ?? 'staff';
+$isAdmin = ($role === 'admin');
+
+// ============================================
+// Fetch logs
+//   - Admin   → all logs
+//   - Others  → only their own logs
+// ============================================
+if ($isAdmin) {
+    $stmt = $pdo->query("
+        SELECT * FROM activity_logs
+        ORDER BY created_at DESC
+        LIMIT 200
+    ");
+    $logs = $stmt->fetchAll();
+} else {
+    $stmt = $pdo->prepare("
+        SELECT * FROM activity_logs
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 200
+    ");
+    $stmt->execute([$userId]);
+    $logs = $stmt->fetchAll();
+}
 
 // Action badge styles
 $actionStyles = [
-    'create_user' => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'update_user' => 'text-blue-600 bg-blue-50',
+    'create_user'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'update_user'  => 'text-blue-600 bg-blue-50',
     'archive_user' => 'text-amber-600 bg-amber-50',
-    'send_reset' => 'text-purple-600 bg-purple-50',
-    'login' => 'text-emerald-600 bg-emerald-50',
-    'logout' => 'text-slate-600 bg-slate-100',
+    'send_reset'   => 'text-purple-600 bg-purple-50',
+    'login'        => 'text-emerald-600 bg-emerald-50',
+    'logout'       => 'text-slate-600 bg-slate-100',
 ];
 
 $actionLabels = [
-    'create_user' => 'Created User',
-    'update_user' => 'Updated User',
+    'create_user'  => 'Created User',
+    'update_user'  => 'Updated User',
     'archive_user' => 'Archived User',
-    'send_reset' => 'Sent Reset',
-    'login' => 'Login',
-    'logout' => 'Logout',
+    'send_reset'   => 'Sent Reset',
+    'login'        => 'Login',
+    'logout'       => 'Logout',
 ];
+
+$pageTitle    = $isAdmin ? 'Activity Logs' : 'My Activity';
+$pageSubtitle = $isAdmin ? 'All system activity' : 'Your recent account activity';
+$activePage   = 'activity-logs';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -43,7 +62,7 @@ $actionLabels = [
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Activity Logs | DAMMC Admin</title>
+    <title><?= htmlspecialchars($pageTitle) ?> | DAMMC</title>
     <link rel="icon" type="image/png" href="/assets/images/dammc-logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -54,31 +73,22 @@ $actionLabels = [
 
     <div class="flex min-h-screen">
 
-        <!-- Mobile overlay -->
         <div id="sidebarOverlay" onclick="closeSidebar()"
             class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
-        <?php
-        $activePage = 'activity-logs'; // or 'users' / 'activity-logs' / 'settings'
-        require __DIR__ . '/../components/sidebar.php';
-        ?>
+        <?php require __DIR__ . '/../components/sidebar.php'; ?>
 
-        <!-- Main content -->
         <div class="flex-1 md:ml-64 w-full min-w-0">
 
             <?php
-            $pageTitle = 'Activity Logs';       // customize per page
-            $pageSubtitle = 'Welcome back, ' . ($_SESSION['first_name'] ?? 'Admin');
             $pageIcon = 'history';
             require __DIR__ . '/../components/topbar.php';
             ?>
 
-            <!-- Page content -->
             <main class="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
                 <!-- Toolbar -->
-                <div
-                    class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
+                <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
 
                         <div class="flex flex-wrap items-center gap-2">
@@ -93,7 +103,7 @@ $actionLabels = [
                                 <option value="logout">Logout</option>
                             </select>
 
-                            <button onclick="filterToday()"
+                            <button onclick="filterToday(event)"
                                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
                                 <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
                                 <span>Today</span>
@@ -112,17 +122,22 @@ $actionLabels = [
                         </div>
 
                     </div>
+
+                    <?php if (!$isAdmin): ?>
+                        <p class="mt-3 text-[11px] text-[#2C3E50]/50 flex items-center gap-1.5">
+                            <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                            You are viewing your own activity. Contact an admin for the full system log.
+                        </p>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Logs list -->
-                <div
-                    class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
+                <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <div id="logsList" class="divide-y divide-[#E0E0E0]">
                         <?php if (empty($logs)): ?>
                             <div class="p-12 text-center">
-                                <div
-                                    class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                                <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                                     <i data-lucide="history" class="w-5 h-5"></i>
                                 </div>
                                 <p class="text-sm font-medium text-[#2C3E50]">No activity yet</p>
@@ -136,16 +151,11 @@ $actionLabels = [
                                 $ts = strtotime($log['created_at']);
                                 $timeAgo = time() - $ts;
 
-                                if ($timeAgo < 60)
-                                    $timeLabel = 'Just now';
-                                elseif ($timeAgo < 3600)
-                                    $timeLabel = floor($timeAgo / 60) . 'm ago';
-                                elseif ($timeAgo < 86400)
-                                    $timeLabel = floor($timeAgo / 3600) . 'h ago';
-                                elseif ($timeAgo < 604800)
-                                    $timeLabel = floor($timeAgo / 86400) . 'd ago';
-                                else
-                                    $timeLabel = date('M j, Y', $ts);
+                                if ($timeAgo < 60)      $timeLabel = 'Just now';
+                                elseif ($timeAgo < 3600)  $timeLabel = floor($timeAgo / 60) . 'm ago';
+                                elseif ($timeAgo < 86400) $timeLabel = floor($timeAgo / 3600) . 'h ago';
+                                elseif ($timeAgo < 604800) $timeLabel = floor($timeAgo / 86400) . 'd ago';
+                                else                     $timeLabel = date('M j, Y', $ts);
                                 ?>
                                 <div class="log-row px-4 py-2.5 hover:bg-[#F1FDF6]/40 transition"
                                     data-action="<?= htmlspecialchars($log['action']) ?>"
@@ -153,20 +163,16 @@ $actionLabels = [
                                     data-date="<?= date('Y-m-d', $ts) ?>">
 
                                     <div class="flex items-center gap-3">
-                                        <!-- Avatar -->
-                                        <div
-                                            class="w-7 h-7 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
+                                        <div class="w-7 h-7 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
                                             <?= $initial ?>
                                         </div>
 
-                                        <!-- Content -->
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center gap-2 flex-wrap">
                                                 <span class="text-sm font-medium text-[#2C3E50]">
                                                     <?= htmlspecialchars($log['username'] ?? 'System') ?>
                                                 </span>
-                                                <span
-                                                    class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium <?= $actionClass ?>">
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium <?= $actionClass ?>">
                                                     <?= $actionLabel ?>
                                                 </span>
                                             </div>
@@ -178,7 +184,6 @@ $actionLabels = [
                                             </p>
                                         </div>
 
-                                        <!-- Meta (right side) -->
                                         <div class="hidden sm:flex items-center gap-3 text-[11px] text-[#2C3E50]/40 shrink-0">
                                             <?php if (!empty($log['ip_address'])): ?>
                                                 <span class="flex items-center gap-1">
@@ -197,21 +202,17 @@ $actionLabels = [
                         <?php endif; ?>
                     </div>
 
-                    <!-- Empty state (filtered) -->
                     <div id="emptyState" class="hidden p-12 text-center">
-                        <div
-                            class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                        <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
                         <p class="text-sm font-medium text-[#2C3E50]">No logs found</p>
                         <p class="text-xs text-[#2C3E50]/50 mt-1">Try adjusting your search or filters.</p>
                     </div>
 
-                    <!-- Footer -->
                     <div class="px-4 sm:px-6 py-3 border-t border-[#E0E0E0] flex items-center justify-between">
                         <p class="text-xs text-[#2C3E50]/50">
-                            Showing <span class="font-medium text-[#2C3E50]"><?= count($logs) ?></span> recent
-                            activities
+                            Showing <span class="font-medium text-[#2C3E50]"><?= count($logs) ?></span> recent activities
                         </p>
                     </div>
                 </div>
@@ -220,14 +221,12 @@ $actionLabels = [
         </div>
     </div>
 
-    <!-- Logout modal -->
     <?php require_once __DIR__ . '/../components/logout_modal.php'; ?>
 
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="/assets/js/app.js"></script>
-    <script src="/assets/js/activity-logs.js"></script>
-    <script src="/assets/js/profile.js"></script>
     <script src="/assets/js/notifications.js"></script>
+    <script src="/assets/js/activity-logs.js"></script>
 </body>
 
 </html>

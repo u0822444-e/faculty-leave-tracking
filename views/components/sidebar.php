@@ -23,7 +23,7 @@ function navClass($key, $activePage)
         </button>
     </div>
 
-    <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
 
         <?php if ($role === 'admin'): ?>
             <a href="/dashboard" class="<?= navClass('dashboard', $activePage) ?>">
@@ -60,6 +60,10 @@ function navClass($key, $activePage)
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>
                 <span>My Leaves</span>
             </a>
+            <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
+                <i data-lucide="history" class="w-5 h-5"></i>
+                <span>My Activity</span>
+            </a>
 
         <?php elseif (in_array($role, ['hr'], true)): ?>
             <a href="/hr/dashboard" class="<?= navClass('hr_dashboard', $activePage) ?>">
@@ -70,9 +74,12 @@ function navClass($key, $activePage)
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>
                 <span>Leave Requests</span>
             </a>
+            <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
+                <i data-lucide="history" class="w-5 h-5"></i>
+                <span>My Activity</span>
+            </a>
 
         <?php elseif ($role === 'staff'): ?>
-
             <a href="/staff/dashboard" class="<?= navClass('staff_dashboard', $activePage) ?>">
                 <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                 <span>Dashboard</span>
@@ -81,10 +88,14 @@ function navClass($key, $activePage)
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>
                 <span>My Leaves</span>
             </a>
+            <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
+                <i data-lucide="history" class="w-5 h-5"></i>
+                <span>My Activity</span>
+            </a>
 
         <?php endif; ?>
 
-    </nav>
+    </nav>  
 
     <div class="px-3 py-4 border-t border-white/10">
         <button type="button" onclick="openLogoutModal()"

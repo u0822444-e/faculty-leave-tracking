@@ -3,6 +3,9 @@
 // ============================================
 
 // Sub-category options per category
+// ============================================
+// Sub-category options per category
+// ============================================
 const SUB_CATEGORIES = {
     faculty: ["Elementary", "High School", "College"],
     staff: [
@@ -13,6 +16,29 @@ const SUB_CATEGORIES = {
     ],
 };
 
+// ============================================
+// Year levels / Departments per sub-category
+// ============================================
+const YEAR_LEVELS_OR_DEPARTMENTS = {
+    // Elementary — Grade 1 to Grade 6
+    "Elementary": [
+        "Grade 1", "Grade 2", "Grade 3",
+        "Grade 4", "Grade 5", "Grade 6"
+    ],
+    // High School — Grade 7 to Grade 12
+    "High School": [
+        "Grade 7", "Grade 8", "Grade 9",
+        "Grade 10", "Grade 11", "Grade 12"
+    ],
+    // College — departments
+    "College": [
+        "College of Education",
+        "College of Social Work and Community Development",
+        "College of Business Administration",
+        "College of Computer Studies",
+        "College of Criminal Justice Education",
+    ],
+};
 let currentStep = 1;
 let pendingArchiveId = null;
 let pendingResetId = null;
@@ -156,6 +182,12 @@ function updateSubCategories() {
     if (!cat || !SUB_CATEGORIES[cat]) {
         sub.disabled = true;
         sub.innerHTML = '<option value="">Select a category first</option>';
+        // Also reset year level dropdown
+        const yearEl = document.getElementById("addYearLevel");
+        if (yearEl) {
+            yearEl.disabled = true;
+            yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
+        }
         return;
     }
     sub.disabled = false;
@@ -166,6 +198,13 @@ function updateSubCategories() {
         opt.textContent = s;
         sub.appendChild(opt);
     });
+
+    // Reset year level dropdown when sub-category list changes
+    const yearEl = document.getElementById("addYearLevel");
+    if (yearEl) {
+        yearEl.disabled = true;
+        yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
+    }
 }
 
 // ============================================
@@ -206,17 +245,16 @@ function openEditUserModal(data) {
     document.getElementById("editRole").value = data.role || "staff";
     document.getElementById("editCategory").value = data.category || "staff";
 
-    // Build the sub-category <select> based on the category, then pick the stored value
-    updateEditSubCategories(data.sub || "");
+    // Build the sub-category <select>, then the year level/department <select>
+    updateEditSubCategories(data.sub || "", data.year_level || "");
 
     document.getElementById("editEmpType").value = data.emp || "full-time";
     document.getElementById("editSalary").value = data.salary || 0;
     document.getElementById("editCredits").value = data.credits || 0;
     document.getElementById("editStatus").value = data.status || "active";
+    document.getElementById("editPosition").value = data.position || "";
 
-    // ✅ Apply employment rule
     handleEditEmploymentChange();
-
     showModal("editUserModal", "editUserCard");
 }
 
@@ -710,7 +748,7 @@ function selectCustomOption(btn, value) {
 // ============================================
 // Edit modal — sub-category dropdown
 // ============================================
-function updateEditSubCategories(selectedValue = null) {
+function updateEditSubCategories(selectedValue = null, selectedYearLevel = null) {
     const catEl = document.getElementById('editCategory');
     const subEl = document.getElementById('editSub');
     if (!catEl || !subEl) return;
@@ -718,20 +756,23 @@ function updateEditSubCategories(selectedValue = null) {
     const cat = catEl.value;
     const options = SUB_CATEGORIES[cat] || [];
 
-    // Preserve any value that doesn't exist in the predefined list
-    // (e.g., legacy free-text sub-category values typed before this change)
     subEl.innerHTML = '';
 
     if (!cat) {
         subEl.disabled = true;
         subEl.innerHTML = '<option value="">Select a category first</option>';
+        // Reset year level
+        const yearEl = document.getElementById('editYearLevel');
+        if (yearEl) {
+            yearEl.disabled = true;
+            yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
+        }
         return;
     }
 
     subEl.disabled = false;
     subEl.innerHTML = '<option value="">Select department</option>';
 
-    // Add standard options
     options.forEach((s) => {
         const opt = document.createElement('option');
         opt.value = s;
@@ -739,7 +780,7 @@ function updateEditSubCategories(selectedValue = null) {
         subEl.appendChild(opt);
     });
 
-    // If the current sub-category isn't in the list, add it so it's preserved
+    // Preserve legacy sub-category value
     if (selectedValue && !options.includes(selectedValue)) {
         const legacyOpt = document.createElement('option');
         legacyOpt.value = selectedValue;
@@ -750,8 +791,10 @@ function updateEditSubCategories(selectedValue = null) {
     if (selectedValue !== null && selectedValue !== undefined) {
         subEl.value = selectedValue;
     }
-}
 
+    // Now populate the year level / department dropdown
+    updateYearLevelOrDepartment('edit', selectedYearLevel);
+}
 // ============================================
 // Toggle Leave Credits based on employment type
 // ============================================
@@ -772,6 +815,59 @@ function handleEmploymentChange() {
         if (!leaveCredits.value || leaveCredits.value === '0') {
             leaveCredits.value = '15';
         }
+    }
+}
+
+// ============================================
+// Populate the Year Level / Department dropdown
+// based on the selected sub-category
+// ============================================
+function updateYearLevelOrDepartment(prefix, selectedValue = null) {
+    const subEl = document.getElementById(`${prefix}SubCategory`) 
+               || document.getElementById(`${prefix}Sub`);
+    const yearEl = document.getElementById(`${prefix}YearLevel`);
+    
+    if (!subEl || !yearEl) return;
+
+    const sub = subEl.value;
+    const options = YEAR_LEVELS_OR_DEPARTMENTS[sub] || [];
+
+    yearEl.innerHTML = '';
+
+    if (!sub) {
+        yearEl.disabled = true;
+        yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
+        return;
+    }
+
+    // If this sub-category has no predefined year levels/departments,
+    // disable the dropdown (free-text not needed here)
+    if (options.length === 0) {
+        yearEl.disabled = true;
+        yearEl.innerHTML = '<option value="">No year levels/departments available</option>';
+        return;
+    }
+
+    yearEl.disabled = false;
+    yearEl.innerHTML = '<option value="">Select year level / department</option>';
+
+    options.forEach((opt) => {
+        const o = document.createElement("option");
+        o.value = opt;
+        o.textContent = opt;
+        yearEl.appendChild(o);
+    });
+
+    // Preserve legacy value that isn't in the predefined list
+    if (selectedValue && !options.includes(selectedValue)) {
+        const legacy = document.createElement("option");
+        legacy.value = selectedValue;
+        legacy.textContent = selectedValue;
+        yearEl.appendChild(legacy);
+    }
+
+    if (selectedValue !== null && selectedValue !== undefined) {
+        yearEl.value = selectedValue;
     }
 }
 

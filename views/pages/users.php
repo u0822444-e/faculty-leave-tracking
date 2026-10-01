@@ -16,7 +16,7 @@ $stmt = $pdo->query("
         u.id AS user_id, u.username, u.role, u.status,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.employment_type,
-        e.basic_salary, e.leave_credits, u.created_at
+        e.basic_salary, e.leave_credits, e.position, u.created_at
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     ORDER BY u.id DESC
@@ -410,6 +410,7 @@ $roleLabels = [
                                     "role" => $u["role"],
                                     "category" => $u["category"] ?? "staff",
                                     "sub" => $u["sub_category"] ?? "",
+                                    "position" => $u["position"] ?? "",
                                     "emp" => $u["employment_type"] ?? "full-time",
                                     "salary" => $u["basic_salary"] ?? 0,
                                     "credits" => $u["leave_credits"] ?? 0,
@@ -780,10 +781,29 @@ $roleLabels = [
                     <!-- Sub-category / Department -->
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Sub-category / Department</label>
-                        <select name="sub_category" id="addSubCategory" disabled
+                        <select name="sub_category" id="addSubCategory" onchange="updateYearLevelOrDepartment('add')" disabled
                             class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer disabled:bg-gray-50 disabled:cursor-not-allowed">
                             <option value="">Select a category first</option>
                         </select>
+                    </div>
+
+                    <!-- Year Level / Department -->
+                    <div>
+                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Year Level / Department</label>
+                        <select name="year_level" id="addYearLevel" disabled
+                            class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer disabled:bg-gray-50 disabled:cursor-not-allowed">
+                            <option value="">Select a sub-category first</option>
+                        </select>
+                    </div>
+
+                    <!-- Position / Designation (NEW) -->
+                    <div>
+                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">
+                            Position / Designation <span class="text-[#2C3E50]/40">(optional)</span>
+                        </label>
+                        <input type="text" name="position" id="addPosition"
+                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                            placeholder="e.g. Teacher, Head of Department, Registrar">
                     </div>
 
                     <!-- Employment / Salary / Credits -->
@@ -942,10 +962,29 @@ $roleLabels = [
 
                 <div>
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Sub-category / Department</label>
-                    <select name="sub_category" id="editSub"
+                    <select name="sub_category" id="editSub" onchange="updateYearLevelOrDepartment('edit')"
                         class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer disabled:bg-gray-50 disabled:cursor-not-allowed">
                         <option value="">Select a category first</option>
                     </select>
+                </div>
+
+                <!-- Year Level / Department -->
+                <div>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Year Level / Department</label>
+                    <select name="year_level" id="editYearLevel" disabled
+                        class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer disabled:bg-gray-50 disabled:cursor-not-allowed">
+                        <option value="">Select a sub-category first</option>
+                    </select>
+                </div>
+
+                <!-- Position / Designation (NEW) -->
+                <div>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">
+                        Position / Designation <span class="text-[#2C3E50]/40">(optional)</span>
+                    </label>
+                    <input type="text" name="position" id="editPosition"
+                        class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                        placeholder="e.g. Teacher, Head of Department, Registrar">
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">

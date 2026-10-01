@@ -134,11 +134,8 @@ $leaveLabels = [
                             <select id="typeFilter" onchange="filterLeaves()"
                                 class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="">All Types</option>
-                                <option value="vacation">Vacation</option>
+                                <option value="vacation">Vacation/Mandatory</option>
                                 <option value="sick">Sick</option>
-                                <option value="maternity">Maternity</option>
-                                <option value="paternity">Paternity</option>
-                                <option value="terminal">Terminal</option>
                                 <option value="other">Other</option>
                             </select>
                         </div>

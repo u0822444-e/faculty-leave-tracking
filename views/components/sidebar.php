@@ -2,6 +2,17 @@
 $activePage = $activePage ?? '';
 $role = $_SESSION['role'] ?? 'admin';
 
+$sidebarPosition = $_SESSION['position'] ?? '';
+
+$leadershipPositions = [
+    'College Dean',
+    'Academic Dean',
+    'Elementary Principal',
+    'High School Principal',
+];
+
+$canViewFacultyLeaves = in_array($sidebarPosition, $leadershipPositions, true);
+
 function navClass($key, $activePage)
 {
     $base = 'flex items-center gap-3 px-4 py-3 rounded-lg transition';
@@ -23,7 +34,7 @@ function navClass($key, $activePage)
         </button>
     </div>
 
-        <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
+    <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
 
         <?php if ($role === 'admin'): ?>
             <a href="/dashboard" class="<?= navClass('dashboard', $activePage) ?>">
@@ -60,6 +71,12 @@ function navClass($key, $activePage)
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>
                 <span>My Leaves</span>
             </a>
+            <?php if ($canViewFacultyLeaves): ?>
+                <a href="/faculty-leaves" class="<?= navClass('leave_monitoring', $activePage) ?>">
+                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                    <span>Leave Monitoring</span>
+                </a>
+            <?php endif; ?>
             <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
                 <i data-lucide="history" class="w-5 h-5"></i>
                 <span>My Activity</span>
@@ -95,7 +112,7 @@ function navClass($key, $activePage)
 
         <?php endif; ?>
 
-    </nav>  
+    </nav>
 
     <div class="px-3 py-4 border-t border-white/10">
         <button type="button" onclick="openLogoutModal()"

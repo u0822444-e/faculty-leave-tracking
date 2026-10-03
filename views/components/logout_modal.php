@@ -17,7 +17,7 @@
         </h3>
 
         <p class="text-sm text-[#2C3E50]/70 text-center mb-6">
-            Are you sure you want to log out? You'll need to sign in again to access your dashboard.
+            Are you sure you want to log out?
         </p>
 
         <div class="flex flex-col sm:flex-row gap-3">

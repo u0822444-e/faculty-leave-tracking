@@ -295,7 +295,7 @@ $leaveLabels = [
                                                             "days" => (float) $l["days_count"], "type" => $leaveLabel,
                                                         ]) ?>)'
                                                         class="flex-1 text-xs py-2 rounded-lg bg-[#0F5E3D] text-white hover:bg-[#0a4a2f] transition">
-                                                        Decide
+                                                        Review
                                                     </button>
                                                 <?php endif; ?>
                                             </div>

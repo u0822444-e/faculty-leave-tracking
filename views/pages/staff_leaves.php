@@ -48,21 +48,21 @@ if ($employeeId > 0) {
     $creditsUsed = (float) $stmt->fetchColumn();
 }
 
-$creditsLeft = max(0, (float)($me['leave_credits'] ?? 0) - $creditsUsed);
+$creditsLeft = max(0, (float) ($me['leave_credits'] ?? 0) - $creditsUsed);
 
 // Per-type credit caps + usage
 $typeCaps = [
     'vacation' => 7.5,
-    'sick'     => 7.5,
+    'sick' => 7.5,
 ];
 
 $typeUsed = [
-    'vacation'  => 0,
-    'sick'      => 0,
+    'vacation' => 0,
+    'sick' => 0,
     'maternity' => 0,
     'paternity' => 0,
-    'terminal'  => 0,
-    'other'     => 0,
+    'terminal' => 0,
+    'other' => 0,
 ];
 
 if ($employeeId > 0) {
@@ -87,11 +87,13 @@ $today = date('Y-m-d');
 
 $existingRanges = [];
 foreach ($leaves as $l) {
-    if (!in_array($l['status'], ['pending', 'approved'], true)) continue;
-    if ($l['end_date'] < $today) continue;
+    if (!in_array($l['status'], ['pending', 'approved'], true))
+        continue;
+    if ($l['end_date'] < $today)
+        continue;
     $existingRanges[] = [
-        'start'  => $l['start_date'],
-        'end'    => $l['end_date'],
+        'start' => $l['start_date'],
+        'end' => $l['end_date'],
         'status' => $l['status'],
     ];
 }
@@ -113,28 +115,29 @@ for ($i = 0; $i < 365; $i++) {
 }
 
 $statusStyles = [
-    'pending'   => 'text-amber-700 bg-amber-50',
-    'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'rejected'  => 'text-red-700 bg-red-50',
+    'pending' => 'text-amber-700 bg-amber-50',
+    'approved' => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'rejected' => 'text-red-700 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
 ];
 $statusLabels = [
-    'pending'   => 'Pending',
-    'approved'  => 'Approved',
-    'rejected'  => 'Rejected',
+    'pending' => 'Pending',
+    'approved' => 'Approved',
+    'rejected' => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
 $leaveTypes = [
-    'vacation'  => 'Vacation',
-    'sick'      => 'Sick',
+    'vacation' => 'Vacation',
+    'sick' => 'Sick',
     'maternity' => 'Maternity',
     'paternity' => 'Paternity',
-    'terminal'  => 'Terminal',
-    'other'     => 'Other',
+    'terminal' => 'Terminal',
+    'other' => 'Other',
 ];
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -164,43 +167,106 @@ $leaveTypes = [
             width: 260px;
             padding: 6px 0;
         }
-        .flatpickr-months { padding: 4px 0; }
-        .flatpickr-months .flatpickr-month { height: 28px; }
-        .flatpickr-current-month { font-size: 13px; font-weight: 600; padding: 4px 0; }
-        .flatpickr-current-month .flatpickr-monthDropdown-months,
-        .flatpickr-current-month input.cur-year { font-weight: 600; font-size: 13px; }
-        .flatpickr-weekdays { height: 22px; }
-        span.flatpickr-weekday { font-size: 10px; font-weight: 600; color: #2C3E50; opacity: 0.5; }
-        .flatpickr-days { width: 260px; }
-        .dayContainer { width: 260px; min-width: 260px; max-width: 260px; padding: 0 4px; }
-        .flatpickr-day {
-            max-width: 32px; height: 32px; line-height: 30px;
-            font-size: 12px; border-radius: 6px; margin: 0;
+
+        .flatpickr-months {
+            padding: 4px 0;
         }
+
+        .flatpickr-months .flatpickr-month {
+            height: 28px;
+        }
+
+        .flatpickr-current-month {
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 0;
+        }
+
+        .flatpickr-current-month .flatpickr-monthDropdown-months,
+        .flatpickr-current-month input.cur-year {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .flatpickr-weekdays {
+            height: 22px;
+        }
+
+        span.flatpickr-weekday {
+            font-size: 10px;
+            font-weight: 600;
+            color: #2C3E50;
+            opacity: 0.5;
+        }
+
+        .flatpickr-days {
+            width: 260px;
+        }
+
+        .dayContainer {
+            width: 260px;
+            min-width: 260px;
+            max-width: 260px;
+            padding: 0 4px;
+        }
+
+        .flatpickr-day {
+            max-width: 32px;
+            height: 32px;
+            line-height: 30px;
+            font-size: 12px;
+            border-radius: 6px;
+            margin: 0;
+        }
+
         .flatpickr-day.selected,
         .flatpickr-day.startRange,
         .flatpickr-day.endRange,
         .flatpickr-day.selected:hover {
-            background: #0F5E3D; border-color: #0F5E3D; color: #fff;
+            background: #0F5E3D;
+            border-color: #0F5E3D;
+            color: #fff;
         }
-        .flatpickr-day.today { border-color: #0F5E3D; }
+
+        .flatpickr-day.today {
+            border-color: #0F5E3D;
+        }
+
         .flatpickr-day.today:hover {
-            background: #F1FDF6; color: #0F5E3D; border-color: #0F5E3D;
+            background: #F1FDF6;
+            color: #0F5E3D;
+            border-color: #0F5E3D;
         }
+
         .flatpickr-day.flatpickr-disabled,
         .flatpickr-day.flatpickr-disabled:hover {
-            color: #cbd5e1; text-decoration: line-through;
-            cursor: not-allowed; background: transparent;
+            color: #cbd5e1;
+            text-decoration: line-through;
+            cursor: not-allowed;
+            background: transparent;
         }
+
         .flatpickr-prev-month svg,
-        .flatpickr-next-month svg { fill: #2C3E50; width: 12px; height: 12px; }
-        .flatpickr-prev-month, .flatpickr-next-month { padding: 8px; }
+        .flatpickr-next-month svg {
+            fill: #2C3E50;
+            width: 12px;
+            height: 12px;
+        }
+
+        .flatpickr-prev-month,
+        .flatpickr-next-month {
+            padding: 8px;
+        }
+
         .flatpickr-prev-month:hover svg,
-        .flatpickr-next-month:hover svg { fill: #0F5E3D; }
+        .flatpickr-next-month:hover svg {
+            fill: #0F5E3D;
+        }
     </style>
 </head>
+
 <body class="bg-gradient-to-br from-[#F1FDF6] via-[#eafaf1] to-[#dcf3e5] min-h-screen"
-      data-leave-disabled="<?= $isPartTime ? '1' : '0' ?>">
+    data-leave-disabled="<?= $isPartTime ? '1' : '0' ?>">
 
     <div class="flex min-h-screen">
         <div id="sidebarOverlay" onclick="closeSidebar()"
@@ -223,22 +289,26 @@ $leaveTypes = [
 
                 <?php if ($isPartTime): ?>
                     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                        <div
+                            class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
                             <i data-lucide="info" class="w-4 h-4"></i>
                         </div>
                         <div>
                             <p class="text-sm font-medium text-amber-800">Leave filing is not available</p>
                             <p class="text-xs text-amber-700/80 mt-0.5">
-                                Part-time employees are not eligible to file leave requests. Contact HR if you have questions.
+                                Part-time employees are not eligible to file leave requests. Contact HR if you have
+                                questions.
                             </p>
                         </div>
                     </div>
                 <?php endif; ?>
 
                 <!-- Toolbar -->
-                <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <div
+                    class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
                     <div class="relative flex-1 sm:max-w-sm">
-                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
+                        <i data-lucide="search"
+                            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
                         <input type="text" id="leaveSearch" oninput="filterLeaves()" placeholder="Search leaves"
                             class="w-full pl-10 pr-4 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                     </div>
@@ -274,61 +344,69 @@ $leaveTypes = [
                             </thead>
                             <tbody id="leavesTableBody" class="divide-y divide-[#E0E0E0]">
                                 <?php if (empty($leaves)): ?>
-                                    <tr><td colspan="6" class="text-center text-sm text-[#2C3E50]/50 py-12">
-                                        <i data-lucide="calendar-x" class="w-6 h-6 mx-auto mb-2 text-[#2C3E50]/30"></i>
-                                        <?php if ($isPartTime): ?>
-                                            Part-time employees are not eligible for leave.
-                                        <?php else: ?>
-                                            No leave requests yet. Click "File a Leave" to submit one.
-                                        <?php endif; ?>
-                                    </td></tr>
-                                <?php else: foreach ($leaves as $l):
-                                    $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
-                                    $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                                    $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
-                                    $isPending = $l['status'] === 'pending';
-                                    ?>
-                                    <tr class="hover:bg-[#F1FDF6]/40 transition h-12 leave-row"
-                                        data-search="<?= strtolower($tLabel . ' ' . $sLabel . ' ' . ($l['reason'] ?? '')) ?>">
-                                        <td class="px-4">
-                                            <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
-                                        </td>
-                                        <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
-                                        <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
-                                        <td class="px-4 text-sm text-[#2C3E50]/70"><?= number_format((float)$l['days_count'], 2) ?></td>
-                                        <td class="px-4">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
-                                                <?= $sLabel ?>
-                                            </span>
-                                        </td>
-                                        <td class="px-4">
-                                            <div class="flex items-center justify-end gap-1">
-                                                <button onclick='openViewLeave(<?= json_encode([
-                                                    "id" => $l["id"],
-                                                    "type" => $tLabel,
-                                                    "start" => $l["start_date"],
-                                                    "end" => $l["end_date"],
-                                                    "days" => $l["days_count"],
-                                                    "reason" => $l["reason"] ?? "",
-                                                    "status" => $sLabel,
-                                                    "remarks" => $l["remarks"] ?? "",
-                                                    "created" => $l["created_at"],
-                                                ]) ?>)'
-                                                    class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
-                                                    title="View details">
-                                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                                                </button>
-                                                <?php if ($isPending): ?>
-                                                    <button onclick="cancelLeave(<?= $l['id'] ?>)"
-                                                        class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-red-50 hover:text-red-600 transition"
-                                                        title="Cancel request">
-                                                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                            </div>
+                                    <tr>
+                                        <td colspan="6" class="text-center text-sm text-[#2C3E50]/50 py-12">
+                                            <i data-lucide="calendar-x" class="w-6 h-6 mx-auto mb-2 text-[#2C3E50]/30"></i>
+                                            <?php if ($isPartTime): ?>
+                                                Part-time employees are not eligible for leave.
+                                            <?php else: ?>
+                                                No leave requests yet. Click "File a Leave" to submit one.
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
-                                <?php endforeach; endif; ?>
+                                <?php else:
+                                    foreach ($leaves as $l):
+                                        $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
+                                        $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
+                                        $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                        $isPending = $l['status'] === 'pending';
+                                        ?>
+                                        <tr class="hover:bg-[#F1FDF6]/40 transition h-12 leave-row"
+                                            data-search="<?= strtolower($tLabel . ' ' . $sLabel . ' ' . ($l['reason'] ?? '')) ?>">
+                                            <td class="px-4">
+                                                <span
+                                                    class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
+                                            </td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                <?= date('M j, Y', strtotime($l['start_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                <?= date('M j, Y', strtotime($l['end_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                <?= number_format((int) $l['days_count']) ?></td>
+                                            <td class="px-4">
+                                                <span
+                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
+                                                    <?= $sLabel ?>
+                                                </span>
+                                            </td>
+                                            <td class="px-4">
+                                                <div class="flex items-center justify-end gap-1">
+                                                    <button onclick='openViewLeave(<?= json_encode([
+                                                        "id" => $l["id"],
+                                                        "type" => $tLabel,
+                                                        "start" => $l["start_date"],
+                                                        "end" => $l["end_date"],
+                                                        "days" => $l["days_count"],
+                                                        "reason" => $l["reason"] ?? "",
+                                                        "status" => $sLabel,
+                                                        "remarks" => $l["remarks"] ?? "",
+                                                        "created" => $l["created_at"],
+                                                    ]) ?>)'
+                                                        class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
+                                                        title="View details">
+                                                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                    <?php if ($isPending): ?>
+                                                        <button onclick="cancelLeave(<?= $l['id'] ?>)"
+                                                            class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-red-50 hover:text-red-600 transition"
+                                                            title="Cancel request">
+                                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -342,45 +420,56 @@ $leaveTypes = [
                                     No leave requests yet.
                                 <?php endif; ?>
                             </div>
-                        <?php else: foreach ($leaves as $l):
-                            $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
-                            $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                            $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
-                            $isPending = $l['status'] === 'pending';
-                            ?>
-                            <div class="p-4 leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>">
-                                <div class="flex items-start justify-between gap-2 mb-2">
-                                    <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
-                                        <?= $sLabel ?>
-                                    </span>
-                                </div>
-                                <p class="text-xs text-[#2C3E50]/60">
-                                    <?= date('M j, Y', strtotime($l['start_date'])) ?> → <?= date('M j, Y', strtotime($l['end_date'])) ?>
-                                </p>
-                                <p class="text-xs text-[#2C3E50]/40 mt-1"><?= number_format((float)$l['days_count'], 2) ?> day(s)</p>
-                                <div class="flex items-center gap-1 mt-3">
-                                    <button onclick='openViewLeave(<?= json_encode([
-                                        "id" => $l["id"], "type" => $tLabel, "start" => $l["start_date"], "end" => $l["end_date"],
-                                        "days" => $l["days_count"], "reason" => $l["reason"] ?? "", "status" => $sLabel,
-                                        "remarks" => $l["remarks"] ?? "", "created" => $l["created_at"],
-                                    ]) ?>)'
-                                        class="flex-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
-                                        View
-                                    </button>
-                                    <?php if ($isPending): ?>
-                                        <button onclick="cancelLeave(<?= $l['id'] ?>)"
-                                            class="flex-1 text-xs py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition">
-                                            Cancel
+                        <?php else:
+                            foreach ($leaves as $l):
+                                $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
+                                $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
+                                $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                $isPending = $l['status'] === 'pending';
+                                ?>
+                                <div class="p-4 leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>">
+                                    <div class="flex items-start justify-between gap-2 mb-2">
+                                        <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
+                                        <span
+                                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
+                                            <?= $sLabel ?>
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-[#2C3E50]/60">
+                                        <?= date('M j, Y', strtotime($l['start_date'])) ?> →
+                                        <?= date('M j, Y', strtotime($l['end_date'])) ?>
+                                    </p>
+                                    <p class="text-xs text-[#2C3E50]/40 mt-1"><?= number_format((float) $l['days_count'], 2) ?>
+                                        day(s)</p>
+                                    <div class="flex items-center gap-1 mt-3">
+                                        <button onclick='openViewLeave(<?= json_encode([
+                                            "id" => $l["id"],
+                                            "type" => $tLabel,
+                                            "start" => $l["start_date"],
+                                            "end" => $l["end_date"],
+                                            "days" => $l["days_count"],
+                                            "reason" => $l["reason"] ?? "",
+                                            "status" => $sLabel,
+                                            "remarks" => $l["remarks"] ?? "",
+                                            "created" => $l["created_at"],
+                                        ]) ?>)'
+                                            class="flex-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
+                                            View
                                         </button>
-                                    <?php endif; ?>
+                                        <?php if ($isPending): ?>
+                                            <button onclick="cancelLeave(<?= $l['id'] ?>)"
+                                                class="flex-1 text-xs py-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition">
+                                                Cancel
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                            </div>
-                        <?php endforeach; endif; ?>
+                            <?php endforeach; endif; ?>
                     </div>
 
                     <div id="leavesEmpty" class="hidden p-12 text-center">
-                        <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                        <div
+                            class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
                         <p class="text-sm font-medium text-[#2C3E50]">No matching leaves</p>
@@ -395,12 +484,14 @@ $leaveTypes = [
 
     <!-- File leave modal -->
     <div id="leaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-         data-default-start="<?= htmlspecialchars($defaultStartDate) ?>">
-        <div id="leaveCard" class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
+        data-default-start="<?= htmlspecialchars($defaultStartDate) ?>">
+        <div id="leaveCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E0E0E0]">
                 <div>
                     <h3 class="text-sm font-bold text-[#2C3E50]">File a Leave</h3>
-                    <p class="text-[11px] text-[#2C3E50]/50">Remaining: <span id="remainingCredits"><?= number_format($creditsLeft, 2) ?></span> day(s)</p>
+                    <p class="text-[11px] text-[#2C3E50]/50">Remaining: <span
+                            id="remainingCredits"><?= number_format($creditsLeft) ?></span> day(s)</p>
                 </div>
                 <button onclick="closeLeaveModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
                     <i data-lucide="x" class="w-4 h-4"></i>
@@ -430,10 +521,21 @@ $leaveTypes = [
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">End Date *</label>
-                        <input type="text" name="end_date" id="leaveEnd" required readonly
-                            placeholder="Select end date"
+                        <input type="text" name="end_date" id="leaveEnd" required readonly placeholder="Select end date"
                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer bg-white">
                     </div>
+                </div>
+
+                <!-- Half-day toggle (only shown when start == end) -->
+                <div id="halfDayWrap" class="hidden">
+                    <label
+                        class="flex items-start gap-2.5 p-3 rounded-lg border border-[#0F5E3D]/15 bg-[#F1FDF6] cursor-pointer select-none hover:bg-[#e8faf0] transition">
+                        <input type="checkbox" name="is_half_day" id="isHalfDay" value="1"
+                            class="mt-0.5 w-4 h-4 rounded border-gray-300 accent-[#0F5E3D] cursor-pointer">
+                        <span class="text-xs text-[#2C3E50] leading-relaxed">
+                            <span class="font-medium">Half day</span>
+                        </span>
+                    </label>
                 </div>
 
                 <div>
@@ -465,8 +567,10 @@ $leaveTypes = [
     </div>
 
     <!-- View leave modal -->
-    <div id="viewLeaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="viewLeaveCard" class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
+    <div id="viewLeaveModal"
+        class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="viewLeaveCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
             <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
                 <h3 class="text-base font-bold text-[#2C3E50]">Leave Details</h3>
                 <button onclick="closeViewLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
@@ -480,7 +584,8 @@ $leaveTypes = [
                         <p id="vlType" class="text-sm font-medium text-[#2C3E50]">—</p>
                     </div>
                     <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Status</p>
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Status
+                        </p>
                         <p id="vlStatus" class="text-sm font-medium text-[#2C3E50]">—</p>
                     </div>
                     <div>
@@ -519,12 +624,16 @@ $leaveTypes = [
     </div>
 
     <!-- Loading overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div id="loadingOverlay"
+        class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-xs p-8 text-center">
             <div class="flex items-center justify-center mb-4">
-                <svg class="animate-spin h-10 w-10 text-[#0F5E3D]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg class="animate-spin h-10 w-10 text-[#0F5E3D]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
                     <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <path class="opacity-90" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                    </path>
                 </svg>
             </div>
             <h3 class="text-base font-bold text-[#2C3E50] mb-1" id="loadingTitle">Working...</h3>
@@ -533,8 +642,10 @@ $leaveTypes = [
     </div>
 
     <!-- Error modal -->
-    <div id="errorModal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="errorCard" class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
+    <div id="errorModal"
+        class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="errorCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
             <div class="flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mx-auto mb-5">
                 <i data-lucide="alert-circle" class="w-8 h-8 text-red-600"></i>
             </div>
@@ -548,11 +659,14 @@ $leaveTypes = [
     </div>
 
     <!-- Success modal -->
-    <div id="successModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="successCard" class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
+    <div id="successModal"
+        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="successCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
             <div class="relative mx-auto mb-5 w-16 h-16">
                 <div class="absolute inset-0 rounded-full bg-[#F1FDF6] animate-ping opacity-40"></div>
-                <div class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
+                <div
+                    class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
                     <i data-lucide="check-circle" class="w-8 h-8"></i>
                 </div>
             </div>
@@ -568,12 +682,12 @@ $leaveTypes = [
     <?php require_once __DIR__ . '/../components/logout_modal.php'; ?>
 
     <script>
-    window.EXISTING_LEAVE_RANGES = <?= json_encode($existingRanges, JSON_UNESCAPED_SLASHES) ?>;
-    window.CREDIT_LIMITS = {
-        total:         <?= (float) $creditsLeft ?>,
-        typeCaps:      <?= json_encode($typeCaps, JSON_UNESCAPED_SLASHES) ?>,
-        typeRemaining: <?= json_encode($typeRemaining, JSON_UNESCAPED_SLASHES) ?>
-    };
+        window.EXISTING_LEAVE_RANGES = <?= json_encode($existingRanges, JSON_UNESCAPED_SLASHES) ?>;
+        window.CREDIT_LIMITS = {
+            total: <?= (float) $creditsLeft ?>,
+            typeCaps: <?= json_encode($typeCaps, JSON_UNESCAPED_SLASHES) ?>,
+            typeRemaining: <?= json_encode($typeRemaining, JSON_UNESCAPED_SLASHES) ?>
+        };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -582,4 +696,5 @@ $leaveTypes = [
     <script src="/assets/js/profile.js"></script>
     <script src="/assets/js/staff_leaves.js"></script>
 </body>
+
 </html>

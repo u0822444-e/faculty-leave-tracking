@@ -8,4 +8,4 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Load the dashboard view
-require_once __DIR__ . '/../views/pages/dashboard.php';
+require_once __DIR__ . '/../views/pages/dashboard.php'; 

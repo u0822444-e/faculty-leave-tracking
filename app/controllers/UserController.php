@@ -39,6 +39,8 @@ try {
                     e.email,
                     e.category,
                     e.sub_category,
+                    e.year_level,
+                    e.position,
                     e.employment_type,
                     e.basic_salary,
                     e.leave_credits,
@@ -68,6 +70,8 @@ try {
                     'role' => $u['role'],
                     'category' => $u['category'] ?? 'staff',
                     'sub_category' => $u['sub_category'] ?? '',
+                    'year_level' => $u['year_level'] ?? '',
+                    'position' => $u['position'] ?? '',
                     'employment_type' => $u['employment_type'] ?? 'full-time',
                     'basic_salary' => $u['basic_salary'] ?? 0,
                     'leave_credits' => $u['leave_credits'] ?? 0,
@@ -93,6 +97,8 @@ try {
             $role = $_POST['role'] ?? '';
             $category = $_POST['category'] ?? '';
             $subCat = trim($_POST['sub_category'] ?? '');
+            $yearLevel = trim($_POST['year_level'] ?? '');
+            $position = trim($_POST['position'] ?? '');
             $empType = $_POST['employment_type'] ?? 'full-time';
             $salary = floatval($_POST['basic_salary'] ?? 0);
             $creditsRaw = $_POST['leave_credits'] ?? '';
@@ -102,6 +108,11 @@ try {
 
             if ($empType === 'part-time') {
                 $credits = 0;
+            }
+
+            // Position is required; default to N/A if empty
+            if ($position === '') {
+                $position = 'N/A';
             }
 
             // Basic validation
@@ -155,10 +166,22 @@ try {
                 // Insert employee
                 $stmt = $pdo->prepare("
                     INSERT INTO employees 
-                        (first_name, middle_name, last_name, email, category, sub_category, employment_type, basic_salary, leave_credits)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_credits)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stmt->execute([$first, $middle, $last, $email, $category, $subCat, $empType, $salary, $credits]);
+                $stmt->execute([
+                    $first,
+                    $middle,
+                    $last,
+                    $email,
+                    $category,
+                    $subCat,
+                    $yearLevel,
+                    $position,
+                    $empType,
+                    $salary,
+                    $credits,
+                ]);
                 $employeeId = $pdo->lastInsertId();
 
                 // Insert user
@@ -180,7 +203,6 @@ try {
                     $newUserId
                 );
 
-                // Notify the new user (they'll see it when they first log in)
                 NotificationService::notify(
                     $pdo,
                     $newUserId,
@@ -190,7 +212,6 @@ try {
                     '/profile'
                 );
 
-                // Notify other admins
                 NotificationService::notifyAdmins(
                     $pdo,
                     'create_user',
@@ -248,6 +269,8 @@ try {
             $role = $_POST['role'] ?? '';
             $category = $_POST['category'] ?? '';
             $subCat = trim($_POST['sub_category'] ?? '');
+            $yearLevel = trim($_POST['year_level'] ?? '');
+            $position = trim($_POST['position'] ?? '');
             $empType = $_POST['employment_type'] ?? 'full-time';
             $salary = floatval($_POST['basic_salary'] ?? 0);
             $status = $_POST['status'] ?? 'active';
@@ -262,6 +285,11 @@ try {
                 $credits = 0;
             }
 
+            // Position is required; default to N/A if empty
+            if ($position === '') {
+                $position = 'N/A';
+            }
+
             if ($id <= 0 || empty($first) || empty($last) || empty($username)) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => 'Invalid input.']);
@@ -273,8 +301,8 @@ try {
                 SELECT 
                     u.id AS user_id, u.username, u.role, u.status, u.employee_id,
                     e.first_name, e.middle_name, e.last_name, e.email,
-                    e.category, e.sub_category, e.employment_type,
-                    e.basic_salary, e.leave_credits
+                    e.category, e.sub_category, e.year_level, e.position,
+                    e.employment_type, e.basic_salary, e.leave_credits
                 FROM users u
                 LEFT JOIN employees e ON u.employee_id = e.id
                 WHERE u.id = ?
@@ -359,19 +387,44 @@ try {
                     $stmt = $pdo->prepare("
                         UPDATE employees 
                         SET first_name = ?, middle_name = ?, last_name = ?, email = ?, 
-                            category = ?, sub_category = ?, employment_type = ?, 
-                            basic_salary = ?, leave_credits = ?
+                            category = ?, sub_category = ?, year_level = ?, position = ?,
+                            employment_type = ?, basic_salary = ?, leave_credits = ?
                         WHERE id = ?
                     ");
-                    $stmt->execute([$first, $middle, $last, $email, $category, $subCat, $empType, $salary, $credits, $employeeId]);
+                    $stmt->execute([
+                        $first,
+                        $middle,
+                        $last,
+                        $email,
+                        $category,
+                        $subCat,
+                        $yearLevel,
+                        $position,
+                        $empType,
+                        $salary,
+                        $credits,
+                        $employeeId,
+                    ]);
                 } else {
                     // No employee row — create one and link it
                     $stmt = $pdo->prepare("
                         INSERT INTO employees 
-                            (first_name, middle_name, last_name, email, category, sub_category, employment_type, basic_salary, leave_credits)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_credits)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
-                    $stmt->execute([$first, $middle, $last, $email, $category, $subCat, $empType, $salary, $credits]);
+                    $stmt->execute([
+                        $first,
+                        $middle,
+                        $last,
+                        $email,
+                        $category,
+                        $subCat,
+                        $yearLevel,
+                        $position,
+                        $empType,
+                        $salary,
+                        $credits,
+                    ]);
                     $employeeId = (int) $pdo->lastInsertId();
 
                     $stmt = $pdo->prepare("UPDATE users SET employee_id = ? WHERE id = ?");
@@ -411,6 +464,8 @@ try {
                     'status' => ['label' => 'Status', 'before' => $before['status'] ?? '', 'after' => $status],
                     'category' => ['label' => 'Category', 'before' => $before['category'] ?? '', 'after' => $category],
                     'sub_category' => ['label' => 'Sub-category', 'before' => $before['sub_category'] ?? '', 'after' => $subCat],
+                    'year_level' => ['label' => 'Year level', 'before' => $before['year_level'] ?? '', 'after' => $yearLevel],
+                    'position' => ['label' => 'Position', 'before' => $before['position'] ?? '', 'after' => $position],
                     'employment_type' => ['label' => 'Employment type', 'before' => $before['employment_type'] ?? '', 'after' => $empType],
                 ];
 
@@ -610,7 +665,6 @@ try {
                     $id
                 );
 
-                // Notify the target user
                 NotificationService::notify(
                     $pdo,
                     $id,
@@ -620,7 +674,6 @@ try {
                     ''
                 );
 
-                // Notify other admins
                 NotificationService::notifyAdmins(
                     $pdo,
                     'send_reset',

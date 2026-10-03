@@ -54,6 +54,12 @@ function initLeaveDatePickers() {
     },
   });
 
+  // Half-day checkbox
+  const halfInput = document.getElementById("isHalfDay");
+  if (halfInput) {
+    halfInput.addEventListener("change", updateDaysCount);
+  }
+
   // ---- End ----
   fpEnd = flatpickr("#leaveEnd", {
     ...commonOpts,
@@ -105,9 +111,7 @@ function openViewLeave(data) {
   document.getElementById("vlStatus").textContent = data.status;
   document.getElementById("vlStart").textContent = formatDate(data.start);
   document.getElementById("vlEnd").textContent = formatDate(data.end);
-  document.getElementById("vlDays").textContent = parseFloat(data.days).toFixed(
-    2
-  );
+  document.getElementById("vlDays").textContent = parseInt(data.days);
   document.getElementById("vlCreated").textContent = formatDateTime(
     data.created
   );
@@ -154,6 +158,8 @@ function formatDateTime(iso) {
 
 function updateDaysCount() {
   const out = document.getElementById("leaveDays");
+  const halfWrap = document.getElementById("halfDayWrap");
+  const halfInput = document.getElementById("isHalfDay");
 
   // Read raw values from the hidden inputs (Flatpickr stores Y-m-d there)
   const start =
@@ -162,6 +168,8 @@ function updateDaysCount() {
 
   if (!start || !end) {
     out.value = "";
+    if (halfWrap) halfWrap.classList.add("hidden");
+    if (halfInput) halfInput.checked = false;
     return;
   }
 
@@ -170,12 +178,36 @@ function updateDaysCount() {
 
   if (e < s) {
     out.value = "";
+    if (halfWrap) halfWrap.classList.add("hidden");
+    if (halfInput) halfInput.checked = false;
     return;
   }
 
-  const diffMs = e.getTime() - s.getTime();
-  const days = Math.floor(diffMs / 86400000) + 1;
-  out.value = days.toFixed(2);
+  const sameDay = start === end;
+
+  // Show the half-day option only on single-day leaves
+  if (halfWrap) {
+    halfWrap.classList.toggle("hidden", !sameDay);
+  }
+
+  // If not a single-day leave, force half-day off
+  if (!sameDay && halfInput && halfInput.checked) {
+    halfInput.checked = false;
+  }
+
+  let days;
+  if (sameDay && halfInput?.checked) {
+    days = 0.5;
+  } else {
+    days = Math.floor((e.getTime() - s.getTime()) / 86400000) + 1;
+  }
+
+  out.value = Number.isInteger(days) ? String(days) : days.toFixed(1);
+
+  // Update the remaining-credit hint if it exists
+  if (typeof updateTypeRemainingHint === "function") {
+    updateTypeRemainingHint();
+  }
 }
 
 // ============================================
@@ -218,6 +250,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const end =
         fpEnd?.input?.value || document.getElementById("leaveEnd").value;
       const reason = document.getElementById("leaveReason").value.trim();
+      const isHalfDay = document.getElementById("isHalfDay")?.checked === true;
 
       if (!type) {
         showError("Missing leave type", "Please select a leave type.");
@@ -257,7 +290,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const days = Math.floor((endDate - startDate) / 86400000) + 1;
+      const sameDay = start === end;
+      const days =
+        sameDay && isHalfDay
+          ? 0.5
+          : Math.floor((endDate - startDate) / 86400000) + 1;
 
       const limits = window.CREDIT_LIMITS || {};
       const totalLimit = parseFloat(limits.total) || 0;

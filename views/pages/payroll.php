@@ -40,44 +40,48 @@ $employees = $stmt->fetchAll();
 // Compute rows + aggregates
 // ============================================
 $rows = [];
-$totalSaved       = 0;
+$totalSaved = 0;
 $totalConvertible = 0;
-$totalUsedDays    = 0;
-$totalRemaining   = 0;
+$totalUsedDays = 0;
+$totalRemaining = 0;
 
-$categoryCounts   = ['faculty' => 0, 'staff' => 0];
+$categoryCounts = ['faculty' => 0, 'staff' => 0];
 $employmentCounts = ['full-time' => 0, 'part-time' => 0];
 
-$savedByDept     = [];
+$savedByDept = [];
 $convertibleByCat = ['faculty' => 0, 'staff' => 0];
 
 foreach ($employees as $e) {
     $monthlySalary = (float) $e['basic_salary'];
-    $dailyRate     = $monthlySalary > 0 ? $monthlySalary / $workingDaysPerMonth : 0;
+    $dailyRate = $monthlySalary > 0 ? $monthlySalary / $workingDaysPerMonth : 0;
 
-    $used      = (float) $e['credits_used'];
+    $used = (float) $e['credits_used'];
     $allocated = (float) $e['leave_credits'];
     $remaining = max(0, $allocated - $used);
 
     // Saved = ₱ value of unpaid leave days (institution keeps this)
-    $saved       = $dailyRate * $used;
+    $saved = $dailyRate * $used;
     // Convertible = ₱ value of unused credits (institution may owe this)
     $convertible = $dailyRate * $remaining;
 
-    $totalSaved       += $saved;
+    $totalSaved += $saved;
     $totalConvertible += $convertible;
-    $totalUsedDays    += $used;
-    $totalRemaining   += $remaining;
+    $totalUsedDays += $used;
+    $totalRemaining += $remaining;
 
     $cat = $e['category'] ?? 'staff';
-    if (isset($categoryCounts[$cat])) $categoryCounts[$cat]++;
+    if (isset($categoryCounts[$cat]))
+        $categoryCounts[$cat]++;
 
     $emp = $e['employment_type'] ?? 'full-time';
-    if (isset($employmentCounts[$emp])) $employmentCounts[$emp]++;
+    if (isset($employmentCounts[$emp]))
+        $employmentCounts[$emp]++;
 
     $dept = trim($e['sub_category'] ?? '');
-    if ($dept === '') $dept = 'Unassigned';
-    if (!isset($savedByDept[$dept])) $savedByDept[$dept] = 0;
+    if ($dept === '')
+        $dept = 'Unassigned';
+    if (!isset($savedByDept[$dept]))
+        $savedByDept[$dept] = 0;
     $savedByDept[$dept] += $saved;
 
     if (isset($convertibleByCat[$cat])) {
@@ -85,21 +89,21 @@ foreach ($employees as $e) {
     }
 
     $rows[] = [
-        'employee_id'  => (int) $e['employee_id'],
-        'name'         => trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['username'] ?? 'Unknown'),
-        'initials'     => strtoupper(substr($e['first_name'] ?? 'U', 0, 1) . substr($e['last_name'] ?? '', 0, 1)),
-        'email'        => $e['email'] ?? '—',
-        'category'     => $cat,
+        'employee_id' => (int) $e['employee_id'],
+        'name' => trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['username'] ?? 'Unknown'),
+        'initials' => strtoupper(substr($e['first_name'] ?? 'U', 0, 1) . substr($e['last_name'] ?? '', 0, 1)),
+        'email' => $e['email'] ?? '—',
+        'category' => $cat,
         'sub_category' => $e['sub_category'] ?? '',
-        'employment'   => $emp,
-        'monthly'      => $monthlySalary,
-        'daily_rate'   => $dailyRate,
-        'allocated'    => $allocated,
-        'used'         => $used,
-        'remaining'    => $remaining,
-        'saved'        => $saved,
-        'convertible'  => $convertible,
-        'status'       => $e['user_status'] ?? 'active',
+        'employment' => $emp,
+        'monthly' => $monthlySalary,
+        'daily_rate' => $dailyRate,
+        'allocated' => $allocated,
+        'used' => $used,
+        'remaining' => $remaining,
+        'saved' => $saved,
+        'convertible' => $convertible,
+        'status' => $e['user_status'] ?? 'active',
     ];
 }
 
@@ -110,7 +114,7 @@ usort($rows, fn($a, $b) => $b['saved'] <=> $a['saved']);
 
 // Top departments by saved
 arsort($savedByDept);
-$deptChart  = array_slice($savedByDept, 0, 6, true);
+$deptChart = array_slice($savedByDept, 0, 6, true);
 $deptLabels = array_keys($deptChart);
 $deptValues = array_values($deptChart);
 
@@ -119,6 +123,7 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -158,10 +163,12 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
 
                     <!-- Payroll saved this period -->
-                    <div class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
+                    <div
+                        class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
                         <div class="flex items-start justify-between gap-4 mb-4">
                             <div>
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Payroll Saved This Period</p>
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">
+                                    Payroll Saved This Period</p>
                                 <div class="flex items-baseline gap-2">
                                     <span class="text-3xl sm:text-4xl font-bold text-[#0F5E3D]">
                                         ₱<?= number_format($totalSaved, 2) ?>
@@ -171,30 +178,37 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                     from unpaid leave days across all faculty &amp; staff
                                 </p>
                             </div>
-                            <div class="w-10 h-10 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                            <div
+                                class="w-10 h-10 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
                                 <i data-lucide="shield-check" class="w-5 h-5"></i>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4 pt-4 border-t border-[#E0E0E0]">
                             <div>
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Approved Leave Days</p>
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
+                                    Approved Leave Days</p>
                                 <p class="text-lg font-bold text-[#2C3E50]"><?= number_format($totalUsedDays, 2) ?></p>
                                 <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">unpaid work days</p>
                             </div>
                             <div>
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Convertible Liability</p>
-                                <p class="text-lg font-bold text-amber-600">₱<?= number_format($totalConvertible, 2) ?></p>
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
+                                    Convertible Liability</p>
+                                <p class="text-lg font-bold text-amber-600">₱<?= number_format($totalConvertible, 2) ?>
+                                </p>
                                 <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">remaining unused credits</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Employees covered -->
-                    <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
+                    <div
+                        class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
                         <div class="flex items-start justify-between gap-4 mb-4">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Employees Covered</p>
-                            <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Employees
+                                Covered</p>
+                            <div
+                                class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
                                 <i data-lucide="users" class="w-4 h-4"></i>
                             </div>
                         </div>
@@ -203,19 +217,23 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                         <div class="space-y-2 pt-3 border-t border-[#E0E0E0]">
                             <div class="flex items-center justify-between">
                                 <span class="text-xs text-[#2C3E50]/60">Faculty</span>
-                                <span class="text-xs font-semibold text-[#2C3E50]"><?= $categoryCounts['faculty'] ?></span>
+                                <span
+                                    class="text-xs font-semibold text-[#2C3E50]"><?= $categoryCounts['faculty'] ?></span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-xs text-[#2C3E50]/60">Staff</span>
-                                <span class="text-xs font-semibold text-[#2C3E50]"><?= $categoryCounts['staff'] ?></span>
+                                <span
+                                    class="text-xs font-semibold text-[#2C3E50]"><?= $categoryCounts['staff'] ?></span>
                             </div>
                             <div class="flex items-center justify-between pt-1 border-t border-dashed border-[#E0E0E0]">
                                 <span class="text-xs text-[#2C3E50]/60">Full-time</span>
-                                <span class="text-xs font-semibold text-[#2C3E50]"><?= $employmentCounts['full-time'] ?></span>
+                                <span
+                                    class="text-xs font-semibold text-[#2C3E50]"><?= $employmentCounts['full-time'] ?></span>
                             </div>
                             <div class="flex items-center justify-between">
                                 <span class="text-xs text-[#2C3E50]/60">Part-time</span>
-                                <span class="text-xs font-semibold text-[#2C3E50]"><?= $employmentCounts['part-time'] ?></span>
+                                <span
+                                    class="text-xs font-semibold text-[#2C3E50]"><?= $employmentCounts['part-time'] ?></span>
                             </div>
                         </div>
                     </div>
@@ -228,11 +246,13 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
 
                     <!-- Bar: saved by department -->
-                    <div class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
+                    <div
+                        class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between mb-3">
                             <div>
                                 <h2 class="text-sm font-bold text-[#2C3E50]">Unpaid Leave Cost by Department</h2>
-                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">₱ value of unpaid leave days · top departments</p>
+                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">₱ value of unpaid leave days · top
+                                    departments</p>
                             </div>
                             <div class="flex items-center gap-1.5 text-[10px] text-[#2C3E50]/60">
                                 <span class="w-2 h-2 rounded-full bg-[#0F5E3D]"></span>
@@ -245,7 +265,8 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                     </div>
 
                     <!-- Donut: convertible liability by category -->
-                    <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
+                    <div
+                        class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="mb-3">
                             <h2 class="text-sm font-bold text-[#2C3E50]">Convertible Liability</h2>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Remaining credits · ₱ value</p>
@@ -257,12 +278,14 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                             <div class="text-center">
                                 <span class="inline-block w-2 h-2 rounded-full bg-[#0F5E3D] mb-1"></span>
                                 <p class="text-[10px] text-[#2C3E50]/50 uppercase tracking-wider">Faculty</p>
-                                <p class="text-xs font-bold text-[#2C3E50]">₱<?= number_format($convertibleByCat['faculty'], 2) ?></p>
+                                <p class="text-xs font-bold text-[#2C3E50]">
+                                    ₱<?= number_format($convertibleByCat['faculty'], 2) ?></p>
                             </div>
                             <div class="text-center">
                                 <span class="inline-block w-2 h-2 rounded-full bg-slate-500 mb-1"></span>
                                 <p class="text-[10px] text-[#2C3E50]/50 uppercase tracking-wider">Staff</p>
-                                <p class="text-xs font-bold text-[#2C3E50]">₱<?= number_format($convertibleByCat['staff'], 2) ?></p>
+                                <p class="text-xs font-bold text-[#2C3E50]">
+                                    ₱<?= number_format($convertibleByCat['staff'], 2) ?></p>
                             </div>
                         </div>
                     </div>
@@ -273,59 +296,294 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                 <!-- QUICK STATS STRIP                              -->
                 <!-- ============================================ -->
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Employees</p>
+                    <div
+                        class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Employees
+                        </p>
                         <p class="text-xl font-bold text-[#2C3E50]"><?= $totalEmployees ?></p>
                     </div>
-                    <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Approved Leave Days</p>
+                    <div
+                        class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Approved
+                            Leave Days</p>
                         <p class="text-xl font-bold text-[#2C3E50]"><?= number_format($totalUsedDays, 2) ?></p>
                     </div>
-                    <div class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Payroll Saved</p>
+                    <div
+                        class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Payroll
+                            Saved</p>
                         <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($totalSaved, 2) ?></p>
                     </div>
-                    <div class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Avg. Convertible</p>
+                    <div
+                        class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Avg.
+                            Convertible</p>
                         <p class="text-xl font-bold text-amber-600">₱<?= number_format($avgConvertible, 2) ?></p>
                         <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">per employee</p>
                     </div>
                 </div>
 
                 <!-- ============================================ -->
-                <!-- TOOLBAR                                        -->
+                <!-- TOOLBAR                                      -->
                 <!-- ============================================ -->
-                <div class="animate-fade-in-up relative z-30 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
+                <div
+                    class="animate-fade-in-up relative z-30 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
 
                         <div class="flex flex-wrap items-center gap-2">
-                            <select id="categoryFilter" onchange="filterPayroll()"
-                                class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
-                                <option value="">All Categories</option>
-                                <option value="faculty">Faculty</option>
-                                <option value="staff">Staff</option>
-                            </select>
 
-                            <select id="employmentFilter" onchange="filterPayroll()"
-                                class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
-                                <option value="">All Employment</option>
-                                <option value="full-time">Full-time</option>
-                                <option value="part-time">Part-time</option>
-                            </select>
+                            <!-- Sort dropdown -->
+                            <div class="relative" id="sortWrap">
+                                <button onclick="toggleSortMenu()"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
+                                    <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
+                                    <span id="sortLabel">Sort by</span>
+                                    <i data-lucide="chevron-down" class="w-3 h-3 transition-transform"
+                                        id="sortChevron"></i>
+                                </button>
 
-                            <select id="sortFilter" onchange="sortPayroll()"
-                                class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
-                                <option value="saved-desc">Most Saved</option>
-                                <option value="convertible-desc">Most Convertible</option>
-                                <option value="name-asc">Name (A → Z)</option>
-                            </select>
+                                <div id="sortMenu"
+                                    class="hidden absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[100]">
+
+                                    <div class="px-3 py-2 border-b border-[#E0E0E0] bg-[#F1FDF6]/40">
+                                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">
+                                            Sort By</p>
+                                    </div>
+
+                                    <div class="py-1">
+                                        <button onclick="applySort('saved-desc')"
+                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="piggy-bank" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                            </div>
+                                            <span class="flex-1">Most Saved</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 sort-check"
+                                                data-sort="saved-desc"></i>
+                                        </button>
+                                        <button onclick="applySort('convertible-desc')"
+                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="banknote" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                            </div>
+                                            <span class="flex-1">Most Convertible</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 sort-check"
+                                                data-sort="convertible-desc"></i>
+                                        </button>
+                                    </div>
+
+                                    <div class="border-t border-[#E0E0E0] py-1">
+                                        <button onclick="applySort('name-asc')"
+                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="arrow-down-a-z" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                            </div>
+                                            <span class="flex-1">Name (A → Z)</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 sort-check"
+                                                data-sort="name-asc"></i>
+                                        </button>
+                                        <button onclick="applySort('name-desc')"
+                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="arrow-up-z-a" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                            </div>
+                                            <span class="flex-1">Name (Z → A)</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 sort-check"
+                                                data-sort="name-desc"></i>
+                                        </button>
+                                    </div>
+
+                                    <div class="border-t border-[#E0E0E0] py-1">
+                                        <button onclick="applySort('default')"
+                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50]/60 hover:bg-red-50 hover:text-red-600 transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-red-100">
+                                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                            </div>
+                                            <span class="flex-1">Reset Sort</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Employment dropdown -->
+                            <div class="relative" id="employmentWrap">
+                                <button onclick="toggleEmploymentMenu()"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
+                                    <i data-lucide="briefcase" class="w-3.5 h-3.5"></i>
+                                    <span id="employmentLabel">Employment</span>
+                                    <span id="employmentCount"
+                                        class="hidden ml-1 px-1.5 py-0.5 rounded-full bg-[#0F5E3D] text-white text-[10px] font-semibold">0</span>
+                                    <i data-lucide="chevron-down" class="w-3 h-3 transition-transform"
+                                        id="employmentChevron"></i>
+                                </button>
+
+                                <div id="employmentMenu"
+                                    class="hidden absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[100]">
+
+                                    <div
+                                        class="px-3 py-2 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 flex items-center justify-between">
+                                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">
+                                            Employment</p>
+                                        <button onclick="setEmploymentFilter('')"
+                                            class="text-[10px] font-medium text-[#0F5E3D] hover:text-[#0a4a2f] transition flex items-center gap-1">
+                                            <i data-lucide="x" class="w-3 h-3"></i>
+                                            <span>Clear</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="py-1">
+                                        <button onclick="setEmploymentFilter('')"
+                                            class="employment-option w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="list" class="w-3.5 h-3.5 text-[#2C3E50]/70"></i>
+                                            </div>
+                                            <span class="flex-1">All Employment</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 employment-check"
+                                                data-employment=""></i>
+                                        </button>
+
+                                        <button onclick="setEmploymentFilter('full-time')"
+                                            class="employment-option w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="clock" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                            </div>
+                                            <span class="flex-1">Full-time</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 employment-check"
+                                                data-employment="full-time"></i>
+                                        </button>
+
+                                        <button onclick="setEmploymentFilter('part-time')"
+                                            class="employment-option w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-amber-50 flex items-center justify-center shrink-0 group-hover:bg-amber-100">
+                                                <i data-lucide="clock-4" class="w-3.5 h-3.5 text-amber-600"></i>
+                                            </div>
+                                            <span class="flex-1">Part-time</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 employment-check"
+                                                data-employment="part-time"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Filter dropdown -->
+                            <div class="relative" id="filterWrap">
+                                <button onclick="toggleFilterMenu()"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
+                                    <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                                    <span>Filter</span>
+                                    <span id="filterCount"
+                                        class="hidden ml-1 px-1.5 py-0.5 rounded-full bg-[#0F5E3D] text-white text-[10px] font-semibold">0</span>
+                                    <i data-lucide="chevron-down" class="w-3 h-3 transition-transform"
+                                        id="filterChevron"></i>
+                                </button>
+
+                                <div id="filterMenu"
+                                    class="hidden absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[100]">
+
+                                    <div
+                                        class="px-4 py-3 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <i data-lucide="filter" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                            <p
+                                                class="text-[10px] uppercase tracking-wider text-[#2C3E50]/70 font-semibold">
+                                                Filters</p>
+                                        </div>
+                                        <button onclick="clearAllFilters()"
+                                            class="text-[10px] font-medium text-[#0F5E3D] hover:text-[#0a4a2f] transition flex items-center gap-1">
+                                            <i data-lucide="x" class="w-3 h-3"></i>
+                                            <span>Clear all</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="p-4 space-y-4">
+
+                                        <!-- Category -->
+                                        <div>
+                                            <!-- <div class="flex items-center gap-2 mb-2">
+                                                <i data-lucide="layers" class="w-3 h-3 text-[#2C3E50]/40"></i>
+                                                <label
+                                                    class="block text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Category</label>
+                                            </div> -->
+                                            <select id="filterCategory"
+                                                onchange="updateFilterSubCategories(); updateFilterYearLevels(); filterPayroll();"
+                                                class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                                                <option value="">All Categories</option>
+                                                <option value="faculty">Faculty</option>
+                                                <option value="staff">Staff</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Employment -->
+                                        <div>
+                                            <!-- <div class="flex items-center gap-2 mb-2">
+                                                <i data-lucide="briefcase" class="w-3 h-3 text-[#2C3E50]/40"></i>
+                                                <label
+                                                    class="block text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Employment</label>
+                                            </div> -->
+                                            <select id="filterEmployment" onchange="filterPayroll()"
+                                                class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                                                <option value="">All Employment</option>
+                                                <option value="full-time">Full-time</option>
+                                                <option value="part-time">Part-time</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Department / Sub-category -->
+                                        <div>
+                                            <!-- <div class="flex items-center gap-2 mb-2">
+                                                <i data-lucide="building-2" class="w-3 h-3 text-[#2C3E50]/40"></i>
+                                                <label
+                                                    class="block text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Department
+                                                    / Sub-category</label>
+                                            </div> -->
+                                            <select id="filterSubCategory"
+                                                onchange="updateFilterYearLevels(); filterPayroll();"
+                                                class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                                                <option value="">All Departments</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Year Level / Department -->
+                                        <div>
+                                            <!-- <div class="flex items-center gap-2 mb-2">
+                                                <i data-lucide="graduation-cap" class="w-3 h-3 text-[#2C3E50]/40"></i>
+                                                <label
+                                                    class="block text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Year
+                                                    Level / Department</label>
+                                            </div> -->
+                                            <select id="filterYearLevel" onchange="filterPayroll()"
+                                                class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                                                <option value="">All Year Levels</option>
+                                            </select>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
 
+                        <!-- Right: Search -->
                         <div class="flex items-center gap-2">
                             <div class="relative flex-1 sm:w-72">
                                 <i data-lucide="search"
                                     class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
-                                <input type="text" id="searchInput" oninput="filterPayroll()" placeholder="Search employee"
+                                <input type="text" id="searchInput" oninput="filterPayroll()"
+                                    placeholder="Search employee"
                                     class="w-full pl-10 pr-10 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                                 <kbd
                                     class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[#2C3E50]/40 bg-white px-1.5 py-0.5 rounded border border-[#E0E0E0]">/</kbd>
@@ -338,11 +596,13 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                 <!-- ============================================ -->
                 <!-- TABLE                                          -->
                 <!-- ============================================ -->
-                <div class="relative z-10 animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
+                <div
+                    class="relative z-10 animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <?php if (empty($rows)): ?>
                         <div class="p-12 text-center">
-                            <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                            <div
+                                class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                                 <i data-lucide="wallet" class="w-5 h-5"></i>
                             </div>
                             <p class="text-sm font-medium text-[#2C3E50]">No employees found</p>
@@ -358,9 +618,12 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Category</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Monthly</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Used</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Remaining</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Payroll Saved</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Convertible</th>
+                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Remaining
+                                        </th>
+                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Payroll Saved
+                                        </th>
+                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Convertible
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody id="payrollTableBody" class="divide-y divide-[#E0E0E0]">
@@ -368,41 +631,55 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                         $empClass = $r['employment'] === 'full-time'
                                             ? 'text-[#0F5E3D] bg-[#F1FDF6]'
                                             : 'text-slate-600 bg-slate-100';
-                                    ?>
+                                        ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-14 payroll-row"
-                                            data-name="<?= strtolower($r['name']) ?>"
-                                            data-category="<?= $r['category'] ?>"
-                                            data-employment="<?= $r['employment'] ?>"
-                                            data-saved="<?= $r['saved'] ?>"
-                                            data-convertible="<?= $r['convertible'] ?>">
+                                            data-name="<?= strtolower($fullName) ?>"
+                                            data-category="<?= $emp['category'] ?? 'staff' ?>"
+                                            data-employment="<?= $emp['employment_type'] ?? 'full-time' ?>"
+                                            data-sub="<?= htmlspecialchars(strtolower($emp['sub_category'] ?? '')) ?>"
+                                            data-year="<?= htmlspecialchars(strtolower($emp['year_level'] ?? '')) ?>"
+                                            data-saved="<?= (float) ($emp['total_saved'] ?? 0) ?>"
+                                            data-convertible="<?= (float) ($emp['convertible'] ?? 0) ?>">
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center gap-2.5">
-                                                    <div class="w-8 h-8 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
+                                                    <div
+                                                        class="w-8 h-8 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
                                                         <?= $r['initials'] ?>
                                                     </div>
                                                     <div class="min-w-0">
-                                                        <p class="text-sm font-medium text-[#2C3E50] truncate"><?= htmlspecialchars($r['name']) ?></p>
-                                                        <p class="text-[10px] text-[#2C3E50]/40 truncate"><?= htmlspecialchars($r['sub_category'] ?: $r['email']) ?></p>
+                                                        <p class="text-sm font-medium text-[#2C3E50] truncate">
+                                                            <?= htmlspecialchars($r['name']) ?>
+                                                        </p>
+                                                        <p class="text-[10px] text-[#2C3E50]/40 truncate">
+                                                            <?= htmlspecialchars($r['sub_category'] ?: $r['email']) ?>
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td class="px-4 py-0">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize text-slate-600 bg-slate-100">
+                                                <span
+                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize text-slate-600 bg-slate-100">
                                                     <?= htmlspecialchars($r['category']) ?>
                                                 </span>
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ml-1 <?= $empClass ?>">
+                                                <span
+                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ml-1 <?= $empClass ?>">
                                                     <?= htmlspecialchars($r['employment']) ?>
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-[#2C3E50]">₱<?= number_format($r['monthly'], 2) ?></span>
+                                                <span
+                                                    class="text-sm text-[#2C3E50]">₱<?= number_format($r['monthly'], 2) ?></span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['used'], 2) ?></span>
-                                                <p class="text-[10px] text-[#2C3E50]/40">of <?= number_format($r['allocated'], 2) ?></p>
+                                                <span
+                                                    class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['used'], 2) ?></span>
+                                                <p class="text-[10px] text-[#2C3E50]/40">of
+                                                    <?= number_format($r['allocated'], 2) ?>
+                                                </p>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['remaining'], 2) ?></span>
+                                                <span
+                                                    class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['remaining'], 2) ?></span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm font-bold text-[#0F5E3D]">
@@ -422,23 +699,28 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                 <tfoot class="border-t-2 border-[#E0E0E0] bg-[#F1FDF6]/40">
                                     <tr class="h-14">
                                         <td class="px-4 py-0">
-                                            <span class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total</span>
+                                            <span
+                                                class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total</span>
                                         </td>
                                         <td class="px-4 py-0"></td>
                                         <td class="px-4 py-0 text-right">
                                             <span class="text-xs text-[#2C3E50]/50">—</span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-[#2C3E50]"><?= number_format($totalUsedDays, 2) ?></span>
+                                            <span
+                                                class="text-sm font-bold text-[#2C3E50]"><?= number_format($totalUsedDays, 2) ?></span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-[#2C3E50]"><?= number_format($totalRemaining, 2) ?></span>
+                                            <span
+                                                class="text-sm font-bold text-[#2C3E50]"><?= number_format($totalRemaining, 2) ?></span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-[#0F5E3D]">₱<?= number_format($totalSaved, 2) ?></span>
+                                            <span
+                                                class="text-sm font-bold text-[#0F5E3D]">₱<?= number_format($totalSaved, 2) ?></span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-amber-600">₱<?= number_format($totalConvertible, 2) ?></span>
+                                            <span
+                                                class="text-sm font-bold text-amber-600">₱<?= number_format($totalConvertible, 2) ?></span>
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -449,19 +731,21 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                         <div id="payrollMobileCards" class="md:hidden divide-y divide-[#E0E0E0]">
                             <?php foreach ($rows as $r): ?>
                                 <div class="p-4 hover:bg-[#F1FDF6]/40 transition payroll-row"
-                                    data-name="<?= strtolower($r['name']) ?>"
-                                    data-category="<?= $r['category'] ?>"
-                                    data-employment="<?= $r['employment'] ?>"
-                                    data-saved="<?= $r['saved'] ?>"
+                                    data-name="<?= strtolower($r['name']) ?>" data-category="<?= $r['category'] ?>"
+                                    data-employment="<?= $r['employment'] ?>" data-saved="<?= $r['saved'] ?>"
                                     data-convertible="<?= $r['convertible'] ?>">
                                     <div class="flex items-start gap-3 mb-3">
-                                        <div class="w-9 h-9 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xs shrink-0">
+                                        <div
+                                            class="w-9 h-9 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xs shrink-0">
                                             <?= $r['initials'] ?>
                                         </div>
                                         <div class="flex-1 min-w-0">
-                                            <p class="text-sm font-medium text-[#2C3E50] truncate"><?= htmlspecialchars($r['name']) ?></p>
+                                            <p class="text-sm font-medium text-[#2C3E50] truncate">
+                                                <?= htmlspecialchars($r['name']) ?>
+                                            </p>
                                             <p class="text-[10px] text-[#2C3E50]/40 truncate">
-                                                <?= htmlspecialchars(ucfirst($r['category'])) ?> · <?= htmlspecialchars(ucfirst($r['employment'])) ?>
+                                                <?= htmlspecialchars(ucfirst($r['category'])) ?> ·
+                                                <?= htmlspecialchars(ucfirst($r['employment'])) ?>
                                             </p>
                                         </div>
                                     </div>
@@ -471,7 +755,8 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                             <p class="text-[#2C3E50] font-medium">₱<?= number_format($r['monthly'], 2) ?></p>
                                         </div>
                                         <div>
-                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Used / Remaining</p>
+                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Used /
+                                                Remaining</p>
                                             <p class="text-[#2C3E50] font-medium">
                                                 <span><?= number_format($r['used'], 2) ?></span>
                                                 <span class="text-[#2C3E50]/40"> / </span>
@@ -479,11 +764,13 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                             </p>
                                         </div>
                                         <div>
-                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Payroll Saved</p>
+                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Payroll
+                                                Saved</p>
                                             <p class="text-[#0F5E3D] font-bold">₱<?= number_format($r['saved'], 2) ?></p>
                                         </div>
                                         <div>
-                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Convertible</p>
+                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Convertible
+                                            </p>
                                             <p class="text-amber-600 font-bold">₱<?= number_format($r['convertible'], 2) ?></p>
                                         </div>
                                     </div>
@@ -494,7 +781,8 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                     <?php endif; ?>
 
                     <div id="emptyState" class="hidden p-12 text-center">
-                        <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                        <div
+                            class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
                         <p class="text-sm font-medium text-[#2C3E50]">No employees found</p>
@@ -503,7 +791,8 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
 
                     <div class="px-4 sm:px-6 py-3 border-t border-[#E0E0E0]">
                         <p class="text-xs text-[#2C3E50]/50">
-                            Showing <span class="font-medium text-[#2C3E50]"><?= $totalEmployees ?></span> employee<?= $totalEmployees === 1 ? '' : 's' ?>
+                            Showing <span class="font-medium text-[#2C3E50]"><?= $totalEmployees ?></span>
+                            employee<?= $totalEmployees === 1 ? '' : 's' ?>
                         </p>
                     </div>
                 </div>
@@ -515,229 +804,23 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
     <?php require_once __DIR__ . '/../components/logout_modal.php'; ?>
 
     <script>
-    window.PAYROLL_CHART_DATA = {
-        dept: {
-            labels: <?= json_encode($deptLabels) ?>,
-            values: <?= json_encode($deptValues) ?>
-        },
-        category: {
-            faculty: <?= (float) $convertibleByCat['faculty'] ?>,
-            staff:   <?= (float) $convertibleByCat['staff'] ?>
-        }
-    };
+        window.PAYROLL_CHART_DATA = {
+            dept: {
+                labels: <?= json_encode($deptLabels) ?>,
+                values: <?= json_encode($deptValues) ?>
+            },
+            category: {
+                faculty: <?= (float) $convertibleByCat['faculty'] ?>,
+                staff: <?= (float) $convertibleByCat['staff'] ?>
+            }
+        };
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="/assets/js/app.js"></script>
     <script src="/assets/js/notifications.js"></script>
     <script src="/assets/js/profile.js"></script>
-    <script>
-        // ============================================
-        // Filter + sort
-        // ============================================
-        function filterPayroll() {
-            const search     = (document.getElementById('searchInput')?.value || '').toLowerCase();
-            const category   = document.getElementById('categoryFilter')?.value || '';
-            const employment = document.getElementById('employmentFilter')?.value || '';
-
-            const rows = document.querySelectorAll('.payroll-row');
-            let visible = 0;
-
-            rows.forEach(row => {
-                const name = row.dataset.name || '';
-                const cat  = row.dataset.category || '';
-                const emp  = row.dataset.employment || '';
-
-                const matches = (!search || name.includes(search))
-                             && (!category || cat === category)
-                             && (!employment || emp === employment);
-
-                row.classList.toggle('hidden', !matches);
-                if (matches) visible++;
-            });
-
-            document.getElementById('emptyState').classList.toggle('hidden', visible > 0);
-        }
-
-        function sortPayroll() {
-            const mode = document.getElementById('sortFilter')?.value || 'saved-desc';
-
-            const tbody = document.getElementById('payrollTableBody');
-            const mobileWrap = document.getElementById('payrollMobileCards');
-
-            const cmp = (a, b) => {
-                if (mode === 'name-asc') {
-                    return (a.dataset.name || '').localeCompare(b.dataset.name || '');
-                }
-                if (mode === 'convertible-desc') {
-                    return parseFloat(b.dataset.convertible || 0) - parseFloat(a.dataset.convertible || 0);
-                }
-                // default: saved-desc
-                return parseFloat(b.dataset.saved || 0) - parseFloat(a.dataset.saved || 0);
-            };
-
-            if (tbody) {
-                const rows = Array.from(tbody.querySelectorAll('tr.payroll-row'));
-                rows.sort(cmp);
-                rows.forEach(r => tbody.appendChild(r));
-            }
-
-            if (mobileWrap) {
-                const cards = Array.from(mobileWrap.querySelectorAll('div.payroll-row'));
-                cards.sort(cmp);
-                cards.forEach(c => mobileWrap.appendChild(c));
-            }
-        }
-
-        document.addEventListener('keydown', function (e) {
-            if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-                e.preventDefault();
-                document.getElementById('searchInput')?.focus();
-            }
-        });
-
-        // ============================================
-        // Charts
-        // ============================================
-        document.addEventListener('DOMContentLoaded', () => {
-            if (typeof initIcons === 'function') initIcons();
-            if (typeof Chart === 'undefined') return;
-
-            const data = window.PAYROLL_CHART_DATA || {};
-            const COLORS = {
-                green:     '#0F5E3D',
-                amber:     '#f59e0b',
-                slate:     '#64748b',
-                text:      '#2C3E50',
-                textMuted: 'rgba(44, 62, 80, 0.5)',
-                divider:   '#E0E0E0',
-            };
-
-            Chart.defaults.font.family = "'Inter', sans-serif";
-            Chart.defaults.font.size = 11;
-            Chart.defaults.color = COLORS.textMuted;
-
-            const pesoFmt = (v) => '₱' + Number(v).toLocaleString('en-PH', {
-                minimumFractionDigits: 2, maximumFractionDigits: 2
-            });
-
-            // Bar: saved by department
-            const deptCanvas = document.getElementById('deptChart');
-            if (deptCanvas && data.dept) {
-                new Chart(deptCanvas.getContext('2d'), {
-                    type: 'bar',
-                    data: {
-                        labels: data.dept.labels,
-                        datasets: [{
-                            data: data.dept.values,
-                            backgroundColor: COLORS.green,
-                            borderRadius: 6,
-                            borderSkipped: false,
-                            barThickness: 22,
-                        }]
-                    },
-                    options: {
-                        indexAxis: 'y',
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: COLORS.text,
-                                titleColor: '#fff',
-                                bodyColor: '#fff',
-                                padding: 8,
-                                cornerRadius: 8,
-                                displayColors: false,
-                                callbacks: { label: (ctx) => pesoFmt(ctx.parsed.x) }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                beginAtZero: true,
-                                grid: { color: COLORS.divider },
-                                border: { display: false },
-                                ticks: {
-                                    color: COLORS.textMuted,
-                                    font: { size: 10 },
-                                    callback: (v) => '₱' + Number(v).toLocaleString('en-PH'),
-                                }
-                            },
-                            y: {
-                                grid: { display: false },
-                                border: { display: false },
-                                ticks: { color: COLORS.text, font: { size: 11, weight: '500' } }
-                            }
-                        }
-                    }
-                });
-            }
-
-            // Donut: convertible by category
-            const catCanvas = document.getElementById('catChart');
-            if (catCanvas && data.category) {
-                const faculty = data.category.faculty || 0;
-                const staff   = data.category.staff || 0;
-                const total   = faculty + staff;
-
-                new Chart(catCanvas.getContext('2d'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Faculty', 'Staff'],
-                        datasets: [{
-                            data: [faculty, staff],
-                            backgroundColor: [COLORS.green, COLORS.slate],
-                            borderColor: '#ffffff',
-                            borderWidth: 3,
-                            hoverOffset: 4,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '68%',
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: COLORS.text,
-                                titleColor: '#fff',
-                                bodyColor: '#fff',
-                                padding: 8,
-                                cornerRadius: 8,
-                                displayColors: false,
-                                callbacks: {
-                                    label: (ctx) => {
-                                        const v = ctx.parsed || 0;
-                                        const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-                                        return `₱${Number(v).toLocaleString('en-PH')} (${pct}%)`;
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    plugins: [{
-                        id: 'centerText',
-                        afterDraw(chart) {
-                            const { ctx, chartArea } = chart;
-                            const cx = (chartArea.left + chartArea.right) / 2;
-                            const cy = (chartArea.top + chartArea.bottom) / 2;
-
-                            ctx.save();
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillStyle = COLORS.text;
-                            ctx.font = 'bold 13px Inter, sans-serif';
-                            ctx.fillText('₱' + Math.round(total).toLocaleString('en-PH'), cx, cy - 4);
-                            ctx.fillStyle = COLORS.textMuted;
-                            ctx.font = '9px Inter, sans-serif';
-                            ctx.fillText('total', cx, cy + 12);
-                            ctx.restore();
-                        }
-                    }]
-                });
-            }
-        });
-    </script>
+    <script src="/assets/js/payroll.js"></script>
 </body>
 
 </html>

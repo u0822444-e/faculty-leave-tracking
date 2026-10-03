@@ -103,6 +103,12 @@ if ($uri === '/api/profile') {
     exit;
 }
 
+// Profile avatar upload
+if ($uri === '/api/avatar') {
+    require __DIR__ . '/../app/controllers/AvatarController.php';
+    exit;
+}
+
 // Settings
 if ($uri === '/settings') {
     require __DIR__ . '/../views/pages/settings.php';
@@ -206,6 +212,11 @@ if ($uri === '/staff/leaves') {
 // Staff profile reuses the faculty profile page
 if ($uri === '/staff/profile') {
     require __DIR__ . '/../views/pages/faculty_profile.php';
+    exit;
+}
+
+if ($uri === '/faculty-leaves') {
+    require __DIR__ . '/../views/pages/leave_monitoring.php';
     exit;
 }
 

@@ -15,8 +15,9 @@ $stmt = $pdo->query("
     SELECT 
         u.id AS user_id, u.username, u.role, u.status,
         e.first_name, e.middle_name, e.last_name, e.email,
-        e.category, e.sub_category, e.employment_type,
-        e.basic_salary, e.leave_credits, e.position, u.created_at
+        e.category, e.sub_category, e.year_level, e.position,
+        e.employment_type, e.basic_salary, e.leave_credits,
+        u.created_at
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     ORDER BY u.id DESC
@@ -243,7 +244,7 @@ $roleLabels = [
                                 </div>
                             </div>
 
-                            <!-- Filter dropdown -->
+                            <!-- Filter dropdown (Role / Category / Sub-category / Year level) -->
                             <div class="relative" id="filterWrap">
                                 <button onclick="toggleFilterMenu()"
                                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
@@ -277,11 +278,6 @@ $roleLabels = [
 
                                         <!-- Role filter -->
                                         <div>
-                                            <div class="flex items-center gap-2 mb-2">
-                                                <i data-lucide="shield" class="w-3 h-3 text-[#2C3E50]/40"></i>
-                                                <label
-                                                    class="block text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Role</label>
-                                            </div>
                                             <select id="filterRole" onchange="applyFilters()"
                                                 class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                                 <option value="">All Roles</option>
@@ -294,12 +290,8 @@ $roleLabels = [
 
                                         <!-- Category filter -->
                                         <div>
-                                            <div class="flex items-center gap-2 mb-2">
-                                                <i data-lucide="layers" class="w-3 h-3 text-[#2C3E50]/40"></i>
-                                                <label
-                                                    class="block text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Category</label>
-                                            </div>
-                                            <select id="filterCategory" onchange="applyFilters()"
+                                            <select id="filterCategory"
+                                                onchange="applyFilters(); updateFilterSubCategories(); updateFilterYearLevels();"
                                                 class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                                 <option value="">All Categories</option>
                                                 <option value="faculty">Faculty</option>
@@ -307,26 +299,89 @@ $roleLabels = [
                                             </select>
                                         </div>
 
-                                        <!-- Status filter -->
+                                        <!-- Sub-category / Department filter -->
                                         <div>
-                                            <div class="flex items-center gap-2 mb-2">
-                                                <i data-lucide="activity" class="w-3 h-3 text-[#2C3E50]/40"></i>
-                                                <label
-                                                    class="block text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Status</label>
-                                            </div>
-                                            <div class="grid grid-cols-3 gap-1.5 p-1 bg-[#F1FDF6] rounded-lg">
-                                                <button type="button" onclick="setStatusFilter('')" data-status-btn=""
-                                                    class="status-btn px-2 py-1.5 rounded-md text-[11px] font-medium transition text-[#2C3E50]/70 hover:text-[#2C3E50]">All</button>
-                                                <button type="button" onclick="setStatusFilter('active')"
-                                                    data-status-btn="active"
-                                                    class="status-btn px-2 py-1.5 rounded-md text-[11px] font-medium transition text-[#2C3E50]/70 hover:text-[#2C3E50]">Active</button>
-                                                <button type="button" onclick="setStatusFilter('inactive')"
-                                                    data-status-btn="inactive"
-                                                    class="status-btn px-2 py-1.5 rounded-md text-[11px] font-medium transition text-[#2C3E50]/70 hover:text-[#2C3E50]">Archived</button>
-                                            </div>
-                                            <input type="hidden" id="filterStatus" value="">
+                                            <select id="filterSubCategory"
+                                                onchange="applyFilters(); updateFilterYearLevels();"
+                                                class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                                                <option value="">All Departments</option>
+                                            </select>
                                         </div>
 
+                                        <!-- Year Level / Department filter -->
+                                        <div>
+                                            <select id="filterYearLevel" onchange="applyFilters()"
+                                                class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-xs text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                                                <option value="">All Year Levels</option>
+                                            </select>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Status dropdown -->
+                            <div class="relative" id="statusWrap">
+                                <button onclick="toggleStatusMenu()"
+                                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
+                                    <i data-lucide="activity" class="w-3.5 h-3.5"></i>
+                                    <span id="statusLabel">Status</span>
+                                    <span id="statusCount"
+                                        class="hidden ml-1 px-1.5 py-0.5 rounded-full bg-[#0F5E3D] text-white text-[10px] font-semibold">0</span>
+                                    <i data-lucide="chevron-down" class="w-3 h-3 transition-transform"
+                                        id="statusChevron"></i>
+                                </button>
+
+                                <div id="statusMenu"
+                                    class="hidden absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[100]">
+
+                                    <div
+                                        class="px-3 py-2 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 flex items-center justify-between">
+                                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">
+                                            Status</p>
+                                        <button onclick="setStatusFilter('')"
+                                            class="text-[10px] font-medium text-[#0F5E3D] hover:text-[#0a4a2f] transition flex items-center gap-1">
+                                            <i data-lucide="x" class="w-3 h-3"></i>
+                                            <span>Clear</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="py-1">
+                                        <button onclick="setStatusFilter('')" data-status-option=""
+                                            class="status-option w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="list" class="w-3.5 h-3.5 text-[#2C3E50]/70"></i>
+                                            </div>
+                                            <span class="flex-1">All Statuses</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 status-check"
+                                                data-status=""></i>
+                                        </button>
+
+                                        <button onclick="setStatusFilter('active')" data-status-option="active"
+                                            class="status-option w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
+                                                <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                            </div>
+                                            <span class="flex-1">Active</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 status-check"
+                                                data-status="active"></i>
+                                        </button>
+
+                                        <button onclick="setStatusFilter('inactive')" data-status-option="inactive"
+                                            class="status-option w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left group">
+                                            <div
+                                                class="w-6 h-6 rounded-md bg-amber-50 flex items-center justify-center shrink-0 group-hover:bg-amber-100">
+                                                <i data-lucide="archive" class="w-3.5 h-3.5 text-amber-600"></i>
+                                            </div>
+                                            <span class="flex-1">Archived</span>
+                                            <i data-lucide="check"
+                                                class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 status-check"
+                                                data-status="inactive"></i>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -366,8 +421,10 @@ $roleLabels = [
                         <div class="grid-card group bg-white border border-[#E0E0E0] rounded-xl p-4 hover:shadow-md hover:border-[#0F5E3D]/20 transition"
                             data-id="<?= $u['user_id'] ?>" data-name="<?= strtolower($fullName) ?>"
                             data-username="<?= strtolower($u['username']) ?>" data-role="<?= $u['role'] ?>"
-                            data-category="<?= $u['category'] ?? 'staff' ?>" data-status="<?= $u['status'] ?? 'active' ?>"
-                            data-created="<?= strtotime($u['created_at']) ?>">
+                            data-category="<?= $u['category'] ?? 'staff' ?>"
+                            data-sub="<?= htmlspecialchars(strtolower($u['sub_category'] ?? '')) ?>"
+                            data-year="<?= htmlspecialchars(strtolower($u['year_level'] ?? '')) ?>"
+                            data-status="<?= $u['status'] ?? 'active' ?>" data-created="<?= strtotime($u['created_at']) ?>">
 
                             <div class="flex items-center justify-between mb-3">
                                 <input type="checkbox"
@@ -410,6 +467,7 @@ $roleLabels = [
                                     "role" => $u["role"],
                                     "category" => $u["category"] ?? "staff",
                                     "sub" => $u["sub_category"] ?? "",
+                                    "year_level" => $u["year_level"] ?? "",
                                     "position" => $u["position"] ?? "",
                                     "emp" => $u["employment_type"] ?? "full-time",
                                     "salary" => $u["basic_salary"] ?? 0,
@@ -477,6 +535,8 @@ $roleLabels = [
                                             data-name="<?= strtolower($fullName) ?>"
                                             data-username="<?= strtolower($u['username']) ?>" data-role="<?= $u['role'] ?>"
                                             data-category="<?= $u['category'] ?? 'staff' ?>"
+                                            data-sub="<?= htmlspecialchars(strtolower($u['sub_category'] ?? '')) ?>"
+                                            data-year="<?= htmlspecialchars(strtolower($u['year_level'] ?? '')) ?>"
                                             data-status="<?= $u['status'] ?? 'active' ?>"
                                             data-created="<?= strtotime($u['created_at']) ?>">
                                             <td class="px-4 py-0">
@@ -519,6 +579,8 @@ $roleLabels = [
                                                         "role" => $u["role"],
                                                         "category" => $u["category"] ?? "staff",
                                                         "sub" => $u["sub_category"] ?? "",
+                                                        "year_level" => $u["year_level"] ?? "",
+                                                        "position" => $u["position"] ?? "",
                                                         "emp" => $u["employment_type"] ?? "full-time",
                                                         "salary" => $u["basic_salary"] ?? 0,
                                                         "credits" => $u["leave_credits"] ?? 0,
@@ -562,6 +624,8 @@ $roleLabels = [
                             <div class="p-4 hover:bg-[#F1FDF6]/40 transition" data-id="<?= $u['user_id'] ?>"
                                 data-name="<?= strtolower($fullName) ?>" data-username="<?= strtolower($u['username']) ?>"
                                 data-role="<?= $u['role'] ?>" data-category="<?= $u['category'] ?? 'staff' ?>"
+                                data-sub="<?= htmlspecialchars(strtolower($u['sub_category'] ?? '')) ?>"
+                                data-year="<?= htmlspecialchars(strtolower($u['year_level'] ?? '')) ?>"
                                 data-status="<?= $u['status'] ?? 'active' ?>"
                                 data-created="<?= strtotime($u['created_at']) ?>">
                                 <div class="flex items-start gap-3">
@@ -599,6 +663,8 @@ $roleLabels = [
                                                     "role" => $u["role"],
                                                     "category" => $u["category"] ?? "staff",
                                                     "sub" => $u["sub_category"] ?? "",
+                                                    "year_level" => $u["year_level"] ?? "",
+                                                    "position" => $u["position"] ?? "",
                                                     "emp" => $u["employment_type"] ?? "full-time",
                                                     "salary" => $u["basic_salary"] ?? 0,
                                                     "credits" => $u["leave_credits"] ?? 0,
@@ -781,7 +847,9 @@ $roleLabels = [
                     <!-- Sub-category / Department -->
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Sub-category / Department</label>
-                        <select name="sub_category" id="addSubCategory" onchange="updateYearLevelOrDepartment('add')" disabled
+                        <select name="sub_category" id="addSubCategory"
+                            onchange="updateYearLevelOrDepartment('add'); populatePositionDropdown('addPosition', null, this.value)"
+                            disabled
                             class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer disabled:bg-gray-50 disabled:cursor-not-allowed">
                             <option value="">Select a category first</option>
                         </select>
@@ -796,14 +864,14 @@ $roleLabels = [
                         </select>
                     </div>
 
-                    <!-- Position / Designation (NEW) -->
+                    <!-- Position / Designation (REQUIRED) -->
                     <div>
-                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">
-                            Position / Designation <span class="text-[#2C3E50]/40">(optional)</span>
-                        </label>
-                        <input type="text" name="position" id="addPosition"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
-                            placeholder="e.g. Teacher, Head of Department, Registrar">
+                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Position / Designation *</label>
+                        <select name="position" id="addPosition" required
+                            class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                            <option value="">Select position</option>
+                            <!-- Populated by JS -->
+                        </select>
                     </div>
 
                     <!-- Employment / Salary / Credits -->
@@ -962,7 +1030,8 @@ $roleLabels = [
 
                 <div>
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Sub-category / Department</label>
-                    <select name="sub_category" id="editSub" onchange="updateYearLevelOrDepartment('edit')"
+                    <select name="sub_category" id="editSub"
+                        onchange="updateYearLevelOrDepartment('edit'); populatePositionDropdown('editPosition', null, this.value)"
                         class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer disabled:bg-gray-50 disabled:cursor-not-allowed">
                         <option value="">Select a category first</option>
                     </select>
@@ -977,16 +1046,15 @@ $roleLabels = [
                     </select>
                 </div>
 
-                <!-- Position / Designation (NEW) -->
+                <!-- Position / Designation (REQUIRED) -->
                 <div>
-                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">
-                        Position / Designation <span class="text-[#2C3E50]/40">(optional)</span>
-                    </label>
-                    <input type="text" name="position" id="editPosition"
-                        class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
-                        placeholder="e.g. Teacher, Head of Department, Registrar">
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Position / Designation *</label>
+                    <select name="position" id="editPosition" required
+                        class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                        <option value="">Select position</option>
+                        <!-- Populated by JS -->
+                    </select>
                 </div>
-
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Employment</label>

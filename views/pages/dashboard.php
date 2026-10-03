@@ -231,9 +231,9 @@ function timeAgo($timestamp)
                                     <span class="text-3xl sm:text-4xl font-bold text-amber-600">
                                         <?= (int) $leaveStats['pending'] ?>
                                     </span>
-                                    <span class="text-sm text-[#2C3E50]/50">
+                                    <!-- <span class="text-sm text-[#2C3E50]/50">
                                         request<?= ((int) $leaveStats['pending'] === 1) ? '' : 's' ?> awaiting decision
-                                    </span>
+                                    </span> -->
                                 </div>
                             </div>
                             <div

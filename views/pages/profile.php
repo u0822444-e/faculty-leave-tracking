@@ -11,10 +11,10 @@ $userId = (int) $_SESSION['user_id'];
 // Fetch current user's data
 $stmt = $pdo->prepare("
     SELECT 
-        u.id, u.username, u.role, u.status, u.employee_id,
+        u.id, u.username, u.role, u.status, u.avatar, u.employee_id,
         e.first_name, e.middle_name, e.last_name, e.email,
-        e.category, e.sub_category, e.employment_type,
-        e.basic_salary, e.leave_credits, u.created_at
+        e.category, e.sub_category, e.year_level, e.position,
+        e.employment_type, e.basic_salary, e.leave_credits, u.created_at
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.id = ?
@@ -27,6 +27,10 @@ if (!$me) {
     header('Location: /login');
     exit;
 }
+
+$avatarUrl = !empty($me['avatar'])
+    ? '/uploads/avatars/' . htmlspecialchars($me['avatar'])
+    : null;
 
 $fullName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? '')) ?: $me['username'];
 $initials = strtoupper(substr($me['first_name'] ?? $me['username'], 0, 1) . substr($me['last_name'] ?? '', 0, 1));
@@ -52,24 +56,24 @@ if ($employeeId > 0) {
 }
 
 $statusStyles = [
-    'pending'   => 'text-amber-700 bg-amber-50',
-    'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'rejected'  => 'text-red-700 bg-red-50',
+    'pending' => 'text-amber-700 bg-amber-50',
+    'approved' => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'rejected' => 'text-red-700 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
 ];
 $statusLabels = [
-    'pending'   => 'Pending',
-    'approved'  => 'Approved',
-    'rejected'  => 'Rejected',
+    'pending' => 'Pending',
+    'approved' => 'Approved',
+    'rejected' => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
 $leaveTypes = [
-    'vacation'  => 'Vacation',
-    'sick'      => 'Sick',
+    'vacation' => 'Vacation',
+    'sick' => 'Sick',
     'maternity' => 'Maternity',
     'paternity' => 'Paternity',
-    'terminal'  => 'Terminal',
-    'other'     => 'Other',
+    'terminal' => 'Terminal',
+    'other' => 'Other',
 ];
 
 $pageTitle = 'My Profile';
@@ -94,6 +98,7 @@ $activePage = 'profile';
             color: #6b7280;
             transition: color .15s ease;
         }
+
         .pw-req .req-dot {
             display: inline-block;
             width: 8px;
@@ -103,10 +108,12 @@ $activePage = 'profile';
             transition: background-color .15s ease, box-shadow .15s ease;
             flex-shrink: 0;
         }
+
         .pw-req.is-ok {
             color: #0F5E3D;
             font-weight: 500;
         }
+
         .pw-req.is-ok .req-dot {
             background-color: #0F5E3D;
             box-shadow: 0 0 0 3px rgba(15, 94, 61, 0.15);
@@ -132,17 +139,51 @@ $activePage = 'profile';
             <main class="p-4 sm:p-6 lg:p-8">
 
                 <!-- Profile header card -->
-                <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl px-5 py-3 shadow-sm mb-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-sm shrink-0">
-                            <?= $initials ?>
+                <div
+                    class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl px-5 py-4 shadow-sm mb-4">
+                    <div class="flex items-center gap-4">
+
+                        <!-- Avatar with upload overlay -->
+                        <div class="relative group shrink-0">
+                            <div
+                                class="w-16 h-16 rounded-full overflow-hidden ring-4 ring-[#F1FDF6] bg-[#0F5E3D] flex items-center justify-center">
+                                <?php if ($avatarUrl): ?>
+                                    <img id="profileAvatarImg" src="<?= $avatarUrl ?>" alt="Avatar"
+                                        class="w-full h-full object-cover">
+                                <?php else: ?>
+                                    <span id="profileAvatarInitials"
+                                        class="text-white font-bold text-lg"><?= $initials ?></span>
+                                <?php endif; ?>
+                            </div>
+
+                            <!-- Hover overlay with camera icon -->
+                            <button type="button" onclick="document.getElementById('avatarInput').click()"
+                                class="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white cursor-pointer"
+                                title="Change profile picture">
+                                <i data-lucide="camera" class="w-5 h-5"></i>
+                            </button>
+
+                            <!-- Hidden file input -->
+                            <input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp,image/gif"
+                                class="hidden" onchange="handleAvatarUpload(this)">
+
+                            <!-- Remove button (only if avatar exists) -->
+                            <?php if ($avatarUrl): ?>
+                                <button type="button" onclick="removeAvatar()"
+                                    class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md transition"
+                                    title="Remove profile picture">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
+                            <?php endif; ?>
                         </div>
+
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h2 class="text-sm font-bold text-[#2C3E50] truncate">
                                     <?= htmlspecialchars($fullName) ?>
                                 </h2>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-[#0F5E3D] bg-[#F1FDF6]">
+                                <span
+                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-[#0F5E3D] bg-[#F1FDF6]">
                                     <?= ucfirst($me['role']) ?>
                                 </span>
                             </div>
@@ -151,12 +192,18 @@ $activePage = 'profile';
                                 <span class="text-[#2C3E50]/30 mx-1">·</span>
                                 Joined <?= date('M Y', strtotime($me['created_at'])) ?>
                             </p>
+                            <button type="button" onclick="document.getElementById('avatarInput').click()"
+                                class="mt-1.5 text-[11px] font-medium text-[#0F5E3D] hover:text-[#0a4a2f] transition flex items-center gap-1">
+                                <i data-lucide="upload" class="w-3 h-3"></i>
+                                <span>Upload profile picture</span>
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Tabs -->
-                <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
+                <div
+                    class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <div class="border-b border-[#E0E0E0] flex overflow-x-auto">
                         <button onclick="switchProfileTab('info')" id="tabInfo"
@@ -179,17 +226,20 @@ $activePage = 'profile';
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
 
                                 <div class="space-y-4">
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Personal Details</p>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Personal Details
+                                    </p>
 
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50] mb-1">First Name *</label>
+                                            <label class="block text-xs font-medium text-[#2C3E50] mb-1">First Name
+                                                *</label>
                                             <input type="text" name="first_name" id="profFirstName"
                                                 value="<?= htmlspecialchars($me['first_name'] ?? '') ?>"
                                                 class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
                                         </div>
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50] mb-1">Last Name *</label>
+                                            <label class="block text-xs font-medium text-[#2C3E50] mb-1">Last Name
+                                                *</label>
                                             <input type="text" name="last_name" id="profLastName"
                                                 value="<?= htmlspecialchars($me['last_name'] ?? '') ?>"
                                                 class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
@@ -224,11 +274,13 @@ $activePage = 'profile';
 
                                 <div class="space-y-4 lg:border-l lg:border-[#E0E0E0] lg:pl-6">
 
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Account Information</p>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Account
+                                        Information</p>
 
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Username</label>
+                                            <label
+                                                class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Username</label>
                                             <input type="text" value="<?= htmlspecialchars($me['username']) ?>" readonly
                                                 class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 font-mono cursor-not-allowed">
                                         </div>
@@ -239,32 +291,73 @@ $activePage = 'profile';
                                         </div>
                                     </div>
 
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 pt-1">Employment Details</p>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 pt-1">Employment
+                                        Details</p>
 
+                                    <!-- Row 1: Category + Department -->
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Department</label>
-                                            <input type="text" value="<?= htmlspecialchars($me['sub_category'] ?? '—') ?>" readonly
+                                            <label
+                                                class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Category</label>
+                                            <input type="text"
+                                                value="<?= htmlspecialchars(ucfirst($me['category'] ?? '—')) ?>"
+                                                readonly
                                                 class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Employment</label>
-                                            <input type="text" value="<?= ucfirst($me['employment_type'] ?? '—') ?>" readonly
+                                            <label
+                                                class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Department</label>
+                                            <input type="text"
+                                                value="<?= htmlspecialchars($me['sub_category'] ?? '—') ?>" readonly
                                                 class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                     </div>
 
+                                    <!-- Row 2: Year Level / Position -->
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Leave Credits</label>
-                                            <input type="text" value="<?= number_format((float) ($me['leave_credits'] ?? 0), 2) ?>" readonly
-                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Year Level /
+                                                Dept.</label>
+                                            <input type="text" value="<?= htmlspecialchars($me['year_level'] ?? '—') ?>"
+                                                readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Monthly Salary</label>
-                                            <input type="text" value="₱<?= number_format((float) ($me['basic_salary'] ?? 0), 2) ?>" readonly
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Position /
+                                                Designation</label>
+                                            <input type="text" value="<?= htmlspecialchars($me['position'] ?? '—') ?>"
+                                                readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                        </div>
+                                    </div>
+
+                                    <!-- Row 3: Employment + Leave Credits -->
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Employment
+                                                Type</label>
+                                            <input type="text" value="<?= ucfirst($me['employment_type'] ?? '—') ?>"
+                                                readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Leave
+                                                Credits</label>
+                                            <input type="text"
+                                                value="<?= number_format((float) ($me['leave_credits'] ?? 0), 0) ?>"
+                                                readonly
                                                 class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
                                         </div>
+                                    </div>
+
+                                    <!-- Row 4: Monthly Salary (full width) -->
+                                    <div>
+                                        <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Monthly
+                                            Salary</label>
+                                        <input type="text"
+                                            value="₱<?= number_format((float) ($me['basic_salary'] ?? 0), 2) ?>"
+                                            readonly
+                                            class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
                                     </div>
 
                                 </div>
@@ -279,8 +372,10 @@ $activePage = 'profile';
                         <!-- Toolbar -->
                         <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between mb-4">
                             <div class="relative flex-1 sm:max-w-sm">
-                                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
-                                <input type="text" id="leaveSearchInput" oninput="filterProfileLeaves()" placeholder="Search leaves"
+                                <i data-lucide="search"
+                                    class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
+                                <input type="text" id="leaveSearchInput" oninput="filterProfileLeaves()"
+                                    placeholder="Search leaves"
                                     class="w-full pl-10 pr-4 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                             </div>
                             <div class="flex items-center gap-2">
@@ -312,32 +407,44 @@ $activePage = 'profile';
                                     <?php if (empty($myLeaves)): ?>
                                         <tr>
                                             <td colspan="6" class="text-center text-sm text-[#2C3E50]/50 py-12">
-                                                <i data-lucide="calendar-x" class="w-6 h-6 mx-auto mb-2 text-[#2C3E50]/30"></i>
+                                                <i data-lucide="calendar-x"
+                                                    class="w-6 h-6 mx-auto mb-2 text-[#2C3E50]/30"></i>
                                                 No leave requests yet.
                                             </td>
                                         </tr>
-                                    <?php else: foreach ($myLeaves as $l):
-                                        $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
-                                        $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                                        $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
-                                    ?>
-                                        <tr class="hover:bg-[#F1FDF6]/40 transition h-12 profile-leave-row"
-                                            data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>"
-                                            data-status="<?= $l['status'] ?>">
-                                            <td class="px-4">
-                                                <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
-                                            </td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= number_format((float) $l['days_count'], 2) ?></td>
-                                            <td class="px-4">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
-                                                    <?= $sLabel ?>
-                                                </span>
-                                            </td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/50"><?= date('M j, Y', strtotime($l['created_at'])) ?></td>
-                                        </tr>
-                                    <?php endforeach; endif; ?>
+                                    <?php else:
+                                        foreach ($myLeaves as $l):
+                                            $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
+                                            $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
+                                            $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                            ?>
+                                            <tr class="hover:bg-[#F1FDF6]/40 transition h-12 profile-leave-row"
+                                                data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>"
+                                                data-status="<?= $l['status'] ?>">
+                                                <td class="px-4">
+                                                    <span
+                                                        class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
+                                                </td>
+                                                <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                    <?= date('M j, Y', strtotime($l['start_date'])) ?>
+                                                </td>
+                                                <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                    <?= date('M j, Y', strtotime($l['end_date'])) ?>
+                                                </td>
+                                                <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                    <?= number_format((float) $l['days_count'], 2) ?>
+                                                </td>
+                                                <td class="px-4">
+                                                    <span
+                                                        class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
+                                                        <?= $sLabel ?>
+                                                    </span>
+                                                </td>
+                                                <td class="px-4 text-sm text-[#2C3E50]/50">
+                                                    <?= date('M j, Y', strtotime($l['created_at'])) ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; endif; ?>
                                 </tbody>
                             </table>
                         </div>
@@ -346,33 +453,38 @@ $activePage = 'profile';
                         <div class="md:hidden divide-y divide-[#E0E0E0]">
                             <?php if (empty($myLeaves)): ?>
                                 <div class="p-8 text-center text-sm text-[#2C3E50]/50">No leave requests yet.</div>
-                            <?php else: foreach ($myLeaves as $l):
-                                $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
-                                $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                                $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
-                            ?>
-                                <div class="py-3 profile-leave-row"
-                                    data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>"
-                                    data-status="<?= $l['status'] ?>">
-                                    <div class="flex items-start justify-between gap-2 mb-1">
-                                        <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
-                                            <?= $sLabel ?>
-                                        </span>
+                            <?php else:
+                                foreach ($myLeaves as $l):
+                                    $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
+                                    $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
+                                    $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                    ?>
+                                    <div class="py-3 profile-leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>"
+                                        data-status="<?= $l['status'] ?>">
+                                        <div class="flex items-start justify-between gap-2 mb-1">
+                                            <span
+                                                class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
+                                            <span
+                                                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
+                                                <?= $sLabel ?>
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-[#2C3E50]/60">
+                                            <?= date('M j, Y', strtotime($l['start_date'])) ?> →
+                                            <?= date('M j, Y', strtotime($l['end_date'])) ?>
+                                        </p>
+                                        <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">
+                                            <?= number_format((float) $l['days_count'], 2) ?> day(s) · filed
+                                            <?= date('M j', strtotime($l['created_at'])) ?>
+                                        </p>
                                     </div>
-                                    <p class="text-xs text-[#2C3E50]/60">
-                                        <?= date('M j, Y', strtotime($l['start_date'])) ?> → <?= date('M j, Y', strtotime($l['end_date'])) ?>
-                                    </p>
-                                    <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">
-                                        <?= number_format((float) $l['days_count'], 2) ?> day(s) · filed <?= date('M j', strtotime($l['created_at'])) ?>
-                                    </p>
-                                </div>
-                            <?php endforeach; endif; ?>
+                                <?php endforeach; endif; ?>
                         </div>
 
                         <!-- Empty state -->
                         <div id="profileLeavesEmpty" class="hidden p-10 text-center">
-                            <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                            <div
+                                class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                                 <i data-lucide="search-x" class="w-5 h-5"></i>
                             </div>
                             <p class="text-sm font-medium text-[#2C3E50]">No matching leaves</p>
@@ -387,17 +499,20 @@ $activePage = 'profile';
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-4">
 
                                 <div class="space-y-4">
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Change Password</p>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Change Password
+                                    </p>
 
                                     <div>
-                                        <label class="block text-xs font-medium text-[#2C3E50] mb-1">Current Password *</label>
+                                        <label class="block text-xs font-medium text-[#2C3E50] mb-1">Current Password
+                                            *</label>
                                         <input type="password" name="current_password" id="currentPassword" required
                                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
                                             placeholder="Enter your current password">
                                     </div>
 
                                     <div>
-                                        <label class="block text-xs font-medium text-[#2C3E50] mb-1">New Password *</label>
+                                        <label class="block text-xs font-medium text-[#2C3E50] mb-1">New Password
+                                            *</label>
                                         <input type="password" name="new_password" id="newPassword" required
                                             minlength="8"
                                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
@@ -405,25 +520,32 @@ $activePage = 'profile';
 
                                         <div id="pwStrengthWrap" class="mt-1.5 hidden">
                                             <div class="flex gap-1 mb-1">
-                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all" data-bar="1"></div>
-                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all" data-bar="2"></div>
-                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all" data-bar="3"></div>
-                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all" data-bar="4"></div>
+                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all"
+                                                    data-bar="1"></div>
+                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all"
+                                                    data-bar="2"></div>
+                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all"
+                                                    data-bar="3"></div>
+                                                <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all"
+                                                    data-bar="4"></div>
                                             </div>
                                             <div class="flex items-center justify-between">
-                                                <p id="pwStrengthLabel" class="text-[11px] font-medium text-gray-500">Strength</p>
+                                                <p id="pwStrengthLabel" class="text-[11px] font-medium text-gray-500">
+                                                    Strength</p>
                                                 <p id="pwStrengthHint" class="text-[11px] text-gray-400"></p>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label class="block text-xs font-medium text-[#2C3E50] mb-1">Confirm New Password *</label>
+                                        <label class="block text-xs font-medium text-[#2C3E50] mb-1">Confirm New
+                                            Password *</label>
                                         <input type="password" name="confirm_password" id="confirmPassword" required
                                             minlength="8"
                                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
                                             placeholder="Re-enter new password">
-                                        <p id="pwMatchHint" class="mt-1 text-[11px] text-gray-400 hidden">Passwords must match.</p>
+                                        <p id="pwMatchHint" class="mt-1 text-[11px] text-gray-400 hidden">Passwords must
+                                            match.</p>
                                     </div>
 
                                     <div class="flex items-center gap-2">
@@ -448,7 +570,8 @@ $activePage = 'profile';
                                 </div>
 
                                 <div class="lg:border-l lg:border-[#E0E0E0] lg:pl-6">
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-3">Password Requirements</p>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-3">Password
+                                        Requirements</p>
 
                                     <ul id="pwRequirements" class="space-y-1.5 text-xs">
                                         <li data-req="length" class="pw-req flex items-center gap-2">
@@ -492,12 +615,16 @@ $activePage = 'profile';
     </div>
 
     <!-- Loading overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div id="loadingOverlay"
+        class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-xs p-8 text-center">
             <div class="flex items-center justify-center mb-4">
-                <svg class="animate-spin h-10 w-10 text-[#0F5E3D]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg class="animate-spin h-10 w-10 text-[#0F5E3D]" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
                     <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <path class="opacity-90" fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                    </path>
                 </svg>
             </div>
             <h3 class="text-base font-bold text-[#2C3E50] mb-1" id="loadingTitle">Loading...</h3>
@@ -506,11 +633,14 @@ $activePage = 'profile';
     </div>
 
     <!-- Success modal -->
-    <div id="successModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95" id="successCard">
+    <div id="successModal"
+        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95"
+            id="successCard">
             <div class="relative mx-auto mb-5 w-16 h-16">
                 <div class="absolute inset-0 rounded-full bg-[#F1FDF6] animate-ping opacity-40"></div>
-                <div class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
+                <div
+                    class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
                     <i data-lucide="check-circle" class="w-8 h-8"></i>
                 </div>
             </div>
@@ -524,8 +654,10 @@ $activePage = 'profile';
     </div>
 
     <!-- Error modal -->
-    <div id="errorModal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95" id="errorCard">
+    <div id="errorModal"
+        class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95"
+            id="errorCard">
             <div class="flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mx-auto mb-5">
                 <i data-lucide="alert-circle" class="w-8 h-8 text-red-600"></i>
             </div>

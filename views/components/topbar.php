@@ -7,18 +7,33 @@
  *   $pageSubtitle (string) — small line under heading
  *   $activePage   (string) — 'dashboard' | 'users' | 'activity-logs' | 'settings'
  */
-$pageTitle = $pageTitle ?? 'Dashboard';
+$pageTitle    = $pageTitle    ?? 'Dashboard';
 $pageSubtitle = $pageSubtitle ?? '';
-$activePage = $activePage ?? '';
-$pageIcon = $pageIcon ?? '';
+$activePage   = $activePage   ?? '';
+$pageIcon     = $pageIcon     ?? '';
 
-// Get current user initials for the avatar
-$currentInitial = strtoupper(substr($_SESSION['username'] ?? 'A', 0, 1));
+// ============================================
+// Current user info + avatar
+// ============================================
 $currentUser = htmlspecialchars($_SESSION['username'] ?? 'Admin');
 $currentRole = ucfirst($_SESSION['role'] ?? 'admin');
 
-// Initials from username — first 2 letters
-$initials = strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2));
+// Prefer real name if it's cached in the session (set by AuthController)
+$firstName = $_SESSION['first_name'] ?? '';
+$lastName  = $_SESSION['last_name']  ?? '';
+$displayName = trim($firstName . ' ' . $lastName) ?: $currentUser;
+
+// Initials: prefer first + last name, fall back to username's first 2 letters
+if ($firstName || $lastName) {
+    $topbarInitials = strtoupper(
+        substr($firstName ?: $currentUser, 0, 1) . substr($lastName ?: '', 0, 1)
+    );
+} else {
+    $topbarInitials = strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2));
+}
+
+// Avatar filename from the session (set at login + on upload)
+$topbarAvatar = $_SESSION['avatar'] ?? null;
 ?>
 
 <header
@@ -94,9 +109,13 @@ $initials = strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2));
         <div class="relative" id="profileWrap">
             <button type="button" onclick="toggleProfileMenu()"
                 class="flex items-center gap-2 focus:outline-none group">
-                <div
-                    class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xs sm:text-sm ring-2 ring-white shadow-sm group-hover:ring-[#F1FDF6] transition">
-                    <?= $initials ?>
+                <div class="w-8 h-8 rounded-full overflow-hidden bg-[#0F5E3D] flex items-center justify-center shrink-0">
+                    <?php if ($topbarAvatar): ?>
+                        <img src="/uploads/avatars/<?= htmlspecialchars($topbarAvatar) ?>?t=<?= time() ?>" alt=""
+                            class="w-full h-full object-cover">
+                    <?php else: ?>
+                        <span class="text-white text-xs font-semibold"><?= $topbarInitials ?></span>
+                    <?php endif; ?>
                 </div>
                 <i data-lucide="chevron-down"
                     class="hidden sm:block w-3.5 h-3.5 text-[#2C3E50]/40 group-hover:text-[#2C3E50] transition"></i>
@@ -109,12 +128,18 @@ $initials = strtoupper(substr($_SESSION['username'] ?? 'A', 0, 2));
                 <!-- User summary -->
                 <div class="px-4 py-3 border-b border-[#E0E0E0]">
                     <div class="flex items-center gap-3">
-                        <div
-                            class="w-10 h-10 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-sm shrink-0">
-                            <?= $initials ?>
+                        <div class="w-10 h-10 rounded-full overflow-hidden bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-sm shrink-0">
+                            <?php if ($topbarAvatar): ?>
+                                <img src="/uploads/avatars/<?= htmlspecialchars($topbarAvatar) ?>?t=<?= time() ?>" alt=""
+                                    class="w-full h-full object-cover">
+                            <?php else: ?>
+                                <?= $topbarInitials ?>
+                            <?php endif; ?>
                         </div>
                         <div class="min-w-0">
-                            <p class="text-sm font-semibold text-[#2C3E50] truncate"><?= $currentUser ?></p>
+                            <p class="text-sm font-semibold text-[#2C3E50] truncate">
+                                <?= htmlspecialchars($displayName) ?>
+                            </p>
                             <p class="text-[11px] text-[#2C3E50]/50"><?= $currentRole ?></p>
                         </div>
                     </div>

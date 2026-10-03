@@ -204,6 +204,156 @@ function closeProfileOnOutside(e) {
 }
 
 // ============================================
+// Client-side image compression
+// ============================================
+async function compressImage(file, maxDimension = 512, quality = 0.9) {
+    if (!file.type.startsWith("image/")) return file;
+    if (file.type === "image/gif" || file.size < 300 * 1024) return file;
+
+    const bitmap = await createImageBitmap(file);
+    try {
+        const { width, height } = bitmap;
+        const scale = Math.min(1, maxDimension / Math.max(width, height));
+        const w = Math.round(width * scale);
+        const h = Math.round(height * scale);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(bitmap, 0, 0, w, h);
+
+        const blob = await new Promise((resolve) =>
+            canvas.toBlob(resolve, "image/jpeg", quality)
+        );
+
+        return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
+            type: "image/jpeg",
+        });
+    } finally {
+        bitmap.close();
+    }
+}
+
+// ============================================
+// Avatar upload
+// ============================================
+async function handleAvatarUpload(input) {
+    let file = input.files && input.files[0];   // ← let, not const
+    if (!file) return;
+
+    // 1. Type check
+    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowed.includes(file.type)) {
+        showError("Invalid file type", "Please choose a JPG, PNG, WEBP, or GIF image.");
+        input.value = "";
+        return;
+    }
+
+    // 2. Hard ceiling — avoid decoding something insane
+    if (file.size > 25 * 1024 * 1024) {
+        showError("File too large", "Original image must be 25MB or smaller.");
+        input.value = "";
+        return;
+    }
+
+    // 3. Compress (best effort)
+    try {
+        file = await compressImage(file);
+    } catch (e) {
+        console.warn("Compression failed, uploading original", e);
+    }
+
+    // 4. Soft ceiling on the result
+    if (file.size > 10 * 1024 * 1024) {
+        showError("File too large", "Profile pictures must be 10MB or smaller.");
+        input.value = "";
+        return;
+    }
+
+    // 5. Build FormData
+    const fd = new FormData();
+    fd.append("action", "upload");
+    fd.append("avatar", file, file.name || "avatar.jpg");   // explicit filename
+
+    showLoading("Uploading...", "Updating your profile picture.");
+
+    try {
+        const res = await fetch("/api/avatar", { method: "POST", body: fd });
+        const data = await res.json();
+
+        await new Promise((r) => setTimeout(r, 400));
+        hideLoading();
+
+        if (data.success) {
+            const wrap =
+                document.querySelector("#profileAvatarImg")?.parentElement ||
+                document.querySelector("#profileAvatarInitials")?.parentElement;
+
+            if (wrap) {
+                wrap.innerHTML = `<img id="profileAvatarImg" src="${data.avatar}?t=${Date.now()}" alt="Avatar" class="w-full h-full object-cover">`;
+            }
+
+            // If your topbar/sidebar also render the avatar from the session,
+            // you may want to reload so they pick up the new file:
+            // setTimeout(() => location.reload(), 300);
+        } else {
+            showError("Could not upload picture", data.error || "Please try again.");
+        }
+    } catch (err) {
+        hideLoading();
+        console.error(err);
+        showError("Connection error", "Unable to reach the server.");
+    } finally {
+        input.value = "";
+    }
+}
+
+// ============================================
+// Remove avatar
+// ============================================
+async function removeAvatar() {
+  if (!confirm("Remove your profile picture?")) return;
+
+  const fd = new FormData();
+  fd.append("action", "remove");
+
+  showLoading("Removing...", "Deleting your profile picture.");
+
+  try {
+    const res = await fetch("/api/avatar", { method: "POST", body: fd });
+    const data = await res.json();
+
+    await new Promise((r) => setTimeout(r, 400));
+    hideLoading();
+
+    if (data.success) {
+      // Replace the avatar with the initials fallback
+      const wrap = document.querySelector("#profileAvatarImg")?.parentElement;
+      if (wrap) {
+        const initials =
+          document.querySelector("#profileAvatarInitials")?.textContent ||
+          wrap
+            .closest(".relative")
+            ?.querySelector("h2")
+            ?.textContent?.trim()
+            .charAt(0) ||
+          "?";
+        wrap.innerHTML = `<span id="profileAvatarInitials" class="text-white font-bold text-lg">${initials}</span>`;
+      }
+      // Simplest robust approach: reload so all avatars refresh
+      setTimeout(() => location.reload(), 300);
+    } else {
+      showError("Could not remove picture", data.error || "Please try again.");
+    }
+  } catch (err) {
+    hideLoading();
+    console.error(err);
+    showError("Connection error", "Unable to reach the server.");
+  }
+}
+
+// ============================================
 // Form submissions
 // ============================================
 document.addEventListener("DOMContentLoaded", () => {

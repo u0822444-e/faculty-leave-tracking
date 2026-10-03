@@ -217,7 +217,7 @@ $leaveLabels = [
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0">
-                                                <span class="text-sm text-[#2C3E50]/70"><?= number_format((float) $l['days_count'], 1) ?></span>
+                                                <span class="text-sm text-[#2C3E50]/70"><?= number_format((int) $l['days_count']) ?></span>
                                             </td>
                                             <td class="px-4 py-0">
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $statusClass ?>">
@@ -421,7 +421,7 @@ $leaveLabels = [
     </div>
 
     <!-- Approve / Reject modal -->
-    <div id="decideModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div id="decideModal" class="fixed inset-0 z-20 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div id="decideCard" class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
             <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
                 <div>

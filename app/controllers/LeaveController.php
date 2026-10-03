@@ -19,6 +19,13 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $userId = (int) $_SESSION['user_id'];
 $role   = $_SESSION['role'] ?? '';
 
+// ─── Format days without trailing zeros (0.5 stays 0.5, 1.0 becomes 1) ───
+if (!function_exists('fmt_days')) {
+    function fmt_days($n) {
+        return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
+    }
+}
+
 // Resolve employee_id for the current user
 $stmt = $pdo->prepare("SELECT employee_id FROM users WHERE id = ? LIMIT 1");
 $stmt->execute([$userId]);
@@ -106,7 +113,13 @@ try {
                 break;
             }
 
-            $days = $s->diff($e)->days + 1;
+            // ─── Half-day awareness ──────────────────
+            // Only valid when start and end are the same date.
+            $isHalfDay = !empty($_POST['is_half_day']) && ($start === $end);
+
+            $days = $isHalfDay
+                ? 0.5
+                : ($s->diff($e)->days + 1);
 
             // ---- Total credit pool check ----
             $stmt = $pdo->prepare("SELECT leave_credits FROM employees WHERE id = ? LIMIT 1");
@@ -125,7 +138,7 @@ try {
             if ($days > $remaining) {
                 echo json_encode([
                     'success' => false,
-                    'error' => "Not enough credits. You have {$remaining} day(s) remaining."
+                    'error' => "Not enough credits. You have " . fmt_days($remaining) . " day(s) remaining."
                 ]);
                 break;
             }
@@ -153,7 +166,11 @@ try {
                     $typeLabel = ucfirst($type);
                     echo json_encode([
                         'success' => false,
-                        'error' => "{$typeLabel} leave is capped at {$typeCaps[$type]} day(s). You have {$typeRemaining} day(s) remaining for this type."
+                        'error' => "{$typeLabel} leave is capped at "
+                                 . fmt_days($typeCaps[$type])
+                                 . " day(s). You have "
+                                 . fmt_days($typeRemaining)
+                                 . " day(s) remaining for this type."
                     ]);
                     break;
                 }
@@ -181,7 +198,13 @@ try {
             $newId = (int) $pdo->lastInsertId();
 
             if (class_exists('ActivityLogger')) {
-                ActivityLogger::log($pdo, 'file_leave', "Filed {$type} leave ({$days} day(s))", 'leave_request', $newId);
+                ActivityLogger::log(
+                    $pdo,
+                    'file_leave',
+                    "Filed {$type} leave (" . fmt_days($days) . " day(s))",
+                    'leave_request',
+                    $newId
+                );
             }
 
             if (class_exists('NotificationService')) {
@@ -192,11 +215,14 @@ try {
                 $range = date('M j', strtotime($start))
                        . ($start !== $end ? ' – ' . date('M j, Y', strtotime($end)) : '');
 
+                $halfLabel = $isHalfDay ? ' — half day' : '';
+
                 NotificationService::notifyAdmins(
                     $pdo,
                     'leave_filed',
                     "New leave request",
-                    "{$facultyName} filed {$typeLabel} leave ({$range}, {$days} day(s))",
+                    "{$facultyName} filed {$typeLabel} leave ({$range}, "
+                        . fmt_days($days) . " day(s){$halfLabel})",
                     '/leaves'
                 );
             }
@@ -318,7 +344,7 @@ try {
                     ? "Your {$typeLabel} leave was approved"
                     : "Your {$typeLabel} leave was rejected";
 
-                $message = "{$range} · {$leave['days_count']} day(s)";
+                $message = "{$range} · " . fmt_days($leave['days_count']) . " day(s)";
                 if ($remarks !== '') {
                     $message .= ' — "' . $remarks . '"';
                 }

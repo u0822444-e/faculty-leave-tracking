@@ -8,12 +8,19 @@ require_once __DIR__ . '/../../config/database.php';
 
 $userId = (int) $_SESSION['user_id'];
 
+// Helper: format a number, drop trailing zeros, keep meaningful decimals (e.g. 7.5, 7)
+if (!function_exists('fmt_credits')) {
+    function fmt_credits($n) {
+        return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
+    }
+}
+
 // Fetch this staff member's full record
 $stmt = $pdo->prepare("
     SELECT 
         e.id AS employee_id,
         e.first_name, e.middle_name, e.last_name, e.email,
-        e.category, e.sub_category, e.employment_type,
+        e.category, e.sub_category, e.year_level, e.position, e.employment_type,
         e.basic_salary, e.leave_credits
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
@@ -110,6 +117,18 @@ $leaveCreditsLeft = max(0, $totalCredits - $creditsUsed);
 $otherUsed = $typeUsed['maternity'] + $typeUsed['paternity'] + $typeUsed['terminal'] + $typeUsed['other'];
 $usedPct = $totalCredits > 0 ? min(100, round(($creditsUsed / $totalCredits) * 100, 1)) : 0;
 
+// ============================================
+// Per-type credit caps + remaining
+// ============================================
+$typeCaps = [
+    'vacation' => 7.5,
+    'sick'     => 7.5,
+];
+$typeRemaining = [];
+foreach ($typeCaps as $t => $cap) {
+    $typeRemaining[$t] = max(0, $cap - ($typeUsed[$t] ?? 0));
+}
+
 // Estimated payroll deduction
 $workingDaysPerMonth = 22;
 $dailyRate = $basicSalary > 0 ? $basicSalary / $workingDaysPerMonth : 0;
@@ -183,61 +202,93 @@ $statusLabels = [
 
             <main class="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
-                <!-- Welcome banner -->
-                <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <div class="w-14 h-14 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-lg ring-4 ring-[#F1FDF6] shrink-0">
-                        <?= htmlspecialchars($initials) ?>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <h2 class="text-lg font-bold text-[#2C3E50]">
-                            Hello, <?= htmlspecialchars($firstName) ?>!
-                        </h2>
-                        <p class="text-sm text-[#2C3E50]/60 mt-0.5">
-                            <?= htmlspecialchars(ucfirst($me['category'] ?? 'staff')) ?>
-                            <?= !empty($me['sub_category']) ? ' · ' . htmlspecialchars($me['sub_category']) : '' ?>
-                            <?= !empty($me['employment_type']) ? ' · ' . htmlspecialchars(ucfirst($me['employment_type'])) : '' ?>
-                        </p>
-                    </div>
-                    <?php if (!$isPartTime): ?>
-                        <a href="/staff/leaves"
-                            class="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 px-4 rounded-lg transition text-sm shadow-sm hover:shadow-md">
-                            <i data-lucide="plus" class="w-4 h-4"></i>
-                            <span>File a Leave</span>
-                        </a>
-                    <?php else: ?>
-                        <div class="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-100 text-slate-500 font-medium py-2.5 px-4 rounded-lg text-sm cursor-not-allowed"
-                            title="Part-time employees are not eligible for leave">
-                            <i data-lucide="lock" class="w-4 h-4"></i>
-                            <span>Leave not available</span>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
                 <!-- HERO ROW -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
 
                     <!-- Leave credits overview -->
-                    <div class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
-                        <div class="flex items-start justify-between gap-4 mb-4">
-                            <div>
+                    <div class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col">
+                        <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
+
+                            <!-- Left: credits + identity -->
+                            <div class="min-w-0">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Leave Credits</p>
                                 <div class="flex items-baseline gap-2">
                                     <span class="text-3xl sm:text-4xl font-bold text-[#0F5E3D]">
-                                        <?= number_format($leaveCreditsLeft, 2) ?>
+                                        <?= number_format($leaveCreditsLeft, 0) ?>
                                     </span>
                                     <span class="text-sm text-[#2C3E50]/50">
-                                        / <?= number_format($totalCredits, 2) ?> remaining
+                                        / <?= number_format($totalCredits, 0) ?> remaining
                                     </span>
                                 </div>
+
+                                <!-- Compact identity chips -->
+                                <div class="flex items-center gap-1.5 flex-wrap mt-2">
+                                    <?php if (!empty($me['category'])): ?>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#0F5E3D] bg-[#F1FDF6] border border-[#0F5E3D]/10">
+                                            <i data-lucide="layers" class="w-2.5 h-2.5"></i>
+                                            <?= htmlspecialchars(ucfirst($me['category'])) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($me['sub_category'])): ?>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                            <i data-lucide="building-2" class="w-2.5 h-2.5"></i>
+                                            <?= htmlspecialchars($me['sub_category']) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($me['year_level'])): ?>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                            <i data-lucide="graduation-cap" class="w-2.5 h-2.5"></i>
+                                            <?= htmlspecialchars($me['year_level']) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($me['position'])): ?>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                            <i data-lucide="badge-check" class="w-2.5 h-2.5"></i>
+                                            <?= htmlspecialchars($me['position']) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($me['employment_type'])): ?>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                            <i data-lucide="clock" class="w-2.5 h-2.5"></i>
+                                            <?= htmlspecialchars(ucfirst($me['employment_type'])) ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                            <div class="w-10 h-10 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                                <i data-lucide="calendar-check" class="w-5 h-5"></i>
+
+                            <!-- Right: CTA + icon -->
+                            <div class="flex items-center gap-2 shrink-0">
+                                <?php if (!$isPartTime): ?>
+                                    <a href="/staff/leaves"
+                                        class="hidden sm:inline-flex items-center gap-1.5 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 px-3.5 rounded-lg transition text-xs shadow-sm hover:shadow-md whitespace-nowrap">
+                                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                        <span>File a Leave</span>
+                                    </a>
+                                <?php else: ?>
+                                    <div class="hidden sm:inline-flex items-center gap-1.5 bg-slate-100 text-slate-500 font-medium py-2 px-3.5 rounded-lg text-xs cursor-not-allowed whitespace-nowrap"
+                                        title="Part-time employees are not eligible for leave">
+                                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                                        <span>Leave N/A</span>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="w-10 h-10 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                    <i data-lucide="calendar-check" class="w-5 h-5"></i>
+                                </div>
                             </div>
                         </div>
 
+                        <!-- Mobile-only CTA -->
+                        <?php if (!$isPartTime): ?>
+                            <a href="/staff/leaves"
+                                class="sm:hidden w-full flex items-center justify-center gap-2 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm shadow-sm mb-4">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                <span>File a Leave</span>
+                            </a>
+                        <?php endif; ?>
+
                         <div class="mb-4">
                             <div class="flex items-center justify-between text-[11px] text-[#2C3E50]/60 mb-1.5">
-                                <span><?= number_format($creditsUsed, 2) ?> used</span>
+                                <span><?= number_format($creditsUsed, 0) ?> used</span>
                                 <span><?= $usedPct ?>%</span>
                             </div>
                             <div class="h-2 bg-[#F1FDF6] rounded-full overflow-hidden">
@@ -246,26 +297,80 @@ $statusLabels = [
                             </div>
                         </div>
 
+                        <!-- Totals -->
                         <div class="grid grid-cols-3 gap-3 pt-4 border-t border-[#E0E0E0]">
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Allocated</p>
-                                <p class="text-sm font-bold text-[#2C3E50]"><?= number_format($totalCredits, 2) ?></p>
+                                <p class="text-sm font-bold text-[#2C3E50]"><?= number_format($totalCredits, 0) ?></p>
                             </div>
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Used</p>
-                                <p class="text-sm font-bold text-amber-600"><?= number_format($creditsUsed, 2) ?></p>
+                                <p class="text-sm font-bold text-amber-600"><?= number_format($creditsUsed, 0) ?></p>
                             </div>
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Remaining</p>
-                                <p class="text-sm font-bold text-[#0F5E3D]"><?= number_format($leaveCreditsLeft, 2) ?></p>
+                                <p class="text-sm font-bold text-[#0F5E3D]"><?= number_format($leaveCreditsLeft, 0) ?></p>
                             </div>
+                        </div>
+
+                        <!-- Per-type credits (capped types) -->
+                        <div class="grid grid-cols-2 gap-3 pt-4 mt-1 border-t border-[#E0E0E0] flex-1 content-start">
+
+                            <!-- Vacation -->
+                            <?php
+                                $vUsed  = (float) ($typeUsed['vacation'] ?? 0);
+                                $vCap   = (float) ($typeCaps['vacation'] ?? 0);
+                                $vLeft  = (float) ($typeRemaining['vacation'] ?? 0);
+                                $vPct   = $vCap > 0 ? min(100, round(($vUsed / $vCap) * 100, 1)) : 0;
+                            ?>
+                            <div class="rounded-lg bg-[#F1FDF6]/60 border border-[#0F5E3D]/10 p-3">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="w-6 h-6 rounded-md bg-white flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                        <i data-lucide="plane" class="w-3 h-3"></i>
+                                    </div>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Vacation</p>
+                                </div>
+                                <div class="flex items-baseline gap-1 mb-1.5">
+                                    <span class="text-lg font-bold text-[#0F5E3D]"><?= fmt_credits($vLeft) ?></span>
+                                    <span class="text-[10px] text-[#2C3E50]/50">/ <?= fmt_credits($vCap) ?> day(s)</span>
+                                </div>
+                                <div class="h-1.5 bg-white rounded-full overflow-hidden">
+                                    <div class="h-full bg-[#0F5E3D] rounded-full transition-all duration-500"
+                                         style="width: <?= $vPct ?>%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Sick -->
+                            <?php
+                                $sUsed  = (float) ($typeUsed['sick'] ?? 0);
+                                $sCap   = (float) ($typeCaps['sick'] ?? 0);
+                                $sLeft  = (float) ($typeRemaining['sick'] ?? 0);
+                                $sPct   = $sCap > 0 ? min(100, round(($sUsed / $sCap) * 100, 1)) : 0;
+                            ?>
+                            <div class="rounded-lg bg-amber-50/60 border border-amber-500/10 p-3">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="w-6 h-6 rounded-md bg-white flex items-center justify-center text-amber-600 shrink-0">
+                                        <i data-lucide="thermometer" class="w-3 h-3"></i>
+                                    </div>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/60 font-semibold">Sick</p>
+                                </div>
+                                <div class="flex items-baseline gap-1 mb-1.5">
+                                    <span class="text-lg font-bold text-amber-600"><?= fmt_credits($sLeft) ?></span>
+                                    <span class="text-[10px] text-[#2C3E50]/50">/ <?= fmt_credits($sCap) ?> day(s)</span>
+                                </div>
+                                <div class="h-1.5 bg-white rounded-full overflow-hidden">
+                                    <div class="h-full bg-amber-500 rounded-full transition-all duration-500"
+                                         style="width: <?= $sPct ?>%"></div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
-                    <!-- Right column: two stacked cards -->
-                    <div class="flex flex-col gap-3 sm:gap-4">
+                    <!-- Right column: two stacked cards (stretch to match left card height) -->
+                    <div class="flex flex-col gap-3 sm:gap-4 h-full">
 
-                        <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col">
+                        <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Est. Payroll Deduction</p>
                                 <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
@@ -277,14 +382,14 @@ $statusLabels = [
                             </span>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
                                 <?php if ($basicSalary > 0): ?>
-                                    ₱<?= number_format($basicSalary, 2) ?>/mo ÷ 22 × <?= number_format($creditsUsed, 2) ?> day(s)
+                                    ₱<?= number_format($basicSalary, 2) ?>/mo ÷ 22 × <?= number_format($creditsUsed, 0) ?> day(s)
                                 <?php else: ?>
                                     no salary on file
                                 <?php endif; ?>
                             </p>
                         </div>
 
-                        <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col">
+                        <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Est. Convertible Credits</p>
                                 <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
@@ -296,7 +401,7 @@ $statusLabels = [
                             </span>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
                                 <?php if ($basicSalary > 0): ?>
-                                    <?= number_format($convertibleCredits, 2) ?> day(s) × ₱<?= number_format($dailyRate, 2) ?>/day
+                                    <?= fmt_credits($convertibleCredits) ?> day(s) × ₱<?= number_format($dailyRate, 2) ?>/day
                                 <?php else: ?>
                                     no salary on file
                                 <?php endif; ?>
@@ -322,17 +427,17 @@ $statusLabels = [
                             <div class="text-center">
                                 <span class="inline-block w-2 h-2 rounded-full bg-blue-500 mb-1"></span>
                                 <p class="text-[10px] text-[#2C3E50]/50 uppercase tracking-wider">Vacation</p>
-                                <p class="text-xs font-bold text-[#2C3E50]"><?= number_format($typeUsed['vacation'], 2) ?></p>
+                                <p class="text-xs font-bold text-[#2C3E50]"><?= fmt_credits($typeUsed['vacation']) ?></p>
                             </div>
                             <div class="text-center">
                                 <span class="inline-block w-2 h-2 rounded-full bg-rose-500 mb-1"></span>
                                 <p class="text-[10px] text-[#2C3E50]/50 uppercase tracking-wider">Sick</p>
-                                <p class="text-xs font-bold text-[#2C3E50]"><?= number_format($typeUsed['sick'], 2) ?></p>
+                                <p class="text-xs font-bold text-[#2C3E50]"><?= fmt_credits($typeUsed['sick']) ?></p>
                             </div>
                             <div class="text-center">
                                 <span class="inline-block w-2 h-2 rounded-full bg-purple-500 mb-1"></span>
                                 <p class="text-[10px] text-[#2C3E50]/50 uppercase tracking-wider">Other</p>
-                                <p class="text-xs font-bold text-[#2C3E50]"><?= number_format($otherUsed, 2) ?></p>
+                                <p class="text-xs font-bold text-[#2C3E50]"><?= fmt_credits($otherUsed) ?></p>
                             </div>
                         </div>
                     </div>
@@ -425,7 +530,7 @@ $statusLabels = [
                                                 <?php if ($l['end_date'] !== $l['start_date']): ?>
                                                     → <?= date('M j, Y', strtotime($l['end_date'])) ?>
                                                 <?php endif; ?>
-                                                · <?= number_format((float)$l['days_count'], 2) ?> day(s)
+                                                · <?= fmt_credits($l['days_count']) ?> day(s)
                                             </p>
                                         </div>
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
@@ -449,6 +554,24 @@ $statusLabels = [
                                 <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Category</dt>
                                 <dd class="text-[#2C3E50] capitalize"><?= htmlspecialchars($me['category'] ?? '—') ?></dd>
                             </div>
+                            <?php if (!empty($me['sub_category'])): ?>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Department</dt>
+                                <dd class="text-[#2C3E50]"><?= htmlspecialchars($me['sub_category']) ?></dd>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($me['year_level'])): ?>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Year Level / Dept.</dt>
+                                <dd class="text-[#2C3E50]"><?= htmlspecialchars($me['year_level']) ?></dd>
+                            </div>
+                            <?php endif; ?>
+                            <?php if (!empty($me['position'])): ?>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Position</dt>
+                                <dd class="text-[#2C3E50]"><?= htmlspecialchars($me['position']) ?></dd>
+                            </div>
+                            <?php endif; ?>
                             <div>
                                 <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Employment</dt>
                                 <dd class="text-[#2C3E50] capitalize"><?= htmlspecialchars($me['employment_type'] ?? '—') ?></dd>
@@ -472,7 +595,7 @@ $statusLabels = [
                                     Leave not available
                                 </div>
                             <?php endif; ?>
-                            <a href="/faculty/profile"
+                            <a href="/staff/profile"
                                 class="w-full flex items-center justify-center gap-2 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 active:scale-[0.99] font-medium py-2.5 rounded-lg transition text-sm">
                                 <i data-lucide="user" class="w-4 h-4"></i>
                                 View Profile

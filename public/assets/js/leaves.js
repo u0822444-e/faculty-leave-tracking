@@ -54,7 +54,7 @@ function openViewLeave(data) {
     document.getElementById('vlStatus').textContent  = data.status || '—';
     document.getElementById('vlStart').textContent   = formatDate(data.start);
     document.getElementById('vlEnd').textContent     = formatDate(data.end);
-    document.getElementById('vlDays').textContent    = parseFloat(data.days || 0).toFixed(2);
+    document.getElementById('vlDays').textContent    = parseInt(data.days || 0);
     document.getElementById('vlCreated').textContent = formatDateTime(data.created);
     document.getElementById('vlReason').textContent  = data.reason || '—';
 

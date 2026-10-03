@@ -28,7 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 header('Location: /staff/dashboard');
                 exit;
             default:
-                // Unknown role — clear session and show login
                 session_unset();
                 session_destroy();
                 session_start();
@@ -37,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         }
     }
 
-    // Not signed in — show login page
     require __DIR__ . '/../../index.php';
     exit;
 }
@@ -66,8 +64,13 @@ $stmt = $pdo->prepare('
         u.password, 
         u.role,
         u.status,
+        u.avatar,
         e.first_name,
-        e.last_name
+        e.last_name,
+        e.category,
+        e.sub_category,
+        e.year_level,
+        e.position
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.username = ?
@@ -85,11 +88,19 @@ if ($user && password_verify($password, $user['password'])) {
         exit;
     }
 
-    $_SESSION['user_id']    = $user['id'];
-    $_SESSION['username']   = $user['username'];
-    $_SESSION['role']       = $user['role'];
-    $_SESSION['first_name'] = $user['first_name'] ?? $user['username'];
-    $_SESSION['last_name']  = $user['last_name'] ?? '';
+    // ============================================
+    // Populate the session
+    // ============================================
+    $_SESSION['user_id']      = $user['id'];
+    $_SESSION['username']     = $user['username'];
+    $_SESSION['role']         = $user['role'];
+    $_SESSION['first_name']   = $user['first_name'] ?? $user['username'];
+    $_SESSION['last_name']    = $user['last_name']  ?? '';
+    $_SESSION['avatar']       = $user['avatar']     ?? null;
+    $_SESSION['category']     = $user['category']     ?? null;
+    $_SESSION['sub_category'] = $user['sub_category'] ?? null;
+    $_SESSION['year_level']   = $user['year_level']   ?? null;
+    $_SESSION['position']     = $user['position']     ?? null;
 
     // Log BEFORE redirect
     ActivityLogger::log($pdo, 'login', 'Signed in to the system');

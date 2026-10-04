@@ -215,7 +215,7 @@ if ($uri === '/staff/profile') {
     exit;
 }
 
-if ($uri === '/faculty-leaves') {
+if ($uri === '/leave-monitoring') {
     require __DIR__ . '/../views/pages/leave_monitoring.php';
     exit;
 }

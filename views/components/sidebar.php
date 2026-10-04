@@ -72,7 +72,7 @@ function navClass($key, $activePage)
                 <span>My Leaves</span>
             </a>
             <?php if ($canViewFacultyLeaves): ?>
-                <a href="/faculty-leaves" class="<?= navClass('leave_monitoring', $activePage) ?>">
+                <a href="/leave-monitoring" class="<?= navClass('leave_monitoring', $activePage) ?>">
                     <i data-lucide="clipboard-list" class="w-5 h-5"></i>
                     <span>Leave Monitoring</span>
                 </a>

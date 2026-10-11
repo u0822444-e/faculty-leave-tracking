@@ -79,7 +79,7 @@ $topbarAvatar = $_SESSION['avatar'] ?? null;
 
             <!-- Notifications dropdown -->
             <div id="notifDropdown"
-                class="hidden absolute right-0 top-12 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-[#E0E0E0] overflow-hidden z-50">
+                class="hidden absolute right-0 top-12 w-80 sm:w-96 bg-white rounded-xl shadow-xl border border-[#E0E0E0] overflow-hidden z-40">
 
                 <div class="px-4 py-3 border-b border-[#E0E0E0] flex items-center justify-between">
                     <div>
@@ -123,7 +123,7 @@ $topbarAvatar = $_SESSION['avatar'] ?? null;
 
             <!-- Profile menu -->
             <div id="profileMenu"
-                class="hidden absolute right-0 top-12 w-64 bg-white rounded-xl shadow-xl border border-[#E0E0E0] overflow-hidden z-50">
+                class="hidden absolute right-0 top-12 w-64 bg-white rounded-xl shadow-xl border border-[#E0E0E0] overflow-hidden z-40">
 
                 <!-- User summary -->
                 <div class="px-4 py-3 border-b border-[#E0E0E0]">

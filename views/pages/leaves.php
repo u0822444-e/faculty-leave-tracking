@@ -118,7 +118,7 @@ $leaveLabels = [
                 </div>
 
                 <!-- Toolbar -->
-                <div class="animate-fade-in-up relative z-30 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
+                <div class="animate-fade-in-up relative bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
 
                         <div class="flex flex-wrap items-center gap-2">

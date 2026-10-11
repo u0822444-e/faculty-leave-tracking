@@ -2,7 +2,10 @@
 $activePage = $activePage ?? '';
 $role = $_SESSION['role'] ?? 'admin';
 
-$sidebarPosition = $_SESSION['position'] ?? '';
+// ============================================
+// Leadership access flags
+// ============================================
+$sidebarPosition = trim((string) ($_SESSION['position'] ?? ''));
 
 $leadershipPositions = [
     'College Dean',
@@ -11,7 +14,13 @@ $leadershipPositions = [
     'High School Principal',
 ];
 
-$canViewFacultyLeaves = in_array($sidebarPosition, $leadershipPositions, true);
+$canViewFacultyLeaves = false;
+foreach ($leadershipPositions as $p) {
+    if (strcasecmp($sidebarPosition, $p) === 0) {
+        $canViewFacultyLeaves = true;
+        break;
+    }
+}
 
 function navClass($key, $activePage)
 {
@@ -72,7 +81,7 @@ function navClass($key, $activePage)
                 <span>My Leaves</span>
             </a>
             <?php if ($canViewFacultyLeaves): ?>
-                <a href="/leave-monitoring" class="<?= navClass('leave_monitoring', $activePage) ?>">
+                <a href="/faculty-leaves" class="<?= navClass('leave_monitoring', $activePage) ?>">
                     <i data-lucide="clipboard-list" class="w-5 h-5"></i>
                     <span>Leave Monitoring</span>
                 </a>

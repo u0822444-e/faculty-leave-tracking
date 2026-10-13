@@ -1,5 +1,5 @@
 // ============================================
-// Faculty Leaves — logic
+// Faculty/Staff Leaves — logic
 // ============================================
 
 const MAX_CREDITS = parseFloat(
@@ -19,7 +19,6 @@ function initLeaveDatePickers() {
 
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Blocked ranges: any pending/approved leave (from PHP)
   const blocked = (window.EXISTING_LEAVE_RANGES || []).map((r) => ({
     from: r.start,
     to: r.end,
@@ -35,18 +34,13 @@ function initLeaveDatePickers() {
     disableMobile: true,
   };
 
-  // ---- Start ----
   fpStart = flatpickr("#leaveStart", {
     ...commonOpts,
     onChange: function (selectedDates, dateStr) {
       if (!dateStr) return;
-      // End date can't be before the newly picked start
       if (fpEnd) {
         fpEnd.set("minDate", dateStr);
-        if (
-          fpEnd.selectedDates[0] &&
-          fpEnd.selectedDates[0] < selectedDates[0]
-        ) {
+        if (fpEnd.selectedDates[0] && fpEnd.selectedDates[0] < selectedDates[0]) {
           fpEnd.setDate(dateStr, true);
         }
       }
@@ -54,13 +48,11 @@ function initLeaveDatePickers() {
     },
   });
 
-  // Half-day checkbox
   const halfInput = document.getElementById("isHalfDay");
   if (halfInput) {
     halfInput.addEventListener("change", updateDaysCount);
   }
 
-  // ---- End ----
   fpEnd = flatpickr("#leaveEnd", {
     ...commonOpts,
     onChange: function () {
@@ -74,10 +66,7 @@ function initLeaveDatePickers() {
 // ============================================
 function openLeaveModal() {
   if (LEAVE_DISABLED) {
-    showError(
-      "Leave filing unavailable",
-      "Part-time employees are not eligible to file leave requests."
-    );
+    showError("Leave filing unavailable", "Part-time employees are not eligible to file leave requests.");
     return;
   }
 
@@ -85,14 +74,10 @@ function openLeaveModal() {
   document.getElementById("leaveDays").value = "";
 
   const modal = document.getElementById("leaveModal");
-  const defaultStart =
-    modal?.dataset.defaultStart || new Date().toISOString().split("T")[0];
+  const defaultStart = modal?.dataset.defaultStart || new Date().toISOString().split("T")[0];
 
-  // Set both pickers to the server-provided default
   if (fpStart) fpStart.setDate(defaultStart, false);
   if (fpEnd) fpEnd.setDate(defaultStart, false);
-
-  // Lock end's minimum to the default start
   if (fpEnd) fpEnd.set("minDate", defaultStart);
 
   document.getElementById("leaveDateHint")?.classList.add("hidden");
@@ -106,23 +91,132 @@ function closeLeaveModal() {
   hideModal("leaveModal", "leaveCard");
 }
 
+// ============================================
+// Helpers
+// ============================================
+function formatDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso.replace(" ", "T"));
+  return d.toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric"
+  }) + " · " + d.toLocaleTimeString("en-US", {
+    hour: "numeric", minute: "2-digit", hour12: true
+  });
+}
+
+function fmtDays(n) {
+  const v = parseFloat(n) || 0;
+  return Number.isInteger(v) ? String(v) + " day(s)" : v.toFixed(1) + " day(s)";
+}
+
+// ============================================
+// View details — rich modal
+// ============================================
 function openViewLeave(data) {
-  document.getElementById("vlType").textContent = data.type;
-  document.getElementById("vlStatus").textContent = data.status;
-  document.getElementById("vlStart").textContent = formatDate(data.start);
-  document.getElementById("vlEnd").textContent = formatDate(data.end);
-  document.getElementById("vlDays").textContent = parseInt(data.days);
-  document.getElementById("vlCreated").textContent = formatDateTime(
-    data.created
-  );
+  document.getElementById("vlRequestId").textContent = data.id ? `Request #${data.id}` : "—";
+
+  const status = (data.status || "").toLowerCase();
+  const statusMap = {
+    pending: {
+      label: "Pending",
+      icon: "clock",
+      cls: "text-amber-700 bg-amber-50 border-amber-200",
+      ribbon: "bg-amber-50 border-amber-200",
+      iconCls: "text-amber-600"
+    },
+    approved: {
+      label: "Approved",
+      icon: "check-circle-2",
+      cls: "text-[#0F5E3D] bg-[#F1FDF6] border-[#0F5E3D]/15",
+      ribbon: "bg-[#F1FDF6] border-[#0F5E3D]/15",
+      iconCls: "text-[#0F5E3D]"
+    },
+    rejected: {
+      label: "Rejected",
+      icon: "x-circle",
+      cls: "text-red-700 bg-red-50 border-red-200",
+      ribbon: "bg-red-50 border-red-200",
+      iconCls: "text-red-600"
+    },
+    cancelled: {
+      label: "Cancelled",
+      icon: "ban",
+      cls: "text-slate-600 bg-slate-100 border-slate-200",
+      ribbon: "bg-slate-50 border-slate-200",
+      iconCls: "text-slate-500"
+    }
+  };
+  const s = statusMap[status] || statusMap.cancelled;
+
+  document.getElementById("vlStatus").textContent = s.label;
+  document.getElementById("vlStatusBadge").textContent = s.label;
+  document.getElementById("vlStatusBadge").className =
+    `inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium border ${s.cls}`;
+  document.getElementById("vlStatusRibbon").className =
+    `flex items-center gap-3 p-3 rounded-xl border ${s.ribbon}`;
+  document.getElementById("vlStatusIcon").className =
+    `w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0 ${s.iconCls}`;
+  document.getElementById("vlStatusIcon").innerHTML =
+    `<i data-lucide="${s.icon}" class="w-4 h-4"></i>`;
+
+  // Employee
+  const name = data.name || "—";
+  const initials = name.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  document.getElementById("vlInitials").textContent = initials || "—";
+  document.getElementById("vlName").textContent     = name;
+  document.getElementById("vlEmail").textContent    = data.email || "—";
+
+  const setChip = (chipId, valueId, value) => {
+    const chip = document.getElementById(chipId);
+    if (!chip) return;
+    if (value && value !== "—") {
+      document.getElementById(valueId).textContent = value;
+      chip.classList.remove("hidden");
+    } else {
+      chip.classList.add("hidden");
+    }
+  };
+
+  setChip("vlCategoryChip",   "vlCategory",   data.category);
+  setChip("vlSubCatChip",     "vlSubCat",     data.subcat);
+  setChip("vlYearChip",       "vlYear",       data.year_level);
+  setChip("vlPositionChip",   "vlPosition",   data.position);
+  setChip("vlEmploymentChip", "vlEmployment", data.employment);
+
+  // Request
+  document.getElementById("vlType").textContent    = data.type  || "—";
+  document.getElementById("vlDays").textContent    = fmtDays(data.days);
+  document.getElementById("vlStart").textContent   = formatDate(data.start);
+  document.getElementById("vlEnd").textContent     = formatDate(data.end);
+  document.getElementById("vlCreated").textContent = formatDateTime(data.created);
+
+  const days = parseFloat(data.days) || 0;
+  document.getElementById("vlHalfDayTag").classList.toggle("hidden", days !== 0.5);
+
   document.getElementById("vlReason").textContent = data.reason || "—";
 
-  const remWrap = document.getElementById("vlRemarksWrap");
-  if (data.remarks) {
-    document.getElementById("vlRemarks").textContent = data.remarks;
-    remWrap.classList.remove("hidden");
+  // Decision
+  const decisionWrap = document.getElementById("vlDecisionWrap");
+  if (status === "approved" || status === "rejected") {
+    decisionWrap.classList.remove("hidden");
+    document.getElementById("vlApprover").textContent   = data.approver || "—";
+    document.getElementById("vlApprovedAt").textContent = formatDateTime(data.approved);
+
+    const remarksBlock = document.getElementById("vlRemarksBlock");
+    if (data.remarks && data.remarks.trim() !== "") {
+      document.getElementById("vlRemarks").textContent = data.remarks;
+      remarksBlock.classList.remove("hidden");
+    } else {
+      remarksBlock.classList.add("hidden");
+    }
   } else {
-    remWrap.classList.add("hidden");
+    decisionWrap.classList.add("hidden");
   }
 
   showModal("viewLeaveModal", "viewLeaveCard");
@@ -134,36 +228,14 @@ function closeViewLeave() {
 }
 
 // ============================================
-// Helpers
+// Days count
 // ============================================
-function formatDate(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso.replace(" ", "T"));
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function updateDaysCount() {
   const out = document.getElementById("leaveDays");
   const halfWrap = document.getElementById("halfDayWrap");
   const halfInput = document.getElementById("isHalfDay");
 
-  // Read raw values from the hidden inputs (Flatpickr stores Y-m-d there)
-  const start =
-    fpStart?.input?.value || document.getElementById("leaveStart").value;
+  const start = fpStart?.input?.value || document.getElementById("leaveStart").value;
   const end = fpEnd?.input?.value || document.getElementById("leaveEnd").value;
 
   if (!start || !end) {
@@ -185,12 +257,10 @@ function updateDaysCount() {
 
   const sameDay = start === end;
 
-  // Show the half-day option only on single-day leaves
   if (halfWrap) {
     halfWrap.classList.toggle("hidden", !sameDay);
   }
 
-  // If not a single-day leave, force half-day off
   if (!sameDay && halfInput && halfInput.checked) {
     halfInput.checked = false;
   }
@@ -204,7 +274,6 @@ function updateDaysCount() {
 
   out.value = Number.isInteger(days) ? String(days) : days.toFixed(1);
 
-  // Update the remaining-credit hint if it exists
   if (typeof updateTypeRemainingHint === "function") {
     updateTypeRemainingHint();
   }
@@ -225,9 +294,7 @@ function filterLeaves() {
     if (match) visible++;
   });
 
-  document
-    .getElementById("leavesEmpty")
-    ?.classList.toggle("hidden", visible > 0);
+  document.getElementById("leavesEmpty")?.classList.toggle("hidden", visible > 0);
 }
 
 // ============================================
@@ -235,131 +302,92 @@ function filterLeaves() {
 // ============================================
 document.addEventListener("DOMContentLoaded", () => {
   if (typeof initIcons === "function") initIcons();
-
-  // Build the Flatpickr calendar before anything else
   initLeaveDatePickers();
 
-  document
-    .getElementById("leaveForm")
-    ?.addEventListener("submit", async function (e) {
-      e.preventDefault();
+  document.getElementById("leaveForm")?.addEventListener("submit", async function (e) {
+    e.preventDefault();
 
-      const type = document.getElementById("leaveType").value;
-      const start =
-        fpStart?.input?.value || document.getElementById("leaveStart").value;
-      const end =
-        fpEnd?.input?.value || document.getElementById("leaveEnd").value;
-      const reason = document.getElementById("leaveReason").value.trim();
-      const isHalfDay = document.getElementById("isHalfDay")?.checked === true;
+    const type = document.getElementById("leaveType").value;
+    const start = fpStart?.input?.value || document.getElementById("leaveStart").value;
+    const end = fpEnd?.input?.value || document.getElementById("leaveEnd").value;
+    const reason = document.getElementById("leaveReason").value.trim();
+    const isHalfDay = document.getElementById("isHalfDay")?.checked === true;
 
-      if (!type) {
-        showError("Missing leave type", "Please select a leave type.");
-        return;
-      }
-      if (!start) {
-        showError("Missing start date", "Please pick a start date.");
-        return;
-      }
-      if (!end) {
-        showError("Missing end date", "Please pick an end date.");
-        return;
-      }
-      if (!reason) {
-        showError("Missing reason", "Please provide a reason.");
-        return;
-      }
+    if (!type)    { showError("Missing leave type", "Please select a leave type."); return; }
+    if (!start)   { showError("Missing start date", "Please pick a start date."); return; }
+    if (!end)     { showError("Missing end date", "Please pick an end date."); return; }
+    if (!reason)  { showError("Missing reason", "Please provide a reason."); return; }
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      const startDate = new Date(start + "T00:00:00");
-      const endDate = new Date(end + "T00:00:00");
+    const startDate = new Date(start + "T00:00:00");
+    const endDate = new Date(end + "T00:00:00");
 
-      if (startDate < today) {
+    if (startDate < today) {
+      showError("Invalid start date", "You cannot file a leave with a start date in the past.");
+      return;
+    }
+    if (endDate < startDate) {
+      showError("Invalid date range", "End date cannot be before the start date.");
+      return;
+    }
+
+    const sameDay = start === end;
+    const days = sameDay && isHalfDay ? 0.5 : Math.floor((endDate - startDate) / 86400000) + 1;
+
+    const limits = window.CREDIT_LIMITS || {};
+    const totalLimit = parseFloat(limits.total) || 0;
+    const typeCaps = limits.typeCaps || {};
+    const typeRemaining = limits.typeRemaining || {};
+
+    if (days > totalLimit) {
+      showError(
+        "Not enough leave credits",
+        `You are requesting ${days} day(s) but only have ${totalLimit.toFixed(2)} total remaining.`
+      );
+      return;
+    }
+
+    if (typeCaps[type] !== undefined) {
+      const typeLeft = parseFloat(typeRemaining[type]) || 0;
+      if (days > typeLeft) {
+        const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
         showError(
-          "Invalid start date",
-          "You cannot file a leave with a start date in the past."
+          `${typeLabel} leave cap reached`,
+          `${typeLabel} leave is capped at ${typeCaps[type]} day(s). You have ${typeLeft.toFixed(2)} day(s) remaining for this type.`
         );
         return;
       }
-      if (endDate < startDate) {
-        showError(
-          "Invalid date range",
-          "End date cannot be before the start date."
-        );
-        return;
+    }
+
+    const fd = new FormData(this);
+    fd.append("action", "create");
+
+    closeLeaveModal();
+    showLoading("Submitting...", "Filing your leave request.");
+
+    try {
+      const res = await fetch("/api/leaves", { method: "POST", body: fd });
+      const data = await res.json();
+
+      await new Promise((r) => setTimeout(r, 500));
+      hideLoading();
+
+      if (data.success) {
+        document.getElementById("successTitle").textContent = "Leave filed";
+        document.getElementById("successMessage").textContent = "Your request has been submitted for approval.";
+        showModal("successModal", "successCard");
+        initIcons();
+      } else {
+        showError("Could not submit leave", data.error || "Unknown error");
       }
-
-      const sameDay = start === end;
-      const days =
-        sameDay && isHalfDay
-          ? 0.5
-          : Math.floor((endDate - startDate) / 86400000) + 1;
-
-      const limits = window.CREDIT_LIMITS || {};
-      const totalLimit = parseFloat(limits.total) || 0;
-      const typeCaps = limits.typeCaps || {};
-      const typeRemaining = limits.typeRemaining || {};
-
-      // Total pool check
-      if (days > totalLimit) {
-        showError(
-          "Not enough leave credits",
-          `You are requesting ${days} day(s) but only have ${totalLimit.toFixed(
-            2
-          )} total remaining.`
-        );
-        return;
-      }
-
-      // Per-type cap check
-      if (typeCaps[type] !== undefined) {
-        const typeLeft = parseFloat(typeRemaining[type]) || 0;
-        if (days > typeLeft) {
-          const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-          showError(
-            `${typeLabel} leave cap reached`,
-            `${typeLabel} leave is capped at ${
-              typeCaps[type]
-            } day(s). You have ${typeLeft.toFixed(
-              2
-            )} day(s) remaining for this type.`
-          );
-          return;
-        }
-      }
-
-      const fd = new FormData(this);
-      fd.append("action", "create");
-
-      closeLeaveModal();
-      showLoading("Submitting...", "Filing your leave request.");
-
-      try {
-        const res = await fetch("/api/leaves", { method: "POST", body: fd });
-        const data = await res.json();
-
-        await new Promise((r) => setTimeout(r, 500));
-        hideLoading();
-
-        if (data.success) {
-          document.getElementById("successTitle").textContent = "Leave filed";
-          document.getElementById("successMessage").textContent =
-            "Your request has been submitted for approval.";
-          showModal("successModal", "successCard");
-          initIcons();
-        } else {
-          showError("Could not submit leave", data.error || "Unknown error");
-        }
-      } catch (err) {
-        hideLoading();
-        console.error(err);
-        showError(
-          "Connection error",
-          "Unable to reach the server. Please try again."
-        );
-      }
-    });
+    } catch (err) {
+      hideLoading();
+      console.error(err);
+      showError("Connection error", "Unable to reach the server. Please try again.");
+    }
+  });
 });
 
 function closeSuccessModal() {

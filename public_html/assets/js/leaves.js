@@ -1,5 +1,5 @@
 // ============================================
-// Admin Leaves — logic
+// Admin & HR Leaves — logic
 // ============================================
 
 // ============================================
@@ -14,10 +14,16 @@ function formatDate(iso) {
 function formatDateTime(iso) {
     if (!iso) return '—';
     const d = new Date(iso.replace(' ', 'T'));
-    return d.toLocaleString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric',
-        hour: 'numeric', minute: '2-digit'
+    return d.toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+    }) + ' · ' + d.toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit', hour12: true
     });
+}
+
+function fmtDays(n) {
+    const v = parseFloat(n) || 0;
+    return Number.isInteger(v) ? String(v) + ' day(s)' : v.toFixed(1) + ' day(s)';
 }
 
 // ============================================
@@ -45,34 +51,110 @@ function filterLeaves() {
 }
 
 // ============================================
-// View details
+// View details — rich modal
 // ============================================
 function openViewLeave(data) {
-    document.getElementById('vlName').textContent    = data.name || '—';
-    document.getElementById('vlEmail').textContent   = data.email || '';
-    document.getElementById('vlType').textContent    = data.type || '—';
-    document.getElementById('vlStatus').textContent  = data.status || '—';
+    // Request id
+    document.getElementById('vlRequestId').textContent = data.id ? `Request #${data.id}` : '—';
+
+    // ── Status ribbon ───────────────────────
+    const status = (data.status || '').toLowerCase();
+    const statusMap = {
+        pending: {
+            label: 'Pending',
+            icon: 'clock',
+            cls: 'text-amber-700 bg-amber-50 border-amber-200',
+            ribbon: 'bg-amber-50 border-amber-200',
+            iconCls: 'text-amber-600'
+        },
+        approved: {
+            label: 'Approved',
+            icon: 'check-circle-2',
+            cls: 'text-[#0F5E3D] bg-[#F1FDF6] border-[#0F5E3D]/15',
+            ribbon: 'bg-[#F1FDF6] border-[#0F5E3D]/15',
+            iconCls: 'text-[#0F5E3D]'
+        },
+        rejected: {
+            label: 'Rejected',
+            icon: 'x-circle',
+            cls: 'text-red-700 bg-red-50 border-red-200',
+            ribbon: 'bg-red-50 border-red-200',
+            iconCls: 'text-red-600'
+        },
+        cancelled: {
+            label: 'Cancelled',
+            icon: 'ban',
+            cls: 'text-slate-600 bg-slate-100 border-slate-200',
+            ribbon: 'bg-slate-50 border-slate-200',
+            iconCls: 'text-slate-500'
+        }
+    };
+    const s = statusMap[status] || statusMap.cancelled;
+
+    document.getElementById('vlStatus').textContent = s.label;
+    document.getElementById('vlStatusBadge').textContent = s.label;
+    document.getElementById('vlStatusBadge').className =
+        `inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium border ${s.cls}`;
+    document.getElementById('vlStatusRibbon').className =
+        `flex items-center gap-3 p-3 rounded-xl border ${s.ribbon}`;
+    document.getElementById('vlStatusIcon').className =
+        `w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0 ${s.iconCls}`;
+    document.getElementById('vlStatusIcon').innerHTML =
+        `<i data-lucide="${s.icon}" class="w-4 h-4"></i>`;
+
+    // ── Employee block ──────────────────────
+    const name = data.name || '—';
+    const initials = name.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    document.getElementById('vlInitials').textContent = initials || '—';
+    document.getElementById('vlName').textContent    = name;
+    document.getElementById('vlEmail').textContent   = data.email || '—';
+
+    const setChip = (chipId, valueId, value) => {
+        const chip = document.getElementById(chipId);
+        if (!chip) return;
+        if (value && value !== '—') {
+            document.getElementById(valueId).textContent = value;
+            chip.classList.remove('hidden');
+        } else {
+            chip.classList.add('hidden');
+        }
+    };
+
+    setChip('vlCategoryChip',   'vlCategory',   data.category);
+    setChip('vlSubCatChip',     'vlSubCat',     data.subcat);
+    setChip('vlYearChip',       'vlYear',       data.year_level);
+    setChip('vlPositionChip',   'vlPosition',   data.position);
+    setChip('vlEmploymentChip', 'vlEmployment', data.employment);
+
+    // ── Request block ───────────────────────
+    document.getElementById('vlType').textContent    = data.type  || '—';
+    document.getElementById('vlDays').textContent    = fmtDays(data.days);
     document.getElementById('vlStart').textContent   = formatDate(data.start);
     document.getElementById('vlEnd').textContent     = formatDate(data.end);
-    document.getElementById('vlDays').textContent    = parseInt(data.days || 0);
     document.getElementById('vlCreated').textContent = formatDateTime(data.created);
-    document.getElementById('vlReason').textContent  = data.reason || '—';
 
-    const remWrap = document.getElementById('vlRemarksWrap');
-    if (data.remarks) {
-        document.getElementById('vlRemarks').textContent = data.remarks;
-        remWrap.classList.remove('hidden');
-    } else {
-        remWrap.classList.add('hidden');
-    }
+    const days = parseFloat(data.days) || 0;
+    document.getElementById('vlHalfDayTag').classList.toggle('hidden', days !== 0.5);
 
-    const appWrap = document.getElementById('vlApproverWrap');
-    if (data.approver) {
-        document.getElementById('vlApprover').textContent =
-            data.approver + (data.approved ? ' · ' + formatDateTime(data.approved) : '');
-        appWrap.classList.remove('hidden');
+    // ── Reason ──────────────────────────────
+    document.getElementById('vlReason').textContent = data.reason || '—';
+
+    // ── Decision block ──────────────────────
+    const decisionWrap = document.getElementById('vlDecisionWrap');
+    if (status === 'approved' || status === 'rejected') {
+        decisionWrap.classList.remove('hidden');
+        document.getElementById('vlApprover').textContent   = data.approver || '—';
+        document.getElementById('vlApprovedAt').textContent = formatDateTime(data.approved);
+
+        const remarksBlock = document.getElementById('vlRemarksBlock');
+        if (data.remarks && data.remarks.trim() !== '') {
+            document.getElementById('vlRemarks').textContent = data.remarks;
+            remarksBlock.classList.remove('hidden');
+        } else {
+            remarksBlock.classList.add('hidden');
+        }
     } else {
-        appWrap.classList.add('hidden');
+        decisionWrap.classList.add('hidden');
     }
 
     showModal('viewLeaveModal', 'viewLeaveCard');

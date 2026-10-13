@@ -8,13 +8,15 @@ require_once __DIR__ . '/../../config/database.php';
 
 $userId = (int) $_SESSION['user_id'];
 
-// Fetch employee record
+// Fetch employee record — full field set for the details modal
 $stmt = $pdo->prepare("
-    SELECT e.id AS employee_id, e.first_name, e.last_name, e.leave_credits, e.employment_type, e.basic_salary
+    SELECT e.id AS employee_id, e.first_name, e.middle_name, e.last_name,
+           e.email, e.category, e.sub_category, e.year_level, e.position,
+           e.leave_credits, e.employment_type, e.basic_salary
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.id = ?
-    LIMIT 1 
+    LIMIT 1
 ");
 $stmt->execute([$userId]);
 $me = $stmt->fetch();
@@ -50,19 +52,18 @@ if ($employeeId > 0) {
 
 $creditsLeft = max(0, (float) ($me['leave_credits'] ?? 0) - $creditsUsed);
 
-// Per-type credit caps + usage
 $typeCaps = [
     'vacation' => 7.5,
-    'sick' => 7.5,
+    'sick'     => 7.5,
 ];
 
 $typeUsed = [
-    'vacation' => 0,
-    'sick' => 0,
+    'vacation'  => 0,
+    'sick'      => 0,
     'maternity' => 0,
     'paternity' => 0,
-    'terminal' => 0,
-    'other' => 0,
+    'terminal'  => 0,
+    'other'     => 0,
 ];
 
 if ($employeeId > 0) {
@@ -87,13 +88,11 @@ $today = date('Y-m-d');
 
 $existingRanges = [];
 foreach ($leaves as $l) {
-    if (!in_array($l['status'], ['pending', 'approved'], true))
-        continue;
-    if ($l['end_date'] < $today)
-        continue;
+    if (!in_array($l['status'], ['pending', 'approved'], true)) continue;
+    if ($l['end_date'] < $today) continue;
     $existingRanges[] = [
-        'start' => $l['start_date'],
-        'end' => $l['end_date'],
+        'start'  => $l['start_date'],
+        'end'    => $l['end_date'],
         'status' => $l['status'],
     ];
 }
@@ -115,25 +114,27 @@ for ($i = 0; $i < 365; $i++) {
 }
 
 $statusStyles = [
-    'pending' => 'text-amber-700 bg-amber-50',
-    'approved' => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'rejected' => 'text-red-700 bg-red-50',
+    'pending'   => 'text-amber-700 bg-amber-50',
+    'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'rejected'  => 'text-red-700 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
 ];
 $statusLabels = [
-    'pending' => 'Pending',
-    'approved' => 'Approved',
-    'rejected' => 'Rejected',
+    'pending'   => 'Pending',
+    'approved'  => 'Approved',
+    'rejected'  => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
 $leaveTypes = [
-    'vacation' => 'Vacation',
-    'sick' => 'Sick',
+    'vacation'  => 'Vacation',
+    'sick'      => 'Sick',
     'maternity' => 'Maternity',
     'paternity' => 'Paternity',
-    'terminal' => 'Terminal',
-    'other' => 'Other',
+    'terminal'  => 'Terminal',
+    'other'     => 'Other',
 ];
+
+$meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -167,101 +168,39 @@ $leaveTypes = [
             width: 260px;
             padding: 6px 0;
         }
-
-        .flatpickr-months {
-            padding: 4px 0;
-        }
-
-        .flatpickr-months .flatpickr-month {
-            height: 28px;
-        }
-
-        .flatpickr-current-month {
-            font-size: 13px;
-            font-weight: 600;
-            padding: 4px 0;
-        }
-
+        .flatpickr-months { padding: 4px 0; }
+        .flatpickr-months .flatpickr-month { height: 28px; }
+        .flatpickr-current-month { font-size: 13px; font-weight: 600; padding: 4px 0; }
         .flatpickr-current-month .flatpickr-monthDropdown-months,
-        .flatpickr-current-month input.cur-year {
-            font-weight: 600;
-            font-size: 13px;
-        }
-
-        .flatpickr-weekdays {
-            height: 22px;
-        }
-
-        span.flatpickr-weekday {
-            font-size: 10px;
-            font-weight: 600;
-            color: #2C3E50;
-            opacity: 0.5;
-        }
-
-        .flatpickr-days {
-            width: 260px;
-        }
-
-        .dayContainer {
-            width: 260px;
-            min-width: 260px;
-            max-width: 260px;
-            padding: 0 4px;
-        }
-
+        .flatpickr-current-month input.cur-year { font-weight: 600; font-size: 13px; }
+        .flatpickr-weekdays { height: 22px; }
+        span.flatpickr-weekday { font-size: 10px; font-weight: 600; color: #2C3E50; opacity: 0.5; }
+        .flatpickr-days { width: 260px; }
+        .dayContainer { width: 260px; min-width: 260px; max-width: 260px; padding: 0 4px; }
         .flatpickr-day {
-            max-width: 32px;
-            height: 32px;
-            line-height: 30px;
-            font-size: 12px;
-            border-radius: 6px;
-            margin: 0;
+            max-width: 32px; height: 32px; line-height: 30px;
+            font-size: 12px; border-radius: 6px; margin: 0;
         }
-
         .flatpickr-day.selected,
         .flatpickr-day.startRange,
         .flatpickr-day.endRange,
         .flatpickr-day.selected:hover {
-            background: #0F5E3D;
-            border-color: #0F5E3D;
-            color: #fff;
+            background: #0F5E3D; border-color: #0F5E3D; color: #fff;
         }
-
-        .flatpickr-day.today {
-            border-color: #0F5E3D;
-        }
-
+        .flatpickr-day.today { border-color: #0F5E3D; }
         .flatpickr-day.today:hover {
-            background: #F1FDF6;
-            color: #0F5E3D;
-            border-color: #0F5E3D;
+            background: #F1FDF6; color: #0F5E3D; border-color: #0F5E3D;
         }
-
         .flatpickr-day.flatpickr-disabled,
         .flatpickr-day.flatpickr-disabled:hover {
-            color: #cbd5e1;
-            text-decoration: line-through;
-            cursor: not-allowed;
-            background: transparent;
+            color: #cbd5e1; text-decoration: line-through;
+            cursor: not-allowed; background: transparent;
         }
-
         .flatpickr-prev-month svg,
-        .flatpickr-next-month svg {
-            fill: #2C3E50;
-            width: 12px;
-            height: 12px;
-        }
-
-        .flatpickr-prev-month,
-        .flatpickr-next-month {
-            padding: 8px;
-        }
-
+        .flatpickr-next-month svg { fill: #2C3E50; width: 12px; height: 12px; }
+        .flatpickr-prev-month, .flatpickr-next-month { padding: 8px; }
         .flatpickr-prev-month:hover svg,
-        .flatpickr-next-month:hover svg {
-            fill: #0F5E3D;
-        }
+        .flatpickr-next-month:hover svg { fill: #0F5E3D; }
     </style>
 </head>
 
@@ -289,26 +228,22 @@ $leaveTypes = [
 
                 <?php if ($isPartTime): ?>
                     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                        <div
-                            class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                        <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
                             <i data-lucide="info" class="w-4 h-4"></i>
                         </div>
                         <div>
                             <p class="text-sm font-medium text-amber-800">Leave filing is not available</p>
                             <p class="text-xs text-amber-700/80 mt-0.5">
-                                Part-time employees are not eligible to file leave requests. Contact HR if you have
-                                questions.
+                                Part-time employees are not eligible to file leave requests. Contact HR if you have questions.
                             </p>
                         </div>
                     </div>
                 <?php endif; ?>
 
                 <!-- Toolbar -->
-                <div
-                    class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
                     <div class="relative flex-1 sm:max-w-sm">
-                        <i data-lucide="search"
-                            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
                         <input type="text" id="leaveSearch" oninput="filterLeaves()" placeholder="Search leaves"
                             class="w-full pl-10 pr-4 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                     </div>
@@ -364,33 +299,37 @@ $leaveTypes = [
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12 leave-row"
                                             data-search="<?= strtolower($tLabel . ' ' . $sLabel . ' ' . ($l['reason'] ?? '')) ?>">
                                             <td class="px-4">
-                                                <span
-                                                    class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
+                                                <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
                                             </td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/70">
-                                                <?= date('M j, Y', strtotime($l['start_date'])) ?></td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/70">
-                                                <?= date('M j, Y', strtotime($l['end_date'])) ?></td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/70">
-                                                <?= number_format((int) $l['days_count']) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= rtrim(rtrim(number_format((float)$l['days_count'], 2, '.', ''), '0'), '.') ?></td>
                                             <td class="px-4">
-                                                <span
-                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
                                                     <?= $sLabel ?>
                                                 </span>
                                             </td>
                                             <td class="px-4">
                                                 <div class="flex items-center justify-end gap-1">
                                                     <button onclick='openViewLeave(<?= json_encode([
-                                                        "id" => $l["id"],
-                                                        "type" => $tLabel,
-                                                        "start" => $l["start_date"],
-                                                        "end" => $l["end_date"],
-                                                        "days" => $l["days_count"],
-                                                        "reason" => $l["reason"] ?? "",
-                                                        "status" => $sLabel,
-                                                        "remarks" => $l["remarks"] ?? "",
-                                                        "created" => $l["created_at"],
+                                                        "id"         => (int) $l["id"],
+                                                        "name"       => $meName,
+                                                        "email"      => $me["email"] ?? "—",
+                                                        "category"   => ucfirst($me["category"] ?? "—"),
+                                                        "subcat"     => $me["sub_category"] ?? "—",
+                                                        "year_level" => $me["year_level"] ?? "—",
+                                                        "position"   => $me["position"] ?? "—",
+                                                        "employment" => ucfirst($me["employment_type"] ?? "—"),
+                                                        "type"       => $tLabel,
+                                                        "start"      => $l["start_date"],
+                                                        "end"        => $l["end_date"],
+                                                        "days"       => $l["days_count"],
+                                                        "reason"     => $l["reason"] ?? "",
+                                                        "status"     => $l["status"],
+                                                        "remarks"    => $l["remarks"] ?? "",
+                                                        "created"    => $l["created_at"],
+                                                        "approver"   => $l["approver_username"] ?? "",
+                                                        "approved"   => $l["approved_at"] ?? "",
                                                     ]) ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View details">
@@ -430,28 +369,34 @@ $leaveTypes = [
                                 <div class="p-4 leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>">
                                     <div class="flex items-start justify-between gap-2 mb-2">
                                         <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
-                                        <span
-                                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
                                             <?= $sLabel ?>
                                         </span>
                                     </div>
                                     <p class="text-xs text-[#2C3E50]/60">
-                                        <?= date('M j, Y', strtotime($l['start_date'])) ?> →
-                                        <?= date('M j, Y', strtotime($l['end_date'])) ?>
+                                        <?= date('M j, Y', strtotime($l['start_date'])) ?> → <?= date('M j, Y', strtotime($l['end_date'])) ?>
                                     </p>
-                                    <p class="text-xs text-[#2C3E50]/40 mt-1"><?= number_format((float) $l['days_count'], 2) ?>
-                                        day(s)</p>
+                                    <p class="text-xs text-[#2C3E50]/40 mt-1"><?= rtrim(rtrim(number_format((float)$l['days_count'], 2, '.', ''), '0'), '.') ?> day(s)</p>
                                     <div class="flex items-center gap-1 mt-3">
                                         <button onclick='openViewLeave(<?= json_encode([
-                                            "id" => $l["id"],
-                                            "type" => $tLabel,
-                                            "start" => $l["start_date"],
-                                            "end" => $l["end_date"],
-                                            "days" => $l["days_count"],
-                                            "reason" => $l["reason"] ?? "",
-                                            "status" => $sLabel,
-                                            "remarks" => $l["remarks"] ?? "",
-                                            "created" => $l["created_at"],
+                                            "id"         => (int) $l["id"],
+                                            "name"       => $meName,
+                                            "email"      => $me["email"] ?? "—",
+                                            "category"   => ucfirst($me["category"] ?? "—"),
+                                            "subcat"     => $me["sub_category"] ?? "—",
+                                            "year_level" => $me["year_level"] ?? "—",
+                                            "position"   => $me["position"] ?? "—",
+                                            "employment" => ucfirst($me["employment_type"] ?? "—"),
+                                            "type"       => $tLabel,
+                                            "start"      => $l["start_date"],
+                                            "end"        => $l["end_date"],
+                                            "days"       => $l["days_count"],
+                                            "reason"     => $l["reason"] ?? "",
+                                            "status"     => $l["status"],
+                                            "remarks"    => $l["remarks"] ?? "",
+                                            "created"    => $l["created_at"],
+                                            "approver"   => $l["approver_username"] ?? "",
+                                            "approved"   => $l["approved_at"] ?? "",
                                         ]) ?>)'
                                             class="flex-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
                                             View
@@ -468,8 +413,7 @@ $leaveTypes = [
                     </div>
 
                     <div id="leavesEmpty" class="hidden p-12 text-center">
-                        <div
-                            class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                        <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
                         <p class="text-sm font-medium text-[#2C3E50]">No matching leaves</p>
@@ -485,13 +429,11 @@ $leaveTypes = [
     <!-- File leave modal -->
     <div id="leaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4"
         data-default-start="<?= htmlspecialchars($defaultStartDate) ?>">
-        <div id="leaveCard"
-            class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
+        <div id="leaveCard" class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
             <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#E0E0E0]">
                 <div>
                     <h3 class="text-sm font-bold text-[#2C3E50]">File a Leave</h3>
-                    <p class="text-[11px] text-[#2C3E50]/50">Remaining: <span
-                            id="remainingCredits"><?= number_format($creditsLeft) ?></span> day(s)</p>
+                    <p class="text-[11px] text-[#2C3E50]/50">Remaining: <span id="remainingCredits"><?= number_format($creditsLeft) ?></span> day(s)</p>
                 </div>
                 <button onclick="closeLeaveModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
                     <i data-lucide="x" class="w-4 h-4"></i>
@@ -526,10 +468,8 @@ $leaveTypes = [
                     </div>
                 </div>
 
-                <!-- Half-day toggle (only shown when start == end) -->
                 <div id="halfDayWrap" class="hidden">
-                    <label
-                        class="flex items-start gap-2.5 p-3 rounded-lg border border-[#0F5E3D]/15 bg-[#F1FDF6] cursor-pointer select-none hover:bg-[#e8faf0] transition">
+                    <label class="flex items-start gap-2.5 p-3 rounded-lg border border-[#0F5E3D]/15 bg-[#F1FDF6] cursor-pointer select-none hover:bg-[#e8faf0] transition">
                         <input type="checkbox" name="is_half_day" id="isHalfDay" value="1"
                             class="mt-0.5 w-4 h-4 rounded border-gray-300 accent-[#0F5E3D] cursor-pointer">
                         <span class="text-xs text-[#2C3E50] leading-relaxed">
@@ -566,55 +506,136 @@ $leaveTypes = [
         </div>
     </div>
 
-    <!-- View leave modal -->
-    <div id="viewLeaveModal"
-        class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <!-- ============================================ -->
+    <!-- View leave modal — rich details                -->
+    <!-- ============================================ -->
+    <div id="viewLeaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div id="viewLeaveCard"
-            class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
-                <h3 class="text-base font-bold text-[#2C3E50]">Leave Details</h3>
-                <button onclick="closeViewLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-200 scale-95 overflow-hidden max-h-[90vh] flex flex-col">
+
+            <div class="flex items-start justify-between px-6 py-4 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 shrink-0">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <i data-lucide="file-text" class="w-4 h-4 text-[#0F5E3D]"></i>
+                        <h3 class="text-base font-bold text-[#2C3E50]">Leave Request Details</h3>
+                    </div>
+                    <p class="text-xs text-[#2C3E50]/50" id="vlRequestId">—</p>
+                </div>
+                <button onclick="closeViewLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition shrink-0 ml-3">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div class="p-6 space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Type</p>
-                        <p id="vlType" class="text-sm font-medium text-[#2C3E50]">—</p>
+
+            <div class="p-6 space-y-5 overflow-y-auto">
+
+                <div id="vlStatusRibbon" class="flex items-center gap-3 p-3 rounded-xl border bg-[#F1FDF6] border-[#0F5E3D]/15">
+                    <div id="vlStatusIcon" class="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-[#0F5E3D] shrink-0">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
                     </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Status
-                        </p>
-                        <p id="vlStatus" class="text-sm font-medium text-[#2C3E50]">—</p>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Status</p>
+                        <p id="vlStatus" class="text-sm font-semibold text-[#2C3E50]">—</p>
                     </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Start</p>
-                        <p id="vlStart" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">End</p>
-                        <p id="vlEnd" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Days</p>
-                        <p id="vlDays" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Filed</p>
-                        <p id="vlCreated" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
+                    <span id="vlStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-600 bg-slate-100">
+                        —
+                    </span>
                 </div>
+
                 <div>
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Reason</p>
-                    <p id="vlReason" class="text-sm text-[#2C3E50] whitespace-pre-wrap">—</p>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Employee</p>
+                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
+                        <div class="flex items-start gap-3">
+                            <div id="vlInitials" class="w-11 h-11 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-sm shrink-0">—</div>
+                            <div class="min-w-0 flex-1">
+                                <p id="vlName" class="text-sm font-semibold text-[#2C3E50] truncate">—</p>
+                                <p id="vlEmail" class="text-xs text-[#2C3E50]/50 truncate mt-0.5">—</p>
+                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                    <span id="vlCategoryChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="layers" class="w-2.5 h-2.5"></i><span id="vlCategory">—</span>
+                                    </span>
+                                    <span id="vlSubCatChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="building-2" class="w-2.5 h-2.5"></i><span id="vlSubCat">—</span>
+                                    </span>
+                                    <span id="vlYearChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="graduation-cap" class="w-2.5 h-2.5"></i><span id="vlYear">—</span>
+                                    </span>
+                                    <span id="vlPositionChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="badge-check" class="w-2.5 h-2.5"></i><span id="vlPosition">—</span>
+                                    </span>
+                                    <span id="vlEmploymentChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="clock" class="w-2.5 h-2.5"></i><span id="vlEmployment">—</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="vlRemarksWrap" class="hidden">
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Remarks</p>
-                    <p id="vlRemarks" class="text-sm text-[#2C3E50] whitespace-pre-wrap">—</p>
+
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Request</p>
+                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
+                        <div class="grid grid-cols-2 divide-x divide-y divide-[#E0E0E0]">
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Leave Type</p>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0"><i data-lucide="tag" class="w-3 h-3"></i></div>
+                                    <span id="vlType" class="text-sm font-medium text-[#2C3E50]">—</span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total Days</p>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0"><i data-lucide="calendar-check" class="w-3 h-3"></i></div>
+                                    <span id="vlDays" class="text-sm font-medium text-[#2C3E50]">—</span>
+                                    <span id="vlHalfDayTag" class="hidden inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200">HALF DAY</span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Start Date</p>
+                                <p id="vlStart" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">End Date</p>
+                                <p id="vlEnd" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                            <div class="p-3 col-span-2">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Filed On</p>
+                                <p id="vlCreated" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Reason</p>
+                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
+                        <p id="vlReason" class="text-sm text-[#2C3E50] leading-relaxed whitespace-pre-wrap">—</p>
+                    </div>
+                </div>
+
+                <div id="vlDecisionWrap" class="hidden">
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Decision</p>
+                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
+                        <div class="grid grid-cols-2 divide-x divide-[#E0E0E0]">
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided By</p>
+                                <p id="vlApprover" class="text-sm text-[#2C3E50] truncate">—</p>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided On</p>
+                                <p id="vlApprovedAt" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                        </div>
+                        <div id="vlRemarksBlock" class="hidden border-t border-[#E0E0E0] p-3">
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Remarks</p>
+                            <p id="vlRemarks" class="text-sm text-[#2C3E50] whitespace-pre-wrap leading-relaxed">—</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
-            <div class="px-6 py-4 border-t border-[#E0E0E0]">
+
+            <div class="px-6 py-4 border-t border-[#E0E0E0] bg-white shrink-0">
                 <button onclick="closeViewLeave()"
                     class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
                     Close
@@ -624,16 +645,12 @@ $leaveTypes = [
     </div>
 
     <!-- Loading overlay -->
-    <div id="loadingOverlay"
-        class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div id="loadingOverlay" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-xs p-8 text-center">
             <div class="flex items-center justify-center mb-4">
-                <svg class="animate-spin h-10 w-10 text-[#0F5E3D]" xmlns="http://www.w3.org/2000/svg" fill="none"
-                    viewBox="0 0 24 24">
+                <svg class="animate-spin h-10 w-10 text-[#0F5E3D]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
-                    <path class="opacity-90" fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                    </path>
+                    <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
             </div>
             <h3 class="text-base font-bold text-[#2C3E50] mb-1" id="loadingTitle">Working...</h3>
@@ -642,10 +659,8 @@ $leaveTypes = [
     </div>
 
     <!-- Error modal -->
-    <div id="errorModal"
-        class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="errorCard"
-            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
+    <div id="errorModal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="errorCard" class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
             <div class="flex items-center justify-center w-16 h-16 rounded-full bg-red-50 mx-auto mb-5">
                 <i data-lucide="alert-circle" class="w-8 h-8 text-red-600"></i>
             </div>
@@ -659,14 +674,11 @@ $leaveTypes = [
     </div>
 
     <!-- Success modal -->
-    <div id="successModal"
-        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="successCard"
-            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
+    <div id="successModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="successCard" class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
             <div class="relative mx-auto mb-5 w-16 h-16">
                 <div class="absolute inset-0 rounded-full bg-[#F1FDF6] animate-ping opacity-40"></div>
-                <div
-                    class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
+                <div class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
                     <i data-lucide="check-circle" class="w-8 h-8"></i>
                 </div>
             </div>

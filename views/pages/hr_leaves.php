@@ -21,7 +21,8 @@ $stmt = $pdo->query("
     SELECT 
         lr.*,
         e.first_name, e.middle_name, e.last_name, e.email,
-        e.category, e.sub_category, e.leave_credits,
+        e.category, e.sub_category, e.year_level, e.position,
+        e.employment_type, e.leave_credits,
         u.username AS approver_username
     FROM leave_requests lr
     LEFT JOIN employees e ON lr.employee_id = e.id
@@ -33,6 +34,7 @@ $stmt = $pdo->query("
 ");
 $leaves = $stmt->fetchAll();
 
+// Badge styles
 $leaveStyles = [
     'vacation'  => 'text-blue-600 bg-blue-50',
     'sick'      => 'text-rose-600 bg-rose-50',
@@ -58,6 +60,7 @@ $leaveLabels = [
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -67,9 +70,11 @@ $leaveLabels = [
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
+
 <body class="bg-gradient-to-br from-[#F1FDF6] via-[#eafaf1] to-[#dcf3e5] min-h-screen">
 
     <div class="flex min-h-screen">
+
         <div id="sidebarOverlay" onclick="closeSidebar()"
             class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
@@ -79,6 +84,7 @@ $leaveLabels = [
         ?>
 
         <div class="flex-1 md:ml-64 w-full min-w-0">
+
             <?php
             $pageTitle = 'Leave Requests';
             $pageSubtitle = 'Review and decide on employee leaves';
@@ -87,9 +93,31 @@ $leaveLabels = [
             ?>
 
             <main class="p-4 sm:p-6 lg:p-8 space-y-4">
+
+                <!-- Stat cards -->
+                <div class="animate-fade-in-up grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-1">Total Requests</p>
+                        <p class="text-2xl font-bold text-[#2C3E50]"><?= (int) $stats['total'] ?></p>
+                    </div>
+                    <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-1">Pending</p>
+                        <p class="text-2xl font-bold text-amber-600"><?= (int) $stats['pending'] ?></p>
+                    </div>
+                    <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-1">Approved</p>
+                        <p class="text-2xl font-bold text-[#0F5E3D]"><?= (int) $stats['approved'] ?></p>
+                    </div>
+                    <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-1">Rejected</p>
+                        <p class="text-2xl font-bold text-red-600"><?= (int) $stats['rejected'] ?></p>
+                    </div>
+                </div>
+
                 <!-- Toolbar -->
-                <div class="animate-fade-in-up relative z-30 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
+                <div class="animate-fade-in-up relative bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+
                         <div class="flex flex-wrap items-center gap-2">
                             <select id="statusFilter" onchange="filterLeaves()"
                                 class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
@@ -122,6 +150,7 @@ $leaveLabels = [
                                     class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[#2C3E50]/40 bg-white px-1.5 py-0.5 rounded border border-[#E0E0E0]">/</kbd>
                             </div>
                         </div>
+
                     </div>
                 </div>
 
@@ -188,7 +217,7 @@ $leaveLabels = [
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0">
-                                                <span class="text-sm text-[#2C3E50]/70"><?= number_format((float) $l['days_count'], 1) ?></span>
+                                                <span class="text-sm text-[#2C3E50]/70"><?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?></span>
                                             </td>
                                             <td class="px-4 py-0">
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $statusClass ?>">
@@ -197,37 +226,37 @@ $leaveLabels = [
                                             </td>
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
-                                                    <button
-                                                        onclick='openViewLeave(<?= json_encode([
-                                                            "id"       => (int) $l["id"],
-                                                            "name"     => $fullName,
-                                                            "email"    => $l["email"] ?? "—",
-                                                            "category" => $l["category"] ?? "—",
-                                                            "subcat"   => $l["sub_category"] ?? "—",
-                                                            "type"     => $leaveLabel,
-                                                            "start"    => $l["start_date"],
-                                                            "end"      => $l["end_date"],
-                                                            "days"     => $l["days_count"],
-                                                            "reason"   => $l["reason"] ?? "",
-                                                            "status"   => $l["status"],
-                                                            "remarks"  => $l["remarks"] ?? "",
-                                                            "created"  => $l["created_at"],
-                                                            "approver" => $l["approver_username"] ?? "",
-                                                            "approved" => $l["approved_at"] ?? "",
-                                                            "credits"  => $l["leave_credits"] ?? 0,
-                                                        ]) ?>)'
+                                                    <button onclick='openViewLeave(<?= json_encode([
+                                                        "id"         => (int) $l["id"],
+                                                        "name"       => $fullName,
+                                                        "email"      => $l["email"] ?? "—",
+                                                        "category"   => ucfirst($l["category"] ?? "—"),
+                                                        "subcat"     => $l["sub_category"] ?? "—",
+                                                        "year_level" => $l["year_level"] ?? "—",
+                                                        "position"   => $l["position"] ?? "—",
+                                                        "employment" => ucfirst($l["employment_type"] ?? "—"),
+                                                        "type"       => $leaveLabel,
+                                                        "start"      => $l["start_date"],
+                                                        "end"        => $l["end_date"],
+                                                        "days"       => $l["days_count"],
+                                                        "reason"     => $l["reason"] ?? "",
+                                                        "status"     => $l["status"],
+                                                        "remarks"    => $l["remarks"] ?? "",
+                                                        "created"    => $l["created_at"],
+                                                        "approver"   => $l["approver_username"] ?? "",
+                                                        "approved"   => $l["approved_at"] ?? "",
+                                                    ]) ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View details">
                                                         <i data-lucide="eye" class="w-3.5 h-3.5"></i>
                                                     </button>
                                                     <?php if ($isPending): ?>
-                                                        <button
-                                                            onclick='openApproveReject(<?= json_encode([
-                                                                "id"   => (int) $l["id"],
-                                                                "name" => $fullName,
-                                                                "days" => (float) $l["days_count"],
-                                                                "type" => $leaveLabel,
-                                                            ]) ?>)'
+                                                        <button onclick='openApproveReject(<?= json_encode([
+                                                            "id"   => (int) $l["id"],
+                                                            "name" => $fullName,
+                                                            "days" => (float) $l["days_count"],
+                                                            "type" => $leaveLabel,
+                                                        ]) ?>)'
                                                             class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                             title="Approve / Reject">
                                                             <i data-lucide="check-check" class="w-3.5 h-3.5"></i>
@@ -275,25 +304,38 @@ $leaveLabels = [
                                                     <?= date('M j', strtotime($l['start_date'])) ?>–<?= date('M j', strtotime($l['end_date'])) ?>
                                                 </span>
                                             </div>
-                                            <p class="text-[10px] text-[#2C3E50]/40"><?= number_format((float) $l['days_count'], 1) ?> days</p>
+                                            <p class="text-[10px] text-[#2C3E50]/40"><?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?> days</p>
                                             <div class="flex items-center gap-2 mt-3">
-                                                <button
-                                                    onclick='openViewLeave(<?= json_encode([
-                                                        "id" => (int) $l["id"], "name" => $fullName,
-                                                        "type" => $leaveLabel, "start" => $l["start_date"], "end" => $l["end_date"],
-                                                        "days" => $l["days_count"], "reason" => $l["reason"] ?? "",
-                                                        "status" => $l["status"], "remarks" => $l["remarks"] ?? "",
-                                                        "created" => $l["created_at"], "credits" => $l["leave_credits"] ?? 0,
-                                                    ]) ?>)'
+                                                <button onclick='openViewLeave(<?= json_encode([
+                                                    "id"         => (int) $l["id"],
+                                                    "name"       => $fullName,
+                                                    "email"      => $l["email"] ?? "—",
+                                                    "category"   => ucfirst($l["category"] ?? "—"),
+                                                    "subcat"     => $l["sub_category"] ?? "—",
+                                                    "year_level" => $l["year_level"] ?? "—",
+                                                    "position"   => $l["position"] ?? "—",
+                                                    "employment" => ucfirst($l["employment_type"] ?? "—"),
+                                                    "type"       => $leaveLabel,
+                                                    "start"      => $l["start_date"],
+                                                    "end"        => $l["end_date"],
+                                                    "days"       => $l["days_count"],
+                                                    "reason"     => $l["reason"] ?? "",
+                                                    "status"     => $l["status"],
+                                                    "remarks"    => $l["remarks"] ?? "",
+                                                    "created"    => $l["created_at"],
+                                                    "approver"   => $l["approver_username"] ?? "",
+                                                    "approved"   => $l["approved_at"] ?? "",
+                                                ]) ?>)'
                                                     class="flex-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
                                                     View
                                                 </button>
                                                 <?php if ($isPending): ?>
-                                                    <button
-                                                        onclick='openApproveReject(<?= json_encode([
-                                                            "id" => (int) $l["id"], "name" => $fullName,
-                                                            "days" => (float) $l["days_count"], "type" => $leaveLabel,
-                                                        ]) ?>)'
+                                                    <button onclick='openApproveReject(<?= json_encode([
+                                                        "id"   => (int) $l["id"],
+                                                        "name" => $fullName,
+                                                        "days" => (float) $l["days_count"],
+                                                        "type" => $leaveLabel,
+                                                    ]) ?>)'
                                                         class="flex-1 text-xs py-2 rounded-lg bg-[#0F5E3D] text-white hover:bg-[#0a4a2f] transition">
                                                         Review
                                                     </button>
@@ -326,61 +368,142 @@ $leaveLabels = [
         </div>
     </div>
 
-    <!-- View leave modal -->
+    <!-- ============================================ -->
+    <!-- View leave modal — rich details                -->
+    <!-- ============================================ -->
     <div id="viewLeaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="viewLeaveCard" class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
-                <h3 class="text-base font-bold text-[#2C3E50]">Leave Details</h3>
-                <button onclick="closeViewLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
+        <div id="viewLeaveCard"
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-200 scale-95 overflow-hidden max-h-[90vh] flex flex-col">
+
+            <div class="flex items-start justify-between px-6 py-4 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 shrink-0">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <i data-lucide="file-text" class="w-4 h-4 text-[#0F5E3D]"></i>
+                        <h3 class="text-base font-bold text-[#2C3E50]">Leave Request Details</h3>
+                    </div>
+                    <p class="text-xs text-[#2C3E50]/50" id="vlRequestId">—</p>
+                </div>
+                <button onclick="closeViewLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition shrink-0 ml-3">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+
+            <div class="p-6 space-y-5 overflow-y-auto">
+
+                <div id="vlStatusRibbon" class="flex items-center gap-3 p-3 rounded-xl border bg-[#F1FDF6] border-[#0F5E3D]/15">
+                    <div id="vlStatusIcon" class="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-[#0F5E3D] shrink-0">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Status</p>
+                        <p id="vlStatus" class="text-sm font-semibold text-[#2C3E50]">—</p>
+                    </div>
+                    <span id="vlStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-600 bg-slate-100">
+                        —
+                    </span>
+                </div>
+
                 <div>
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Employee</p>
-                    <p id="vlName" class="text-sm font-medium text-[#2C3E50]">—</p>
-                    <p id="vlEmail" class="text-xs text-[#2C3E50]/50">—</p>
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Type</p>
-                        <p id="vlType" class="text-sm font-medium text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Status</p>
-                        <p id="vlStatus" class="text-sm font-medium text-[#2C3E50] capitalize">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Start</p>
-                        <p id="vlStart" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">End</p>
-                        <p id="vlEnd" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Days</p>
-                        <p id="vlDays" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Filed</p>
-                        <p id="vlCreated" class="text-sm text-[#2C3E50]">—</p>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Employee</p>
+                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
+                        <div class="flex items-start gap-3">
+                            <div id="vlInitials" class="w-11 h-11 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-sm shrink-0">—</div>
+                            <div class="min-w-0 flex-1">
+                                <p id="vlName" class="text-sm font-semibold text-[#2C3E50] truncate">—</p>
+                                <p id="vlEmail" class="text-xs text-[#2C3E50]/50 truncate mt-0.5">—</p>
+                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                    <span id="vlCategoryChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="layers" class="w-2.5 h-2.5"></i><span id="vlCategory">—</span>
+                                    </span>
+                                    <span id="vlSubCatChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="building-2" class="w-2.5 h-2.5"></i><span id="vlSubCat">—</span>
+                                    </span>
+                                    <span id="vlYearChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="graduation-cap" class="w-2.5 h-2.5"></i><span id="vlYear">—</span>
+                                    </span>
+                                    <span id="vlPositionChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="badge-check" class="w-2.5 h-2.5"></i><span id="vlPosition">—</span>
+                                    </span>
+                                    <span id="vlEmploymentChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="clock" class="w-2.5 h-2.5"></i><span id="vlEmployment">—</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
                 <div>
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Reason</p>
-                    <p id="vlReason" class="text-sm text-[#2C3E50] whitespace-pre-wrap">—</p>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Request</p>
+                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
+                        <div class="grid grid-cols-2 divide-x divide-y divide-[#E0E0E0]">
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Leave Type</p>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                        <i data-lucide="tag" class="w-3 h-3"></i>
+                                    </div>
+                                    <span id="vlType" class="text-sm font-medium text-[#2C3E50]">—</span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total Days</p>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                        <i data-lucide="calendar-check" class="w-3 h-3"></i>
+                                    </div>
+                                    <span id="vlDays" class="text-sm font-medium text-[#2C3E50]">—</span>
+                                    <span id="vlHalfDayTag" class="hidden inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200">
+                                        HALF DAY
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Start Date</p>
+                                <p id="vlStart" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">End Date</p>
+                                <p id="vlEnd" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                            <div class="p-3 col-span-2">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Filed On</p>
+                                <p id="vlCreated" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="vlRemarksWrap" class="hidden">
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Remarks</p>
-                    <p id="vlRemarks" class="text-sm text-[#2C3E50] whitespace-pre-wrap">—</p>
+
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Reason</p>
+                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
+                        <p id="vlReason" class="text-sm text-[#2C3E50] leading-relaxed whitespace-pre-wrap">—</p>
+                    </div>
                 </div>
-                <div id="vlApproverWrap" class="hidden">
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided by</p>
-                    <p id="vlApprover" class="text-sm text-[#2C3E50]">—</p>
+
+                <div id="vlDecisionWrap" class="hidden">
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Decision</p>
+                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
+                        <div class="grid grid-cols-2 divide-x divide-[#E0E0E0]">
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided By</p>
+                                <p id="vlApprover" class="text-sm text-[#2C3E50] truncate">—</p>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided On</p>
+                                <p id="vlApprovedAt" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                        </div>
+                        <div id="vlRemarksBlock" class="hidden border-t border-[#E0E0E0] p-3">
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Remarks</p>
+                            <p id="vlRemarks" class="text-sm text-[#2C3E50] whitespace-pre-wrap leading-relaxed">—</p>
+                        </div>
+                    </div>
                 </div>
+
             </div>
-            <div class="px-6 py-4 border-t border-[#E0E0E0]">
+
+            <div class="px-6 py-4 border-t border-[#E0E0E0] bg-white shrink-0">
                 <button onclick="closeViewLeave()"
                     class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
                     Close
@@ -497,4 +620,5 @@ $leaveLabels = [
     <script src="/assets/js/profile.js"></script>
     <script src="/assets/js/leaves.js"></script>
 </body>
+
 </html>

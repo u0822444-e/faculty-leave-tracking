@@ -15,7 +15,7 @@ register_shutdown_function(function () {
             http_response_code(500);
         }
         echo json_encode([
-            'error'   => 'Server error while processing the upload.',
+            'error' => 'Server error while processing the upload.',
             'details' => $err['message'] . ' in ' . $err['file'] . ':' . $err['line'],
         ]);
     }
@@ -44,17 +44,20 @@ $action = $_POST['action'] ?? '';
 // ============================================
 // Upload paths — declared ONCE at file scope
 // ============================================
-$uploadDir = __DIR__ . '/../../public/uploads/avatars/';
+$uploadDir = __DIR__ . '/../../public_html/uploads/avatars/';
 $uploadUrl = '/uploads/avatars/';
 
 // ============================================
 // Helper: delete an old avatar file from disk
 // ============================================
 if (!function_exists('deleteAvatarFile')) {
-    function deleteAvatarFile(?string $filename, string $dir): void {
-        if (!$filename) return;
+    function deleteAvatarFile(?string $filename, string $dir): void
+    {
+        if (!$filename)
+            return;
         $path = $dir . $filename;
-        if (is_file($path)) @unlink($path);
+        if (is_file($path))
+            @unlink($path);
     }
 }
 
@@ -129,7 +132,6 @@ if ($action === 'upload') {
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         if ($finfo) {
             $mime = finfo_file($finfo, $file['tmp_name']);
-            finfo_close($finfo);
         }
     }
     if (!$mime && function_exists('mime_content_type')) {
@@ -141,9 +143,9 @@ if ($action === 'upload') {
 
     $allowed = [
         'image/jpeg' => 'jpg',
-        'image/png'  => 'png',
+        'image/png' => 'png',
         'image/webp' => 'webp',
-        'image/gif'  => 'gif',
+        'image/gif' => 'gif',
     ];
 
     if (!isset($allowed[$mime])) {
@@ -151,7 +153,7 @@ if ($action === 'upload') {
         exit;
     }
 
-    $ext      = $allowed[$mime];
+    $ext = $allowed[$mime];
     $filename = 'user_' . $userId . '_' . time() . '.' . $ext;
 
     if (!is_dir($uploadDir)) {
@@ -189,7 +191,7 @@ if ($action === 'upload') {
     echo json_encode([
         'success' => true,
         'message' => 'Profile picture updated.',
-        'avatar'  => $uploadUrl . $filename,
+        'avatar' => $uploadUrl . $filename,
     ]);
     exit;
 }

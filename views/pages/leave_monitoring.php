@@ -11,9 +11,9 @@ $leadershipPositions = [
     'Elementary Principal',
     'High School Principal',
 ];
-$myPosition   = $_SESSION['position']     ?? '';
-$mySubCat     = $_SESSION['sub_category'] ?? '';
-$myYearLevel  = $_SESSION['year_level']   ?? '';
+$myPosition  = $_SESSION['position']     ?? '';
+$mySubCat    = $_SESSION['sub_category'] ?? '';
+$myYearLevel = $_SESSION['year_level']   ?? '';
 
 if (!in_array($myPosition, $leadershipPositions, true)) {
     header('Location: /faculty/dashboard');
@@ -40,7 +40,7 @@ $myEmployeeId = (int) ($me['employee_id'] ?? 0);
 // ============================================
 // Build the scope filter based on the position
 // ============================================
-$where  = ["lr.status IN ('pending','approved','rejected','cancelled')"];
+$where  = ["lr.status IN ('pending','approved')"];
 $params = [];
 
 // Exclude the dean/principal themselves
@@ -51,7 +51,6 @@ $params[] = $myEmployeeId;
 $where[] = "emp.category = 'faculty'";
 
 if ($myPosition === 'College Dean') {
-    // Only faculty in the same college (year_level)
     if ($myYearLevel !== '') {
         $where[]  = "emp.year_level = ?";
         $params[] = $myYearLevel;
@@ -68,8 +67,9 @@ $whereSql = implode(' AND ', $where);
 $sql = "
     SELECT
         lr.*,
-        emp.first_name, emp.middle_name, emp.last_name,
-        emp.sub_category, emp.year_level, emp.position,
+        emp.first_name, emp.middle_name, emp.last_name, emp.email,
+        emp.category, emp.sub_category, emp.year_level, emp.position,
+        emp.employment_type,
         approver.username AS approver_username
     FROM leave_requests lr
     INNER JOIN employees emp ON lr.employee_id = emp.id
@@ -89,7 +89,6 @@ $summary = [
     'total'    => count($leaves),
     'pending'  => 0,
     'approved' => 0,
-    'rejected' => 0,
 ];
 foreach ($leaves as $l) {
     if (isset($summary[$l['status']])) $summary[$l['status']]++;
@@ -136,6 +135,7 @@ switch ($myPosition) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -145,6 +145,7 @@ switch ($myPosition) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
+
 <body class="bg-gradient-to-br from-[#F1FDF6] via-[#eafaf1] to-[#dcf3e5] min-h-screen">
 
     <div class="flex min-h-screen">
@@ -183,7 +184,7 @@ switch ($myPosition) {
                 </div>
 
                 <!-- Summary strip -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="grid grid-cols-3 gap-3">
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total</p>
                         <p class="text-xl font-bold text-[#2C3E50]"><?= $summary['total'] ?></p>
@@ -195,10 +196,6 @@ switch ($myPosition) {
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Pending</p>
                         <p class="text-xl font-bold text-amber-600"><?= $summary['pending'] ?></p>
-                    </div>
-                    <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Rejected</p>
-                        <p class="text-xl font-bold text-red-600"><?= $summary['rejected'] ?></p>
                     </div>
                 </div>
 
@@ -214,8 +211,6 @@ switch ($myPosition) {
                         <option value="">All Status</option>
                         <option value="pending">Pending</option>
                         <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                        <option value="cancelled">Cancelled</option>
                     </select>
                 </div>
 
@@ -266,7 +261,7 @@ switch ($myPosition) {
                                         <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
                                         <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
                                         <td class="px-4 text-sm text-[#2C3E50]/70">
-                                            <?= rtrim(rtrim(number_format((float)$l['days_count'], 2, '.', ''), '0'), '.') ?>
+                                            <?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?>
                                         </td>
                                         <td class="px-4">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
@@ -276,16 +271,24 @@ switch ($myPosition) {
                                         <td class="px-4">
                                             <div class="flex items-center justify-end">
                                                 <button onclick='openViewFacultyLeave(<?= json_encode([
-                                                    "employee" => $empName,
-                                                    "type"     => $tLabel,
-                                                    "start"    => $l["start_date"],
-                                                    "end"      => $l["end_date"],
-                                                    "days"     => $l["days_count"],
-                                                    "reason"   => $l["reason"] ?? "",
-                                                    "status"   => $sLabel,
-                                                    "remarks"  => $l["remarks"] ?? "",
-                                                    "created"  => $l["created_at"],
-                                                    "approver" => $l["approver_username"] ?? "",
+                                                    "id"         => (int) $l["id"],
+                                                    "name"       => $empName,
+                                                    "email"      => $l["email"] ?? "—",
+                                                    "category"   => ucfirst($l["category"] ?? "—"),
+                                                    "subcat"     => $l["sub_category"] ?? "—",
+                                                    "year_level" => $l["year_level"] ?? "—",
+                                                    "position"   => $l["position"] ?? "—",
+                                                    "employment" => ucfirst($l["employment_type"] ?? "—"),
+                                                    "type"       => $tLabel,
+                                                    "start"      => $l["start_date"],
+                                                    "end"        => $l["end_date"],
+                                                    "days"       => $l["days_count"],
+                                                    "reason"     => $l["reason"] ?? "",
+                                                    "status"     => $l["status"],
+                                                    "remarks"    => $l["remarks"] ?? "",
+                                                    "created"    => $l["created_at"],
+                                                    "approver"   => $l["approver_username"] ?? "",
+                                                    "approved"   => $l["approved_at"] ?? "",
                                                 ]) ?>)'
                                                     class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                     title="View details">
@@ -347,59 +350,136 @@ switch ($myPosition) {
         </div>
     </div>
 
-    <!-- View leave modal (read-only) -->
+    <!-- ============================================ -->
+    <!-- View leave modal — rich details                -->
+    <!-- ============================================ -->
     <div id="flViewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="flViewCard" class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95 overflow-hidden">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
-                <div>
-                    <h3 class="text-base font-bold text-[#2C3E50]">Leave Details</h3>
-                    <p class="text-xs text-[#2C3E50]/50" id="flvEmployee">—</p>
+        <div id="flViewCard"
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-200 scale-95 overflow-hidden max-h-[90vh] flex flex-col">
+
+            <div class="flex items-start justify-between px-6 py-4 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 shrink-0">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <i data-lucide="file-text" class="w-4 h-4 text-[#0F5E3D]"></i>
+                        <h3 class="text-base font-bold text-[#2C3E50]">Leave Request Details</h3>
+                    </div>
+                    <p class="text-xs text-[#2C3E50]/50" id="flvRequestId">—</p>
                 </div>
-                <button onclick="closeViewFacultyLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
+                <button onclick="closeViewFacultyLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition shrink-0 ml-3">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            <div class="p-6 space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Type</p>
-                        <p id="flvType" class="text-sm font-medium text-[#2C3E50]">—</p>
+
+            <div class="p-6 space-y-5 overflow-y-auto">
+
+                <div id="flvStatusRibbon" class="flex items-center gap-3 p-3 rounded-xl border bg-[#F1FDF6] border-[#0F5E3D]/15">
+                    <div id="flvStatusIcon" class="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-[#0F5E3D] shrink-0">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
                     </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Status</p>
-                        <p id="flvStatus" class="text-sm font-medium text-[#2C3E50]">—</p>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Status</p>
+                        <p id="flvStatus" class="text-sm font-semibold text-[#2C3E50]">—</p>
                     </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Start</p>
-                        <p id="flvStart" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">End</p>
-                        <p id="flvEnd" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Days</p>
-                        <p id="flvDays" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Filed</p>
-                        <p id="flvCreated" class="text-sm text-[#2C3E50]">—</p>
-                    </div>
+                    <span id="flvStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-600 bg-slate-100">
+                        —
+                    </span>
                 </div>
+
                 <div>
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Reason</p>
-                    <p id="flvReason" class="text-sm text-[#2C3E50] whitespace-pre-wrap">—</p>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Employee</p>
+                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
+                        <div class="flex items-start gap-3">
+                            <div id="flvInitials" class="w-11 h-11 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-sm shrink-0">—</div>
+                            <div class="min-w-0 flex-1">
+                                <p id="flvName" class="text-sm font-semibold text-[#2C3E50] truncate">—</p>
+                                <p id="flvEmail" class="text-xs text-[#2C3E50]/50 truncate mt-0.5">—</p>
+                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                    <span id="flvCategoryChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="layers" class="w-2.5 h-2.5"></i><span id="flvCategory">—</span>
+                                    </span>
+                                    <span id="flvSubCatChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="building-2" class="w-2.5 h-2.5"></i><span id="flvSubCat">—</span>
+                                    </span>
+                                    <span id="flvYearChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="graduation-cap" class="w-2.5 h-2.5"></i><span id="flvYear">—</span>
+                                    </span>
+                                    <span id="flvPositionChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="badge-check" class="w-2.5 h-2.5"></i><span id="flvPosition">—</span>
+                                    </span>
+                                    <span id="flvEmploymentChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
+                                        <i data-lucide="clock" class="w-2.5 h-2.5"></i><span id="flvEmployment">—</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="flvRemarksWrap" class="hidden">
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Remarks</p>
-                    <p id="flvRemarks" class="text-sm text-[#2C3E50] whitespace-pre-wrap">—</p>
+
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Request</p>
+                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
+                        <div class="grid grid-cols-2 divide-x divide-y divide-[#E0E0E0]">
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Leave Type</p>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0"><i data-lucide="tag" class="w-3 h-3"></i></div>
+                                    <span id="flvType" class="text-sm font-medium text-[#2C3E50]">—</span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total Days</p>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0"><i data-lucide="calendar-check" class="w-3 h-3"></i></div>
+                                    <span id="flvDays" class="text-sm font-medium text-[#2C3E50]">—</span>
+                                    <span id="flvHalfDayTag" class="hidden inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200">HALF DAY</span>
+                                </div>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Start Date</p>
+                                <p id="flvStart" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">End Date</p>
+                                <p id="flvEnd" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                            <div class="p-3 col-span-2">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Filed On</p>
+                                <p id="flvCreated" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div id="flvApproverWrap" class="hidden">
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Approved By</p>
-                    <p id="flvApprover" class="text-sm text-[#2C3E50]">—</p>
+
+                <div>
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Reason</p>
+                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
+                        <p id="flvReason" class="text-sm text-[#2C3E50] leading-relaxed whitespace-pre-wrap">—</p>
+                    </div>
                 </div>
+
+                <div id="flvDecisionWrap" class="hidden">
+                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Decision</p>
+                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
+                        <div class="grid grid-cols-2 divide-x divide-[#E0E0E0]">
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided By</p>
+                                <p id="flvApprover" class="text-sm text-[#2C3E50] truncate">—</p>
+                            </div>
+                            <div class="p-3">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided On</p>
+                                <p id="flvApprovedAt" class="text-sm text-[#2C3E50]">—</p>
+                            </div>
+                        </div>
+                        <div id="flvRemarksBlock" class="hidden border-t border-[#E0E0E0] p-3">
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Remarks</p>
+                            <p id="flvRemarks" class="text-sm text-[#2C3E50] whitespace-pre-wrap leading-relaxed">—</p>
+                        </div>
+                    </div>
+                </div>
+
             </div>
-            <div class="px-6 py-4 border-t border-[#E0E0E0]">
+
+            <div class="px-6 py-4 border-t border-[#E0E0E0] bg-white shrink-0">
                 <button onclick="closeViewFacultyLeave()"
                     class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
                     Close
@@ -416,4 +496,5 @@ switch ($myPosition) {
     <script src="/assets/js/profile.js"></script>
     <script src="/assets/js/leave_monitoring.js"></script>
 </body>
+
 </html>

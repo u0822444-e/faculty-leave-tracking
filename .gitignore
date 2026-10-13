@@ -1,5 +1,33 @@
+# Environment
 .env
-.env.local
-.env.*.local
-vendor/
-node_modules/
+
+# Database dumps and backups
+*.sql
+*.zip
+!config/faculty_db_backup.sql.example
+
+# Temporary generators / seed scripts
+gen_hash.php
+seed_users.php
+
+# User uploads
+public_html/uploads/avatars/*
+!public_html/uploads/avatars/.htaccess
+public_html/uploads/videos/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Backups / temp
+*.bak
+*.OLD
+*.old
+*.local.bak
+*.REMOVED_*
+*.save.*
+
+# Logs
+*.log

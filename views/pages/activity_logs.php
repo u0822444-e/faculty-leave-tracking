@@ -227,6 +227,7 @@ $activePage   = 'activity-logs';
     <script src="/assets/js/app.js"></script>
     <script src="/assets/js/notifications.js"></script>
     <script src="/assets/js/activity-logs.js"></script>
+    <script src="/assets/js/profile.js"></script>
 </body>
 
 </html>

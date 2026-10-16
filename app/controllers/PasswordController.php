@@ -6,8 +6,21 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../services/MailService.php';
 require_once __DIR__ . '/../helpers/EmailTemplates.php';
+require_once __DIR__ . '/../helpers/ActivityLogger.php';
 
 $action = $_POST['action'] ?? '';
+
+// Detect whether this call came from the AJAX change-password page or a form POST
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
+    && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+// Also treat POSTs to /change-password as JSON responses
+$requestUri = $_SERVER['REQUEST_URI'] ?? '';
+$isChangePasswordEndpoint = str_starts_with($requestUri, '/change-password');
+
+if ($isChangePasswordEndpoint) {
+    header('Content-Type: application/json');
+}
 
 try {
 
@@ -66,7 +79,7 @@ try {
                         $resetLink
                     ))
                     ->send();
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 error_log('Reset email failed: ' . $e->getMessage());
             }
         }
@@ -144,12 +157,108 @@ try {
         exit;
     }
 
-    header('Location: /forgot-password');
+    // ============================================
+    // CHANGE PASSWORD (welcome flow — AJAX, JSON response)
+    // ============================================
+    if ($action === 'change_password') {
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized.']);
+            exit;
+        }
+
+        $current = $_POST['current_password'] ?? '';
+        $new     = $_POST['new_password'] ?? '';
+        $confirm = $_POST['confirm_password'] ?? '';
+
+        if ($current === '' || $new === '' || $confirm === '') {
+            echo json_encode(['success' => false, 'error' => 'Please fill in all fields.']);
+            exit;
+        }
+        if ($new !== $confirm) {
+            echo json_encode(['success' => false, 'error' => 'New passwords do not match.']);
+            exit;
+        }
+        if (strlen($new) < 8) {
+            echo json_encode(['success' => false, 'error' => 'Password must be at least 8 characters.']);
+            exit;
+        }
+        if ($new === $current) {
+            echo json_encode(['success' => false, 'error' => 'New password must be different from the current one.']);
+            exit;
+        }
+
+        $userId = (int) $_SESSION['user_id'];
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $hash = $stmt->fetchColumn();
+
+        if (!$hash || !password_verify($current, $hash)) {
+            echo json_encode(['success' => false, 'error' => 'Current password is incorrect.']);
+            exit;
+        }
+
+        $newHash = password_hash($new, PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("
+            UPDATE users 
+            SET password = ?, must_change_password = 0 
+            WHERE id = ?
+        ");
+        $stmt->execute([$newHash, $userId]);
+
+        if (class_exists('ActivityLogger')) {
+            ActivityLogger::log($pdo, 'change_password', 'Changed account password', 'user', $userId);
+        }
+
+        echo json_encode(['success' => true, 'message' => 'Password updated.']);
+        exit;
+    }
+
+    // ============================================
+    // SKIP PASSWORD CHANGE (welcome flow — AJAX, JSON response)
+    // ============================================
+    if ($action === 'skip_password_change') {
+        if (!isset($_SESSION['user_id'])) {
+            echo json_encode(['success' => false, 'error' => 'Unauthorized.']);
+            exit;
+        }
+
+        $userId = (int) $_SESSION['user_id'];
+        $stmt = $pdo->prepare("UPDATE users SET must_change_password = 0 WHERE id = ?");
+        $stmt->execute([$userId]);
+
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
+    // ============================================
+    // Fallback — unknown action
+    // ============================================
+    if ($isChangePasswordEndpoint) {
+        echo json_encode(['success' => false, 'error' => 'Unknown action.']);
+    } else {
+        header('Location: /forgot-password');
+    }
     exit;
 
 } catch (PDOException $e) {
     error_log('Password controller error: ' . $e->getMessage());
-    $_SESSION['error'] = 'Something went wrong. Please try again.';
-    header('Location: /forgot-password');
+
+    if ($isChangePasswordEndpoint) {
+        echo json_encode(['success' => false, 'error' => 'Database error. Please try again.']);
+    } else {
+        $_SESSION['error'] = 'Something went wrong. Please try again.';
+        header('Location: /forgot-password');
+    }
+    exit;
+
+} catch (Throwable $e) {
+    error_log('Password controller error (generic): ' . $e->getMessage());
+
+    if ($isChangePasswordEndpoint) {
+        echo json_encode(['success' => false, 'error' => 'Server error. Please try again.']);
+    } else {
+        $_SESSION['error'] = 'Something went wrong. Please try again.';
+        header('Location: /forgot-password');
+    }
     exit;
 }

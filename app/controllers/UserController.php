@@ -1,4 +1,12 @@
 <?php
+// ============================================
+// TEMP DEBUG — REMOVE AFTER CONFIRMING FIX
+// ============================================
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+// ============================================
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -12,7 +20,8 @@ require_once __DIR__ . '/../helpers/NotificationService.php';
 // Auth guard
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     http_response_code(403);
-    echo json_encode(['error' => 'Unauthorized']);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
 
@@ -26,7 +35,10 @@ try {
         // Read all users
         // ============================================
         case 'list':
-            $stmt = $pdo->query("
+            $includeInactive = !empty($_GET['include_inactive'])
+                || (($_POST['include_inactive'] ?? '') === '1');
+
+            $sql = "
                 SELECT 
                     u.id AS user_id,
                     u.username,
@@ -47,8 +59,15 @@ try {
                     u.created_at
                 FROM users u
                 LEFT JOIN employees e ON u.employee_id = e.id
-                ORDER BY u.id DESC
-            ");
+            ";
+
+            if (!$includeInactive) {
+                $sql .= " WHERE u.status != 'inactive' ";
+            }
+
+            $sql .= " ORDER BY u.id DESC ";
+
+            $stmt = $pdo->query($sql);
             $users = $stmt->fetchAll();
 
             $formatted = array_map(function ($u) {
@@ -85,7 +104,7 @@ try {
             break;
 
         // ============================================
-        // Create new user + employee + send welcome email
+        // Create new user + employee
         // ============================================
         case 'create':
             $first = trim($_POST['first_name'] ?? '');
@@ -110,19 +129,16 @@ try {
                 $credits = 0;
             }
 
-            // Position is required; default to N/A if empty
             if ($position === '') {
                 $position = 'N/A';
             }
 
-            // Basic validation
             if (empty($first) || empty($last) || empty($username) || empty($password) || empty($role) || empty($category)) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => 'Please fill in all required fields.']);
                 break;
             }
 
-            // Check duplicate username
             $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
             $check->execute([$username]);
             if ($check->fetch()) {
@@ -131,7 +147,6 @@ try {
                 break;
             }
 
-            // Check duplicate email
             if (!empty($email)) {
                 $check = $pdo->prepare("
                     SELECT id FROM employees 
@@ -146,7 +161,6 @@ try {
                 }
             }
 
-            // Check duplicate full name
             $check = $pdo->prepare("
                 SELECT id FROM employees 
                 WHERE LOWER(first_name) = LOWER(?) 
@@ -163,7 +177,6 @@ try {
             $pdo->beginTransaction();
 
             try {
-                // Insert employee
                 $stmt = $pdo->prepare("
                     INSERT INTO employees 
                         (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_credits)
@@ -184,17 +197,26 @@ try {
                 ]);
                 $employeeId = $pdo->lastInsertId();
 
-                // Insert user
                 $hashed = password_hash($password, PASSWORD_DEFAULT);
                 $stmt = $pdo->prepare("
-                    INSERT INTO users (username, password, role, employee_id, status)
-                    VALUES (?, ?, ?, ?, 'active')
-                ");
+    INSERT INTO users (username, password, role, employee_id, status, must_change_password)
+    VALUES (?, ?, ?, ?, 'active', 1)
+");
                 $stmt->execute([$username, $hashed, $role, $employeeId]);
                 $newUserId = (int) $pdo->lastInsertId();
 
                 $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Could not create user: ' . $e->getMessage()]);
+                break;
+            }
 
+            // ── Post-commit side effects (isolated) ──
+
+            // Activity log
+            try {
                 ActivityLogger::log(
                     $pdo,
                     'create_user',
@@ -202,7 +224,12 @@ try {
                     'user',
                     $newUserId
                 );
+            } catch (Throwable $e) {
+                error_log('ActivityLogger failed (create_user): ' . $e->getMessage());
+            }
 
+            // Welcome notification
+            try {
                 NotificationService::notify(
                     $pdo,
                     $newUserId,
@@ -211,7 +238,12 @@ try {
                     'Your account has been created. Please check your email for login details.',
                     '/profile'
                 );
+            } catch (Throwable $e) {
+                error_log('Notify user failed (create_user): ' . $e->getMessage());
+            }
 
+            // Admin broadcast
+            try {
                 NotificationService::notifyAdmins(
                     $pdo,
                     'create_user',
@@ -219,40 +251,39 @@ try {
                     "Added as {$role} ({$category})",
                     '/users'
                 );
-
-                // Send welcome email (non-blocking)
-                $emailSent = false;
-                $emailError = null;
-
-                if (!empty($email)) {
-                    try {
-                        $mailer = new MailService();
-                        $emailSent = $mailer
-                            ->to($email, "$first $last")
-                            ->subject('Welcome to DAMMC Faculty Leave & Payroll System')
-                            ->body(EmailTemplates::welcome("$first $last", $username, $password))
-                            ->send();
-
-                        if (!$emailSent) {
-                            $emailError = 'Email could not be sent.';
-                        }
-                    } catch (Exception $e) {
-                        $emailError = $e->getMessage();
-                        error_log('Welcome email failed: ' . $e->getMessage());
-                    }
-                }
-
-                header('Content-Type: application/json');
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'User created successfully.',
-                    'email_sent' => $emailSent,
-                    'email_error' => $emailError,
-                ]);
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                throw $e;
+            } catch (Throwable $e) {
+                error_log('Notify admins failed (create_user): ' . $e->getMessage());
             }
+
+            // Welcome email
+            $emailSent = false;
+            $emailError = null;
+
+            if (!empty($email)) {
+                try {
+                    $mailer = new MailService();
+                    $emailSent = $mailer
+                        ->to($email, "$first $last")
+                        ->subject('Welcome to DAMMC Faculty Leave & Payroll System')
+                        ->body(EmailTemplates::welcome("$first $last", $username, $password))
+                        ->send();
+
+                    if (!$emailSent) {
+                        $emailError = 'Email could not be sent.';
+                    }
+                } catch (Throwable $e) {
+                    $emailError = $e->getMessage();
+                    error_log('Welcome email failed: ' . $e->getMessage());
+                }
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'User created successfully.',
+                'email_sent' => $emailSent,
+                'email_error' => $emailError,
+            ]);
             break;
 
         // ============================================
@@ -280,12 +311,10 @@ try {
                 ? 15.0
                 : floatval($creditsRaw);
 
-            // Part-time employees can't accrue leave credits
             if ($empType === 'part-time') {
                 $credits = 0;
             }
 
-            // Position is required; default to N/A if empty
             if ($position === '') {
                 $position = 'N/A';
             }
@@ -296,7 +325,6 @@ try {
                 break;
             }
 
-            // Fetch current user + employee snapshot for diff
             $stmt = $pdo->prepare("
                 SELECT 
                     u.id AS user_id, u.username, u.role, u.status, u.employee_id,
@@ -319,7 +347,6 @@ try {
 
             $employeeId = $before['employee_id'] !== null ? (int) $before['employee_id'] : null;
 
-            // Check duplicate username (excluding self)
             $check = $pdo->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
             $check->execute([$username, $id]);
             if ($check->fetch()) {
@@ -328,7 +355,6 @@ try {
                 break;
             }
 
-            // Check duplicate email — excluding self
             if (!empty($email)) {
                 if ($employeeId !== null) {
                     $check = $pdo->prepare("
@@ -355,7 +381,6 @@ try {
                 }
             }
 
-            // Check duplicate name — excluding self
             if ($employeeId !== null) {
                 $check = $pdo->prepare("
                     SELECT id FROM employees 
@@ -406,7 +431,6 @@ try {
                         $employeeId,
                     ]);
                 } else {
-                    // No employee row — create one and link it
                     $stmt = $pdo->prepare("
                         INSERT INTO employees 
                             (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_credits)
@@ -431,72 +455,80 @@ try {
                     $stmt->execute([$employeeId, $id]);
                 }
 
-                // Update user
                 if (!empty($password)) {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
                     $stmt = $pdo->prepare("
-                        UPDATE users SET username = ?, password = ?, role = ?, status = ? WHERE id = ?
-                    ");
+        UPDATE users 
+        SET username = ?, password = ?, role = ?, status = ?, must_change_password = 1 
+        WHERE id = ?
+    ");
                     $stmt->execute([$username, $hashed, $role, $status, $id]);
                 } else {
                     $stmt = $pdo->prepare("
-                        UPDATE users SET username = ?, role = ?, status = ? WHERE id = ?
-                    ");
+        UPDATE users SET username = ?, role = ?, status = ? WHERE id = ?
+    ");
                     $stmt->execute([$username, $role, $status, $id]);
                 }
 
                 $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Could not update user: ' . $e->getMessage()]);
+                break;
+            }
 
+            // ── Post-commit side effects (isolated) ──
+
+            try {
                 ActivityLogger::log($pdo, 'update_user', "Updated user account: {$username}", 'user', $id);
+            } catch (Throwable $e) {
+                error_log('ActivityLogger failed (update_user): ' . $e->getMessage());
+            }
 
-                // ============================================
-                // Build a diff summary
-                // ============================================
-                $changes = [];
+            // Build diff summary
+            $changes = [];
 
-                $fields = [
-                    'first_name' => ['label' => 'First name', 'before' => $before['first_name'] ?? '', 'after' => $first],
-                    'middle_name' => ['label' => 'Middle name', 'before' => $before['middle_name'] ?? '', 'after' => $middle],
-                    'last_name' => ['label' => 'Last name', 'before' => $before['last_name'] ?? '', 'after' => $last],
-                    'email' => ['label' => 'Email', 'before' => $before['email'] ?? '', 'after' => $email],
-                    'username' => ['label' => 'Username', 'before' => $before['username'] ?? '', 'after' => $username],
-                    'role' => ['label' => 'Role', 'before' => $before['role'] ?? '', 'after' => $role],
-                    'status' => ['label' => 'Status', 'before' => $before['status'] ?? '', 'after' => $status],
-                    'category' => ['label' => 'Category', 'before' => $before['category'] ?? '', 'after' => $category],
-                    'sub_category' => ['label' => 'Sub-category', 'before' => $before['sub_category'] ?? '', 'after' => $subCat],
-                    'year_level' => ['label' => 'Year level', 'before' => $before['year_level'] ?? '', 'after' => $yearLevel],
-                    'position' => ['label' => 'Position', 'before' => $before['position'] ?? '', 'after' => $position],
-                    'employment_type' => ['label' => 'Employment type', 'before' => $before['employment_type'] ?? '', 'after' => $empType],
-                ];
+            $fields = [
+                'first_name' => ['label' => 'First name', 'before' => $before['first_name'] ?? '', 'after' => $first],
+                'middle_name' => ['label' => 'Middle name', 'before' => $before['middle_name'] ?? '', 'after' => $middle],
+                'last_name' => ['label' => 'Last name', 'before' => $before['last_name'] ?? '', 'after' => $last],
+                'email' => ['label' => 'Email', 'before' => $before['email'] ?? '', 'after' => $email],
+                'username' => ['label' => 'Username', 'before' => $before['username'] ?? '', 'after' => $username],
+                'role' => ['label' => 'Role', 'before' => $before['role'] ?? '', 'after' => $role],
+                'status' => ['label' => 'Status', 'before' => $before['status'] ?? '', 'after' => $status],
+                'category' => ['label' => 'Category', 'before' => $before['category'] ?? '', 'after' => $category],
+                'sub_category' => ['label' => 'Sub-category', 'before' => $before['sub_category'] ?? '', 'after' => $subCat],
+                'year_level' => ['label' => 'Year level', 'before' => $before['year_level'] ?? '', 'after' => $yearLevel],
+                'position' => ['label' => 'Position', 'before' => $before['position'] ?? '', 'after' => $position],
+                'employment_type' => ['label' => 'Employment type', 'before' => $before['employment_type'] ?? '', 'after' => $empType],
+            ];
 
-                foreach ($fields as $key => $f) {
-                    $b = (string) $f['before'];
-                    $a = (string) $f['after'];
-                    if ($b !== $a) {
-                        $changes[] = "{$f['label']}: " . ($b === '' ? '—' : $b) . " → " . ($a === '' ? '—' : $a);
-                    }
+            foreach ($fields as $key => $f) {
+                $b = (string) $f['before'];
+                $a = (string) $f['after'];
+                if ($b !== $a) {
+                    $changes[] = "{$f['label']}: " . ($b === '' ? '—' : $b) . " → " . ($a === '' ? '—' : $a);
                 }
+            }
 
-                // Numeric fields with formatting
-                $beforeSalary = (float) ($before['basic_salary'] ?? 0);
-                if (abs($beforeSalary - $salary) > 0.001) {
-                    $changes[] = 'Basic salary: ₱' . number_format($beforeSalary, 2) . ' → ₱' . number_format($salary, 2);
-                }
+            $beforeSalary = (float) ($before['basic_salary'] ?? 0);
+            if (abs($beforeSalary - $salary) > 0.001) {
+                $changes[] = 'Basic salary: ₱' . number_format($beforeSalary, 2) . ' → ₱' . number_format($salary, 2);
+            }
 
-                $beforeCredits = (float) ($before['leave_credits'] ?? 0);
-                if (abs($beforeCredits - $credits) > 0.001) {
-                    $changes[] = 'Leave credits: ' . number_format($beforeCredits, 2) . ' → ' . number_format($credits, 2);
-                }
+            $beforeCredits = (float) ($before['leave_credits'] ?? 0);
+            if (abs($beforeCredits - $credits) > 0.001) {
+                $changes[] = 'Leave credits: ' . number_format($beforeCredits, 2) . ' → ' . number_format($credits, 2);
+            }
 
-                if (!empty($password)) {
-                    $changes[] = 'Password was reset';
-                }
+            if (!empty($password)) {
+                $changes[] = 'Password was reset';
+            }
 
-                // ============================================
-                // Notify the affected user
-                // ============================================
+            // Notify the affected user
+            try {
                 if (!empty($changes)) {
-                    // Special-case: credits-only change gets a louder title
                     $creditsOnly =
                         count($changes) === 1
                         && str_starts_with($changes[0], 'Leave credits:');
@@ -520,8 +552,12 @@ try {
                         '/profile'
                     );
                 }
+            } catch (Throwable $e) {
+                error_log('Notify user failed (update_user): ' . $e->getMessage());
+            }
 
-                // Notify other admins
+            // Notify other admins
+            try {
                 NotificationService::notifyAdmins(
                     $pdo,
                     'update_user',
@@ -529,17 +565,16 @@ try {
                     !empty($changes) ? implode(' · ', array_slice($changes, 0, 3)) : 'Profile details were saved',
                     '/users'
                 );
-
-                header('Content-Type: application/json');
-                echo json_encode([
-                    'success' => true,
-                    'message' => 'User updated successfully.',
-                    'changes' => $changes,
-                ]);
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                throw $e;
+            } catch (Throwable $e) {
+                error_log('Notify admins failed (update_user): ' . $e->getMessage());
             }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => true,
+                'message' => 'User updated successfully.',
+                'changes' => $changes,
+            ]);
             break;
 
         // ============================================
@@ -560,7 +595,6 @@ try {
                 break;
             }
 
-            // Fetch the target so we can notify
             $stmt = $pdo->prepare("SELECT username, status FROM users WHERE id = ? LIMIT 1");
             $stmt->execute([$id]);
             $target = $stmt->fetch();
@@ -574,35 +608,117 @@ try {
             $stmt = $pdo->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
             $stmt->execute([$id]);
 
-            ActivityLogger::log(
-                $pdo,
-                'archive_user',
-                "Archived user account: {$target['username']} (ID: {$id})",
-                'user',
-                $id
-            );
+            try {
+                ActivityLogger::log(
+                    $pdo,
+                    'archive_user',
+                    "Archived user account: {$target['username']} (ID: {$id})",
+                    'user',
+                    $id
+                );
+            } catch (Throwable $e) {
+                error_log('ActivityLogger failed (archive_user): ' . $e->getMessage());
+            }
 
-            // Notify the archived user — they won't see it until/unless restored, but it documents the event
-            NotificationService::notify(
-                $pdo,
-                $id,
-                'account_archived',
-                'Your account was deactivated',
-                'An administrator has deactivated your account. Contact HR for details.',
-                ''
-            );
+            try {
+                NotificationService::notify(
+                    $pdo,
+                    $id,
+                    'account_archived',
+                    'Your account was deactivated',
+                    'An administrator has deactivated your account. Contact HR for details.',
+                    ''
+                );
+            } catch (Throwable $e) {
+                error_log('Notify archived user failed: ' . $e->getMessage());
+            }
 
-            // Notify other admins
-            NotificationService::notifyAdmins(
-                $pdo,
-                'archive_user',
-                "User archived: {$target['username']}",
-                "Account deactivated by " . ($_SESSION['username'] ?? 'an admin'),
-                '/users'
-            );
+            try {
+                NotificationService::notifyAdmins(
+                    $pdo,
+                    'archive_user',
+                    "User archived: {$target['username']}",
+                    "Account deactivated by " . ($_SESSION['username'] ?? 'an admin'),
+                    '/users'
+                );
+            } catch (Throwable $e) {
+                error_log('Notify admins failed (archive_user): ' . $e->getMessage());
+            }
 
             header('Content-Type: application/json');
             echo json_encode(['success' => true, 'message' => 'User archived.']);
+            break;
+
+        // ============================================
+        // Restore user
+        // ============================================
+        case 'restore':
+            $id = intval($_POST['id'] ?? 0);
+
+            if ($id <= 0) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Invalid user ID.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("SELECT username, status FROM users WHERE id = ? LIMIT 1");
+            $stmt->execute([$id]);
+            $target = $stmt->fetch();
+
+            if (!$target) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'User not found.']);
+                break;
+            }
+
+            if ($target['status'] === 'active') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'User is already active.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("UPDATE users SET status = 'active' WHERE id = ?");
+            $stmt->execute([$id]);
+
+            try {
+                ActivityLogger::log(
+                    $pdo,
+                    'restore_user',
+                    "Restored user account: {$target['username']} (ID: {$id})",
+                    'user',
+                    $id
+                );
+            } catch (Throwable $e) {
+                error_log('ActivityLogger failed (restore_user): ' . $e->getMessage());
+            }
+
+            try {
+                NotificationService::notify(
+                    $pdo,
+                    $id,
+                    'account_restored',
+                    'Your account was restored',
+                    'An administrator has reactivated your account. You can log in again.',
+                    '/profile'
+                );
+            } catch (Throwable $e) {
+                error_log('Notify restored user failed: ' . $e->getMessage());
+            }
+
+            try {
+                NotificationService::notifyAdmins(
+                    $pdo,
+                    'restore_user',
+                    "User restored: {$target['username']}",
+                    "Account reactivated by " . ($_SESSION['username'] ?? 'an admin'),
+                    '/users'
+                );
+            } catch (Throwable $e) {
+                error_log('Notify admins failed (restore_user): ' . $e->getMessage());
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'User restored.']);
             break;
 
         // ============================================
@@ -657,37 +773,49 @@ try {
                     ))
                     ->send();
 
-                ActivityLogger::log(
-                    $pdo,
-                    'send_reset',
-                    "Sent password reset link to {$user['email']}",
-                    'user',
-                    $id
-                );
+                try {
+                    ActivityLogger::log(
+                        $pdo,
+                        'send_reset',
+                        "Sent password reset link to {$user['email']}",
+                        'user',
+                        $id
+                    );
+                } catch (Throwable $e) {
+                    error_log('ActivityLogger failed (send_reset): ' . $e->getMessage());
+                }
 
-                NotificationService::notify(
-                    $pdo,
-                    $id,
-                    'password_reset_sent',
-                    'Password reset requested',
-                    'A password reset link was sent to your email by an administrator.',
-                    ''
-                );
+                try {
+                    NotificationService::notify(
+                        $pdo,
+                        $id,
+                        'password_reset_sent',
+                        'Password reset requested',
+                        'A password reset link was sent to your email by an administrator.',
+                        ''
+                    );
+                } catch (Throwable $e) {
+                    error_log('Notify user failed (send_reset): ' . $e->getMessage());
+                }
 
-                NotificationService::notifyAdmins(
-                    $pdo,
-                    'send_reset',
-                    "Reset link sent to {$user['username']}",
-                    "Password reset initiated by " . ($_SESSION['username'] ?? 'an admin'),
-                    '/users'
-                );
+                try {
+                    NotificationService::notifyAdmins(
+                        $pdo,
+                        'send_reset',
+                        "Reset link sent to {$user['username']}",
+                        "Password reset initiated by " . ($_SESSION['username'] ?? 'an admin'),
+                        '/users'
+                    );
+                } catch (Throwable $e) {
+                    error_log('Notify admins failed (send_reset): ' . $e->getMessage());
+                }
 
                 header('Content-Type: application/json');
                 echo json_encode(['success' => true, 'message' => 'Reset link sent.']);
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 error_log('Send reset failed: ' . $e->getMessage());
                 header('Content-Type: application/json');
-                echo json_encode(['success' => false, 'error' => 'Failed to send email.']);
+                echo json_encode(['success' => false, 'error' => 'Failed to send email: ' . $e->getMessage()]);
             }
             break;
 
@@ -698,4 +826,7 @@ try {
 } catch (PDOException $e) {
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+} catch (Throwable $e) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => 'Server error: ' . $e->getMessage()]);
 }

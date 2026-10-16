@@ -19,7 +19,6 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $userId = (int) $_SESSION['user_id'];
 $role   = $_SESSION['role'] ?? '';
 
-// ─── Format days without trailing zeros (0.5 stays 0.5, 1.0 becomes 1) ───
 if (!function_exists('fmt_days')) {
     function fmt_days($n) {
         return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
@@ -31,6 +30,12 @@ $stmt = $pdo->prepare("SELECT employee_id FROM users WHERE id = ? LIMIT 1");
 $stmt->execute([$userId]);
 $row = $stmt->fetch();
 $myEmployeeId = $row['employee_id'] !== null ? (int) $row['employee_id'] : null;
+
+// Leave-type caps
+$TYPE_CAPS = [
+    'vacation' => 7.5,
+    'sick'     => 7.5,
+];
 
 try {
     switch ($action) {
@@ -64,6 +69,130 @@ try {
             break;
 
         // ============================================
+        // Employee leave history + remaining credits
+        // ============================================
+        case 'employee_history':
+            if (!in_array($role, ['admin', 'hr'], true)) {
+                echo json_encode(['success' => false, 'error' => 'Unauthorized.']);
+                break;
+            }
+
+            $employeeId = (int) ($_POST['employee_id'] ?? $_GET['employee_id'] ?? 0);
+            if ($employeeId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Invalid employee ID.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT id, first_name, middle_name, last_name, email,
+                       category, sub_category, year_level, position,
+                       employment_type, basic_salary, leave_credits
+                FROM employees WHERE id = ? LIMIT 1
+            ");
+            $stmt->execute([$employeeId]);
+            $employee = $stmt->fetch();
+
+            if (!$employee) {
+                echo json_encode(['success' => false, 'error' => 'Employee not found.']);
+                break;
+            }
+
+            $totalCredits = (float) $employee['leave_credits'];
+
+            $stmt = $pdo->prepare("
+                SELECT lr.*, u.username AS approver_username
+                FROM leave_requests lr
+                LEFT JOIN users u ON lr.approved_by = u.id
+                WHERE lr.employee_id = ?
+                ORDER BY lr.created_at DESC
+            ");
+            $stmt->execute([$employeeId]);
+            $history = $stmt->fetchAll();
+
+            $stmt = $pdo->prepare("
+                SELECT status, leave_type,
+                       COUNT(*) AS count,
+                       COALESCE(SUM(days_count), 0) AS days
+                FROM leave_requests
+                WHERE employee_id = ?
+                GROUP BY status, leave_type
+            ");
+            $stmt->execute([$employeeId]);
+            $usageRows = $stmt->fetchAll();
+
+            $usage = [
+                'approved'  => ['total_days' => 0, 'by_type' => []],
+                'pending'   => ['total_days' => 0, 'by_type' => []],
+                'rejected'  => ['total_days' => 0, 'by_type' => []],
+                'cancelled' => ['total_days' => 0, 'by_type' => []],
+            ];
+            foreach ($usageRows as $r) {
+                $s = $r['status'];
+                if (!isset($usage[$s])) continue;
+                $usage[$s]['total_days'] += (float) $r['days'];
+                $usage[$s]['by_type'][$r['leave_type']] = (float) $r['days'];
+            }
+
+            $allTypes = ['vacation', 'sick', 'maternity', 'paternity', 'terminal', 'other'];
+            $remainingByType = [];
+            foreach ($allTypes as $t) {
+                $cap = $TYPE_CAPS[$t] ?? null;
+                $used = $usage['approved']['by_type'][$t] ?? 0;
+
+                $remainingByType[$t] = [
+                    'cap'       => $cap,
+                    'used'      => $used,
+                    'remaining' => $cap !== null ? max(0, $cap - $used) : null,
+                ];
+            }
+
+            $totalUsedApproved = $usage['approved']['total_days'];
+            $totalRemainingOverall = max(0, $totalCredits - $totalUsedApproved);
+
+            echo json_encode([
+                'success'  => true,
+                'employee' => [
+                    'id'              => (int) $employee['id'],
+                    'first_name'      => $employee['first_name'],
+                    'middle_name'     => $employee['middle_name'],
+                    'last_name'       => $employee['last_name'],
+                    'full_name'       => trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
+                    'email'           => $employee['email'],
+                    'category'        => $employee['category'],
+                    'sub_category'    => $employee['sub_category'],
+                    'year_level'      => $employee['year_level'],
+                    'position'        => $employee['position'],
+                    'employment_type' => $employee['employment_type'],
+                    'basic_salary'    => (float) $employee['basic_salary'],
+                    'leave_credits'   => $totalCredits,
+                ],
+                'credits' => [
+                    'total'         => $totalCredits,
+                    'used'          => $totalUsedApproved,
+                    'remaining'     => $totalRemainingOverall,
+                    'by_type'       => $remainingByType,
+                ],
+                'usage'   => $usage,
+                'history' => array_map(function ($l) {
+                    return [
+                        'id'         => (int) $l['id'],
+                        'type'       => $l['leave_type'],
+                        'start'      => $l['start_date'],
+                        'end'        => $l['end_date'],
+                        'days'       => (float) $l['days_count'],
+                        'reason'     => $l['reason'],
+                        'status'     => $l['status'],
+                        'pay_status' => $l['pay_status'] ?? null,
+                        'remarks'    => $l['remarks'] ?? '',
+                        'created'    => $l['created_at'],
+                        'approver'   => $l['approver_username'] ?? '',
+                        'approved'   => $l['approved_at'] ?? '',
+                    ];
+                }, $history),
+            ]);
+            break;
+
+        // ============================================
         // Create leave (faculty files for self)
         // ============================================
         case 'create':
@@ -72,7 +201,6 @@ try {
                 break;
             }
 
-            // Part-time employees cannot file leave
             $stmt = $pdo->prepare("SELECT employment_type FROM employees WHERE id = ? LIMIT 1");
             $stmt->execute([$myEmployeeId]);
             $empType = $stmt->fetchColumn();
@@ -113,15 +241,12 @@ try {
                 break;
             }
 
-            // ─── Half-day awareness ──────────────────
-            // Only valid when start and end are the same date.
             $isHalfDay = !empty($_POST['is_half_day']) && ($start === $end);
 
             $days = $isHalfDay
                 ? 0.5
                 : ($s->diff($e)->days + 1);
 
-            // ---- Total credit pool check ----
             $stmt = $pdo->prepare("SELECT leave_credits FROM employees WHERE id = ? LIMIT 1");
             $stmt->execute([$myEmployeeId]);
             $totalCredits = (float) $stmt->fetchColumn();
@@ -143,13 +268,7 @@ try {
                 break;
             }
 
-            // ---- Per-type caps ----
-            $typeCaps = [
-                'vacation' => 7.5,
-                'sick'     => 7.5,
-            ];
-
-            if (isset($typeCaps[$type])) {
+            if (isset($TYPE_CAPS[$type])) {
                 $stmt = $pdo->prepare("
                     SELECT COALESCE(SUM(days_count), 0) 
                     FROM leave_requests 
@@ -160,14 +279,14 @@ try {
                 $stmt->execute([$myEmployeeId, $type]);
                 $usedOfType = (float) $stmt->fetchColumn();
 
-                $typeRemaining = max(0, $typeCaps[$type] - $usedOfType);
+                $typeRemaining = max(0, $TYPE_CAPS[$type] - $usedOfType);
 
                 if ($days > $typeRemaining) {
                     $typeLabel = ucfirst($type);
                     echo json_encode([
                         'success' => false,
                         'error' => "{$typeLabel} leave is capped at "
-                                 . fmt_days($typeCaps[$type])
+                                 . fmt_days($TYPE_CAPS[$type])
                                  . " day(s). You have "
                                  . fmt_days($typeRemaining)
                                  . " day(s) remaining for this type."
@@ -176,7 +295,6 @@ try {
                 }
             }
 
-            // ---- Overlap check ----
             $stmt = $pdo->prepare("
                 SELECT COUNT(*) FROM leave_requests
                 WHERE employee_id = ?
@@ -292,13 +410,23 @@ try {
                 break;
             }
 
-            $id       = (int) ($_POST['id'] ?? 0);
-            $decision = $_POST['decision'] ?? '';
-            $remarks  = trim($_POST['remarks'] ?? '');
+            $id        = (int) ($_POST['id'] ?? 0);
+            $decision  = $_POST['decision'] ?? '';
+            $remarks   = trim($_POST['remarks'] ?? '');
+            $payStatus = $_POST['pay_status'] ?? '';
 
             if ($id <= 0 || !in_array($decision, ['approved', 'rejected'], true)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid input.']);
                 break;
+            }
+
+            if ($decision === 'approved') {
+                if (!in_array($payStatus, ['with_pay', 'without_pay'], true)) {
+                    echo json_encode(['success' => false, 'error' => 'Please select a pay status (with pay or without pay).']);
+                    break;
+                }
+            } else {
+                $payStatus = null;
             }
 
             $stmt = $pdo->prepare("
@@ -322,10 +450,11 @@ try {
 
             $stmt = $pdo->prepare("
                 UPDATE leave_requests 
-                SET status = ?, approved_by = ?, approved_at = NOW(), remarks = ?
+                SET status = ?, approved_by = ?, approved_at = NOW(), 
+                    remarks = ?, pay_status = ?
                 WHERE id = ?
             ");
-            $stmt->execute([$decision, $userId, $remarks, $id]);
+            $stmt->execute([$decision, $userId, $remarks, $payStatus, $id]);
 
             if (class_exists('ActivityLogger')) {
                 ActivityLogger::log($pdo, 'decide_leave', "Leave #{$id} {$decision}", 'leave_request', $id);
@@ -345,6 +474,10 @@ try {
                     : "Your {$typeLabel} leave was rejected";
 
                 $message = "{$range} · " . fmt_days($leave['days_count']) . " day(s)";
+
+                if ($decision === 'approved' && $payStatus) {
+                    $message .= ' · ' . ($payStatus === 'with_pay' ? 'With pay' : 'Without pay');
+                }
                 if ($remarks !== '') {
                     $message .= ' — "' . $remarks . '"';
                 }

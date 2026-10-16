@@ -40,12 +40,18 @@ if ($uri === '/dashboard' || $uri === '/dashboard.php') {
 }
 
 // Users page
-if ($uri === '/users') {
+if ($uri === '/faculty') {
     require __DIR__ . '/../views/pages/users.php';
     exit;
 }
 
 // Users API
+if ($uri === '/api/faculty') {
+    require __DIR__ . '/../app/controllers/UserController.php';
+    exit;
+}
+
+// Users API alias — frontend JS uses /api/users
 if ($uri === '/api/users') {
     require __DIR__ . '/../app/controllers/UserController.php';
     exit;
@@ -54,6 +60,16 @@ if ($uri === '/api/users') {
 // Logout
 if ($uri === '/logout' || $uri === '/logout.php') {
     require __DIR__ . '/logout.php';
+    exit;
+}
+
+// Change password (welcome flow)
+if ($uri === '/change-password' && $method === 'GET') {
+    require __DIR__ . '/../views/pages/change_password.php';
+    exit;
+}
+if ($uri === '/change-password' && $method === 'POST') {
+    require __DIR__ . '/../app/controllers/PasswordController.php';
     exit;
 }
 
@@ -120,7 +136,7 @@ if ($uri === '/api/settings') {
 }
 
 // User detail — /users/{id}
-if (preg_match('#^/users/(\d+)$#', $uri, $matches)) {
+if (preg_match('#^/faculty/(\d+)$#', $uri, $matches)) {
     $_GET['id'] = (int) $matches[1];
     require __DIR__ . '/../views/pages/user_detail.php';
     exit;

@@ -7,8 +7,8 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../helpers/ActivityLogger.php';
 
 // ============================================
-// GET /login  → redirect signed-in users to their home
-// POST /login → authenticate
+// GET /login — redirect signed-in users to their home
+// POST /login — authenticate
 // ============================================
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (isset($_SESSION['user_id'])) {
@@ -65,6 +65,7 @@ $stmt = $pdo->prepare('
         u.role,
         u.status,
         u.avatar,
+        u.must_change_password,
         e.first_name,
         e.last_name,
         e.category,
@@ -102,10 +103,20 @@ if ($user && password_verify($password, $user['password'])) {
     $_SESSION['year_level']   = $user['year_level']   ?? null;
     $_SESSION['position']     = $user['position']     ?? null;
 
-    // Log BEFORE redirect
+    // Log sign-in
     ActivityLogger::log($pdo, 'login', 'Signed in to the system');
 
+    // ============================================
+    // Welcome flow: force password change on first login
+    // ============================================
+    if (!empty($user['must_change_password'])) {
+        header('Location: /change-password');
+        exit;
+    }
+
+    // ============================================
     // Role-based redirect
+    // ============================================
     switch ($user['role']) {
         case 'admin':
             header('Location: /dashboard');

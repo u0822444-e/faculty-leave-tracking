@@ -36,7 +36,7 @@ function navClass($key, $activePage)
     <div class="flex items-center gap-3 py-6 px-5 border-b border-white/10">
         <img src="/assets/images/dammc-logo.png" alt="DAMMC Logo" class="w-11 h-11 object-contain shrink-0">
         <span class="font-bold text-white tracking-wide text-sm leading-tight">
-            Dr. Aurelio Mendoza <br> Memorial Colleges
+            Faculty Leave Tracking <br> and Payroll Integration System
         </span>
         <button onclick="closeSidebar()" class="md:hidden ml-auto text-white/80 hover:text-white transition shrink-0">
             <i data-lucide="x" class="w-5 h-5"></i>
@@ -50,9 +50,9 @@ function navClass($key, $activePage)
                 <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                 <span>Dashboard</span>
             </a>
-            <a href="/users" class="<?= navClass('users', $activePage) ?>">
+            <a href="/faculty" class="<?= navClass('faculty', $activePage) ?>">
                 <i data-lucide="users" class="w-5 h-5"></i>
-                <span>Users</span>
+                <span>Faculty</span>
             </a>
             <a href="/leaves" class="<?= navClass('leaves', $activePage) ?>">
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>

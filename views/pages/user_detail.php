@@ -164,7 +164,7 @@ function timeAgoShort($ts) {
                 <!-- Back + Profile header -->
                 <div class="animate-fade-in-up flex items-center justify-between gap-3">
 
-                    <a href="/users" class="flex items-center gap-1.5 text-xs font-medium text-[#2C3E50]/60 hover:text-[#0F5E3D] transition">
+                    <a href="/faculty" class="flex items-center gap-1.5 text-xs font-medium text-[#2C3E50]/60 hover:text-[#0F5E3D] transition">
                         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
                         <span>Back to Users</span>
                     </a>

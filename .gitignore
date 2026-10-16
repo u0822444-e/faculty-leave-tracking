@@ -29,5 +29,7 @@ Thumbs.db
 *.REMOVED_*
 *.save.*
 
+User Accounts.xlsx
+
 # Logs
 *.log

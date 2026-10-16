@@ -26,8 +26,67 @@ function fmtDays(n) {
     return Number.isInteger(v) ? String(v) + ' day(s)' : v.toFixed(1) + ' day(s)';
 }
 
+function fmtDaysShort(n) {
+    const v = parseFloat(n) || 0;
+    return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+// Map DB leave types to the 3 presentation groups
+function groupType(dbType) {
+    const t = (dbType || '').toLowerCase();
+    if (t === 'sick') return 'sick';
+    if (t === 'vacation') return 'mandatory';
+    return 'others';
+}
+
+function groupLabel(dbType) {
+    const g = groupType(dbType);
+    if (g === 'sick') return 'Sick';
+    if (g === 'mandatory') return 'Mandatory / Vacation';
+    return 'Others';
+}
+
+// Detailed label for the header pill (still shows the exact subtype)
+const TYPE_DETAIL_LABELS = {
+    vacation: 'Vacation', sick: 'Sick',
+    maternity: 'Maternity', paternity: 'Paternity',
+    terminal: 'Terminal', other: 'Others'
+};
+
+const TYPE_CLASSES = {
+    vacation:  'text-blue-700 bg-blue-50',
+    sick:      'text-rose-700 bg-rose-50',
+    maternity: 'text-purple-700 bg-purple-50',
+    paternity: 'text-indigo-700 bg-indigo-50',
+    terminal:  'text-amber-700 bg-amber-50',
+    other:     'text-slate-700 bg-slate-100'
+};
+
+const STATUS_LABELS = {
+    pending: 'Pending', approved: 'Approved',
+    rejected: 'Rejected', cancelled: 'Cancelled'
+};
+
+const STATUS_CLASSES = {
+    pending:   'text-amber-700 bg-amber-50',
+    approved:  'text-[#0F5E3D] bg-[#F1FDF6]',
+    rejected:  'text-red-700 bg-red-50',
+    cancelled: 'text-slate-700 bg-slate-100'
+};
+
 // ============================================
-// Filter
+// State
+// ============================================
+let rvAllLeaves = [];       // populated by PHP inline script
+let rvCurrentId = null;
+let rvEmployeeData = null;
+let rvSelectedPay = '';
+let rvFilteredHistory = [];
+let rvHistoryPage = 1;
+const RV_HISTORY_PAGE_SIZE = 5;
+
+// ============================================
+// Main table filter
 // ============================================
 function filterLeaves() {
     const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
@@ -51,166 +110,324 @@ function filterLeaves() {
 }
 
 // ============================================
-// View details — rich modal
+// Open review modal
 // ============================================
-function openViewLeave(data) {
-    // Request id
-    document.getElementById('vlRequestId').textContent = data.id ? `Request #${data.id}` : '—';
+async function openReview(leaveId) {
+    rvCurrentId = leaveId;
+    rvEmployeeData = null;
+    rvSelectedPay = '';
+    rvFilteredHistory = [];
+    rvHistoryPage = 1;
 
-    // ── Status ribbon ───────────────────────
-    const status = (data.status || '').toLowerCase();
-    const statusMap = {
-        pending: {
-            label: 'Pending',
-            icon: 'clock',
-            cls: 'text-amber-700 bg-amber-50 border-amber-200',
-            ribbon: 'bg-amber-50 border-amber-200',
-            iconCls: 'text-amber-600'
-        },
-        approved: {
-            label: 'Approved',
-            icon: 'check-circle-2',
-            cls: 'text-[#0F5E3D] bg-[#F1FDF6] border-[#0F5E3D]/15',
-            ribbon: 'bg-[#F1FDF6] border-[#0F5E3D]/15',
-            iconCls: 'text-[#0F5E3D]'
-        },
-        rejected: {
-            label: 'Rejected',
-            icon: 'x-circle',
-            cls: 'text-red-700 bg-red-50 border-red-200',
-            ribbon: 'bg-red-50 border-red-200',
-            iconCls: 'text-red-600'
-        },
-        cancelled: {
-            label: 'Cancelled',
-            icon: 'ban',
-            cls: 'text-slate-600 bg-slate-100 border-slate-200',
-            ribbon: 'bg-slate-50 border-slate-200',
-            iconCls: 'text-slate-500'
-        }
-    };
-    const s = statusMap[status] || statusMap.cancelled;
+    document.querySelectorAll('.rv-pay-btn').forEach(btn => {
+        btn.classList.remove('bg-[#0F5E3D]', 'text-white', 'border-[#0F5E3D]');
+        btn.classList.add('bg-white', 'text-[#2C3E50]/70', 'border-[#E0E0E0]');
+    });
+    document.getElementById('rvRemarksInput').value = '';
 
-    document.getElementById('vlStatus').textContent = s.label;
-    document.getElementById('vlStatusBadge').textContent = s.label;
-    document.getElementById('vlStatusBadge').className =
-        `inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium border ${s.cls}`;
-    document.getElementById('vlStatusRibbon').className =
-        `flex items-center gap-3 p-3 rounded-xl border ${s.ribbon}`;
-    document.getElementById('vlStatusIcon').className =
-        `w-9 h-9 rounded-lg bg-white flex items-center justify-center shrink-0 ${s.iconCls}`;
-    document.getElementById('vlStatusIcon').innerHTML =
-        `<i data-lucide="${s.icon}" class="w-4 h-4"></i>`;
+    document.getElementById('rvLoading').classList.remove('hidden');
+    document.getElementById('rvContent').classList.add('hidden');
+    document.getElementById('rvRequestId').textContent = leaveId ? `Request #${leaveId}` : '—';
 
-    // ── Employee block ──────────────────────
-    const name = data.name || '—';
-    const initials = name.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
-    document.getElementById('vlInitials').textContent = initials || '—';
-    document.getElementById('vlName').textContent    = name;
-    document.getElementById('vlEmail').textContent   = data.email || '—';
+    const hs = document.getElementById('rvHistoryStatus');
+    const ht = document.getElementById('rvHistoryType');
+    if (hs) hs.value = '';
+    if (ht) ht.value = '';
 
-    const setChip = (chipId, valueId, value) => {
-        const chip = document.getElementById(chipId);
-        if (!chip) return;
-        if (value && value !== '—') {
-            document.getElementById(valueId).textContent = value;
-            chip.classList.remove('hidden');
-        } else {
-            chip.classList.add('hidden');
-        }
-    };
+    showModal('reviewModal', 'reviewCard');
+    initIcons();
 
-    setChip('vlCategoryChip',   'vlCategory',   data.category);
-    setChip('vlSubCatChip',     'vlSubCat',     data.subcat);
-    setChip('vlYearChip',       'vlYear',       data.year_level);
-    setChip('vlPositionChip',   'vlPosition',   data.position);
-    setChip('vlEmploymentChip', 'vlEmployment', data.employment);
-
-    // ── Request block ───────────────────────
-    document.getElementById('vlType').textContent    = data.type  || '—';
-    document.getElementById('vlDays').textContent    = fmtDays(data.days);
-    document.getElementById('vlStart').textContent   = formatDate(data.start);
-    document.getElementById('vlEnd').textContent     = formatDate(data.end);
-    document.getElementById('vlCreated').textContent = formatDateTime(data.created);
-
-    const days = parseFloat(data.days) || 0;
-    document.getElementById('vlHalfDayTag').classList.toggle('hidden', days !== 0.5);
-
-    // ── Reason ──────────────────────────────
-    document.getElementById('vlReason').textContent = data.reason || '—';
-
-    // ── Decision block ──────────────────────
-    const decisionWrap = document.getElementById('vlDecisionWrap');
-    if (status === 'approved' || status === 'rejected') {
-        decisionWrap.classList.remove('hidden');
-        document.getElementById('vlApprover').textContent   = data.approver || '—';
-        document.getElementById('vlApprovedAt').textContent = formatDateTime(data.approved);
-
-        const remarksBlock = document.getElementById('vlRemarksBlock');
-        if (data.remarks && data.remarks.trim() !== '') {
-            document.getElementById('vlRemarks').textContent = data.remarks;
-            remarksBlock.classList.remove('hidden');
-        } else {
-            remarksBlock.classList.add('hidden');
-        }
-    } else {
-        decisionWrap.classList.add('hidden');
+    const leave = rvAllLeaves.find(l => l.id === leaveId);
+    if (!leave || !leave.employee_id) {
+        document.getElementById('rvLoading').innerHTML =
+            '<p class="text-sm text-red-600 p-6 text-center">This request has no linked employee record.</p>';
+        return;
     }
 
-    showModal('viewLeaveModal', 'viewLeaveCard');
-    initIcons();
+    try {
+        const fd = new FormData();
+        fd.append('action', 'employee_history');
+        fd.append('employee_id', leave.employee_id);
+
+        const res = await fetch('/api/leaves', { method: 'POST', body: fd });
+        const payload = await res.json();
+
+        if (!payload.success) {
+            document.getElementById('rvLoading').innerHTML =
+                `<p class="text-sm text-red-600 p-6 text-center">${payload.error || 'Could not load details.'}</p>`;
+            return;
+        }
+
+        rvEmployeeData = payload;
+        renderReview(leave);
+        rvRenderHistory(1);
+
+        document.getElementById('rvLoading').classList.add('hidden');
+        document.getElementById('rvContent').classList.remove('hidden');
+        initIcons();
+    } catch (err) {
+        console.error(err);
+        document.getElementById('rvLoading').innerHTML =
+            '<p class="text-sm text-red-600 p-6 text-center">Connection error.</p>';
+    }
 }
 
-function closeViewLeave() {
-    hideModal('viewLeaveModal', 'viewLeaveCard');
+function closeReview() {
+    hideModal('reviewModal', 'reviewCard');
 }
 
 // ============================================
-// Approve / Reject
+// Render sidebar + main header
 // ============================================
-function openApproveReject(data) {
-    document.getElementById('decideId').value             = data.id;
-    document.getElementById('decideDecision').value       = '';
-    document.getElementById('decideEmployee').textContent = data.name;
-    document.getElementById('decideDays').textContent     = parseFloat(data.days).toFixed(2);
-    document.getElementById('decideType').textContent     = data.type;
-    document.getElementById('decideRemarks').value        = '';
-    document.getElementById('decideSubtitle').textContent = 'Review the request and choose an action';
+function renderReview(leave) {
+    const emp = rvEmployeeData.employee;
+    const credits = rvEmployeeData.credits;
+    const history = rvEmployeeData.history;
+    const full = history.find(h => h.id === leave.id) || leave;
 
-    showModal('decideModal', 'decideCard');
-    initIcons();
+    // ── Sidebar ──
+    const fullName = emp.full_name || leave.name;
+    const initials = fullName.split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    document.getElementById('rvInitials').textContent = initials || '—';
+    document.getElementById('rvName').textContent = fullName;
+    document.getElementById('rvPosition').textContent = emp.position || '—';
+
+    let dept = '';
+    if (emp.sub_category && emp.year_level && emp.sub_category !== emp.year_level) {
+        dept = `${emp.sub_category} · ${emp.year_level}`;
+    } else if (emp.sub_category) {
+        dept = emp.sub_category;
+    } else if (emp.year_level) {
+        dept = emp.year_level;
+    } else if (emp.category) {
+        dept = emp.category;
+    }
+    document.getElementById('rvDepartment').textContent = dept || '—';
+
+    document.getElementById('rvCreditTotal').textContent =
+        `${fmtDaysShort(credits.remaining)} / ${fmtDaysShort(credits.total)}`;
+
+    const creditRows = [];
+    Object.keys(credits.by_type).forEach(t => {
+        const c = credits.by_type[t];
+        if (c.cap === null && c.used === 0) return;
+
+        let bar = '';
+        if (c.cap !== null) {
+            const pct = c.cap > 0 ? Math.min(100, (c.remaining / c.cap) * 100) : 0;
+            const barColor = pct > 50 ? 'bg-[#0F5E3D]' : pct > 20 ? 'bg-amber-500' : 'bg-red-500';
+            bar = `
+                <div class="mt-1.5 h-1 bg-[#E0E0E0] rounded-full overflow-hidden">
+                    <div class="${barColor} h-full" style="width: ${pct}%"></div>
+                </div>
+            `;
+        } else {
+            bar = `<div class="mt-1.5 h-1 bg-[#F0F0F0] rounded-full"></div>`;
+        }
+
+        const rightLabel = c.cap === null
+            ? `<span class="text-sm text-[#2C3E50]/50">${fmtDaysShort(c.used)} used</span>`
+            : `<span class="text-sm text-[#2C3E50]">${fmtDaysShort(c.remaining)}<span class="text-[#2C3E50]/40">/${fmtDaysShort(c.cap)}</span></span>`;
+
+        creditRows.push(`
+            <div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-sm text-[#2C3E50]">${TYPE_DETAIL_LABELS[t] || t}</span>
+                    ${rightLabel}
+                </div>
+                ${bar}
+            </div>
+        `);
+    });
+    document.getElementById('rvCredits').innerHTML = creditRows.join('');
+
+    // ── Main header ──
+    const typeKey = (full.type || '').toLowerCase();
+    document.getElementById('rvType').textContent = TYPE_DETAIL_LABELS[typeKey] || full.type;
+    document.getElementById('rvType').className =
+        `inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium ${TYPE_CLASSES[typeKey] || TYPE_CLASSES.other}`;
+
+    const status = (full.status || '').toLowerCase();
+    document.getElementById('rvStatus').textContent = STATUS_LABELS[status] || status;
+    document.getElementById('rvStatus').className =
+        `inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium ${STATUS_CLASSES[status] || STATUS_CLASSES.cancelled}`;
+
+    const payBadge = document.getElementById('rvPayBadge');
+    if (status === 'approved' && full.pay_status) {
+        payBadge.classList.remove('hidden');
+        if (full.pay_status === 'with_pay') {
+            payBadge.textContent = 'With Pay';
+            payBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-[#0F5E3D] bg-[#F1FDF6]';
+        } else {
+            payBadge.textContent = 'Without Pay';
+            payBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-amber-700 bg-amber-50';
+        }
+    } else {
+        payBadge.classList.add('hidden');
+    }
+
+    const startStr = formatDate(full.start);
+    const endStr = formatDate(full.end);
+    document.getElementById('rvDates').textContent = startStr === endStr ? startStr : `${startStr} – ${endStr}`;
+    document.getElementById('rvDays').textContent = fmtDays(full.days);
+    document.getElementById('rvFiled').textContent = formatDateTime(full.created);
+    document.getElementById('rvReason').textContent = full.reason || '—';
+
+    // ── Decision ──
+    const decisionSection = document.getElementById('rvDecisionSection');
+    if (status === 'approved' || status === 'rejected') {
+        decisionSection.classList.remove('hidden');
+
+        const verb = status === 'approved' ? 'Approved' : 'Rejected';
+        const approver = full.approver || 'an administrator';
+        const when = formatDateTime(full.approved);
+        document.getElementById('rvDecisionSummary').textContent =
+            `${verb} by ${approver} · ${when}`;
+
+        const remarksWrap = document.getElementById('rvRemarksWrap');
+        if (full.remarks && full.remarks.trim() !== '') {
+            document.getElementById('rvRemarks').textContent = `“${full.remarks}”`;
+            remarksWrap.classList.remove('hidden');
+        } else {
+            remarksWrap.classList.add('hidden');
+        }
+    } else {
+        decisionSection.classList.add('hidden');
+    }
+
+    document.getElementById('rvDecideBar').classList.toggle('hidden', status !== 'pending');
 }
 
-function closeDecide() {
-    hideModal('decideModal', 'decideCard');
+// ============================================
+// History — table style
+// ============================================
+function rvRenderHistory(page) {
+    if (!rvEmployeeData) return;
+
+    const listEl = document.getElementById('rvHistoryList');
+    const countEl = document.getElementById('rvHistoryInfo');
+
+    if (page === 1) {
+        const status = document.getElementById('rvHistoryStatus')?.value || '';
+        const typeGroup = document.getElementById('rvHistoryType')?.value || '';
+
+        rvFilteredHistory = (rvEmployeeData.history || [])
+            .filter(h => h.id !== rvCurrentId)   // exclude current
+            .filter(h => {
+                if (status && h.status !== status) return false;
+                if (typeGroup && groupType(h.type) !== typeGroup) return false;
+                return true;
+            });
+    }
+
+    const total = rvFilteredHistory.length;
+    const totalPages = Math.max(1, Math.ceil(total / RV_HISTORY_PAGE_SIZE));
+    rvHistoryPage = Math.max(1, Math.min(page, totalPages));
+
+    const start = (rvHistoryPage - 1) * RV_HISTORY_PAGE_SIZE;
+    const slice = rvFilteredHistory.slice(start, start + RV_HISTORY_PAGE_SIZE);
+
+    if (slice.length === 0) {
+        listEl.innerHTML = `
+            <tr>
+                <td colspan="4" class="px-4 py-6 text-center text-sm text-[#2C3E50]/50">
+                    No previous leave records.
+                </td>
+            </tr>
+        `;
+    } else {
+        listEl.innerHTML = slice.map(h => {
+            const typeKey = (h.type || '').toLowerCase();
+            const statusKey = (h.status || '').toLowerCase();
+            const startStr = formatDate(h.start);
+            const endStr = formatDate(h.end);
+            const dateRange = startStr === endStr ? startStr : `${startStr} – ${endStr}`;
+
+            return `
+                <tr class="h-10">
+                    <td class="px-4 py-0">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${TYPE_CLASSES[typeKey] || TYPE_CLASSES.other}">
+                            ${TYPE_DETAIL_LABELS[typeKey] || h.type}
+                        </span>
+                    </td>
+                    <td class="px-4 py-0 text-sm text-[#2C3E50]/70">${dateRange}</td>
+                    <td class="px-4 py-0 text-sm text-[#2C3E50]/70">${fmtDaysShort(h.days)}</td>
+                    <td class="px-4 py-0">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${STATUS_CLASSES[statusKey] || STATUS_CLASSES.cancelled}">
+                            ${STATUS_LABELS[statusKey] || h.status}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    if (countEl) {
+        countEl.textContent = total > 0
+            ? `Showing ${start + 1}–${Math.min(start + RV_HISTORY_PAGE_SIZE, total)} of ${total}`
+            : 'No records';
+    }
+    document.getElementById('rvHistoryPageNum').textContent = rvHistoryPage;
+    document.getElementById('rvHistoryPrev').disabled = rvHistoryPage <= 1;
+    document.getElementById('rvHistoryNext').disabled = rvHistoryPage >= totalPages;
 }
 
-async function submitDecision(decision) {
-    const id = parseInt(document.getElementById('decideId').value || '0');
-    const remarks = document.getElementById('decideRemarks').value.trim();
+function rvHistoryPrev() {
+    if (rvHistoryPage > 1) rvRenderHistory(rvHistoryPage - 1);
+}
+function rvHistoryNext() {
+    const total = rvFilteredHistory.length;
+    const totalPages = Math.max(1, Math.ceil(total / RV_HISTORY_PAGE_SIZE));
+    if (rvHistoryPage < totalPages) rvRenderHistory(rvHistoryPage + 1);
+}
 
-    if (!id) return;
+// ============================================
+// Pay selector
+// ============================================
+function rvSelectPay(pay) {
+    rvSelectedPay = pay;
+    document.querySelectorAll('.rv-pay-btn').forEach(btn => {
+        const sel = btn.dataset.pay === pay;
+        btn.classList.toggle('bg-[#0F5E3D]', sel);
+        btn.classList.toggle('text-white', sel);
+        btn.classList.toggle('border-[#0F5E3D]', sel);
+        btn.classList.toggle('bg-white', !sel);
+        btn.classList.toggle('text-[#2C3E50]/70', !sel);
+        btn.classList.toggle('border-[#E0E0E0]', !sel);
+    });
+}
+
+// ============================================
+// Submit decision
+// ============================================
+async function rvSubmitDecision(decision) {
+    if (!rvCurrentId) return;
+
+    const remarks = document.getElementById('rvRemarksInput').value.trim();
+
+    if (decision === 'approved' && !rvSelectedPay) {
+        showError('Pay status required', 'Please select With Pay or Without Pay before approving.');
+        return;
+    }
 
     const fd = new FormData();
     fd.append('action', 'decide');
-    fd.append('id', id);
+    fd.append('id', rvCurrentId);
     fd.append('decision', decision);
     fd.append('remarks', remarks);
+    if (decision === 'approved') fd.append('pay_status', rvSelectedPay);
 
-    closeDecide();
-    showLoading(
-        'Saving...',
-        decision === 'approved' ? 'Approving leave request.' : 'Rejecting leave request.'
-    );
+    showLoading('Saving…', decision === 'approved' ? 'Approving leave request.' : 'Rejecting leave request.');
 
     try {
         const res = await fetch('/api/leaves', { method: 'POST', body: fd });
         const data = await res.json();
 
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 400));
         hideLoading();
 
         if (data.success) {
+            closeReview();
             document.getElementById('successTitle').textContent =
                 decision === 'approved' ? 'Leave Approved' : 'Leave Rejected';
             document.getElementById('successMessage').textContent =
@@ -235,7 +452,7 @@ function closeSuccess() {
 }
 
 // ============================================
-// Keyboard shortcut: / focuses search
+// Keyboard shortcut
 // ============================================
 document.addEventListener('keydown', function (e) {
     if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {

@@ -2,9 +2,6 @@
 // Users page — logic
 // ============================================
 
-// ============================================
-// Sub-category options per category
-// ============================================
 const SUB_CATEGORIES = {
   faculty: ["Elementary", "High School", "College"],
   staff: [
@@ -15,9 +12,6 @@ const SUB_CATEGORIES = {
   ],
 };
 
-// ============================================
-// Year levels / Departments per sub-category
-// ============================================
 const YEAR_LEVELS_OR_DEPARTMENTS = {
   Elementary: [
     "Grade 1",
@@ -44,11 +38,7 @@ const YEAR_LEVELS_OR_DEPARTMENTS = {
   ],
 };
 
-// ============================================
-// Positions per department context
-// ============================================
 const POSITIONS_BY_CONTEXT = {
-  // -- Faculty: Elementary --
   Elementary: [
     "N/A",
     "Elementary Principal",
@@ -57,8 +47,6 @@ const POSITIONS_BY_CONTEXT = {
     "Guidance Counselor",
     "Librarian",
   ],
-
-  // -- Faculty: High School --
   "High School": [
     "N/A",
     "High School Principal",
@@ -67,8 +55,6 @@ const POSITIONS_BY_CONTEXT = {
     "Guidance Counselor",
     "Librarian",
   ],
-
-  // -- Faculty: College --
   College: [
     "N/A",
     "College Dean",
@@ -80,8 +66,6 @@ const POSITIONS_BY_CONTEXT = {
     "Guidance Counselor",
     "Librarian",
   ],
-
-  // -- Staff: Registrar's Office --
   "Registrar's Office": [
     "N/A",
     "Registrar",
@@ -89,8 +73,6 @@ const POSITIONS_BY_CONTEXT = {
     "Admin Staff",
     "Utility",
   ],
-
-  // -- Staff: Accounting Section --
   "Accounting Section": [
     "N/A",
     "Accounting Head",
@@ -98,11 +80,7 @@ const POSITIONS_BY_CONTEXT = {
     "Admin Staff",
     "Utility",
   ],
-
-  // -- Staff: HR --
   HR: ["N/A", "HR Head", "HR Staff", "Admin Staff", "Utility"],
-
-  // -- Staff: Library & Guidance --
   "Library & Guidance": [
     "N/A",
     "Librarian",
@@ -114,7 +92,6 @@ const POSITIONS_BY_CONTEXT = {
   ],
 };
 
-// Fallback list used when the context isn't recognized yet
 const DEFAULT_POSITIONS = [
   "N/A",
   "Admin Staff",
@@ -125,6 +102,7 @@ const DEFAULT_POSITIONS = [
 
 let currentStep = 1;
 let pendingArchiveId = null;
+let pendingRestoreId = null;
 let pendingResetId = null;
 
 // ============================================
@@ -182,13 +160,9 @@ function goToStep(step) {
   initIcons();
 }
 
-// ============================================
-// Toggle Leave Credits based on employment type
-// ============================================
 function handleEmploymentChange() {
   const employment = document.getElementById("addEmployment");
   const leaveCredits = document.getElementById("addLeaveCredits");
-
   if (!employment || !leaveCredits) return;
 
   if (employment.value === "part-time") {
@@ -197,16 +171,12 @@ function handleEmploymentChange() {
     leaveCredits.placeholder = "N/A";
   } else {
     leaveCredits.disabled = false;
-    leaveCredits.placeholder = "0.00";
-    if (!leaveCredits.value || leaveCredits.value === "0") {
+    leaveCredits.placeholder = "0";
+    if (!leaveCredits.value || leaveCredits.value === "0")
       leaveCredits.value = "15";
-    }
   }
 }
 
-// ============================================
-// Validation
-// ============================================
 function validateStep1() {
   const first = document.getElementById("addFirstName").value.trim();
   const last = document.getElementById("addLastName").value.trim();
@@ -229,7 +199,6 @@ function validateStep2() {
   const role = document.getElementById("addRole").value;
   const cat = document.getElementById("addCategory").value;
   const pos = document.getElementById("addPosition").value;
-
   if (!role) {
     markInvalid("addRole");
     return false;
@@ -245,9 +214,6 @@ function validateStep2() {
   return true;
 }
 
-// ============================================
-// Username + Password generators
-// ============================================
 function previewUsername() {
   const first = document
     .getElementById("addFirstName")
@@ -274,9 +240,8 @@ function previewEditUsername() {
     .value.trim()
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
-  if (first && last) {
+  if (first && last)
     document.getElementById("editUsername").value = `${first}.${last}`;
-  }
 }
 
 function generateTempPassword(length = 10) {
@@ -290,9 +255,6 @@ function regeneratePassword() {
   document.getElementById("addTempPassword").value = generateTempPassword();
 }
 
-// ============================================
-// Sub-category dropdown (Add modal)
-// ============================================
 function updateSubCategories() {
   const cat = document.getElementById("addCategory").value;
   const sub = document.getElementById("addSubCategory");
@@ -301,16 +263,12 @@ function updateSubCategories() {
   if (!cat || !SUB_CATEGORIES[cat]) {
     sub.disabled = true;
     sub.innerHTML = '<option value="">Select a category first</option>';
-
-    // Reset year level
     const yearEl = document.getElementById("addYearLevel");
     if (yearEl) {
       yearEl.disabled = true;
       yearEl.innerHTML =
         '<option value="">Select a sub-category first</option>';
     }
-
-    // Reset position to default set
     populatePositionDropdown("addPosition", "N/A", "");
     return;
   }
@@ -324,20 +282,15 @@ function updateSubCategories() {
     sub.appendChild(opt);
   });
 
-  // Reset year level
   const yearEl = document.getElementById("addYearLevel");
   if (yearEl) {
     yearEl.disabled = true;
     yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
   }
 
-  // Reset positions to default set (user hasn't picked a sub yet)
   populatePositionDropdown("addPosition", "N/A", "");
 }
 
-// ============================================
-// Add User modal
-// ============================================
 function openAddUserModal() {
   document.getElementById("addUserForm").reset();
   document.getElementById("addUsernamePreview").value = "";
@@ -352,11 +305,15 @@ function openAddUserModal() {
     yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
   }
 
-  regeneratePassword();
+  // Prefill the password from the default in the field itself.
+  // The field's value= attribute holds the initial default; form.reset()
+  // restores it. If it's empty for any reason, generate one.
+  const pwdEl = document.getElementById("addTempPassword");
+  if (!pwdEl.value) {
+    regeneratePassword();
+  }
 
-  // Default position list until a sub-category is chosen
   populatePositionDropdown("addPosition", "N/A", "");
-
   handleEmploymentChange();
 
   currentStep = 1;
@@ -369,9 +326,6 @@ function closeAddUserModal() {
   hideModal("addUserModal", "addUserCard");
 }
 
-// ============================================
-// Edit User modal
-// ============================================
 function openEditUserModal(data) {
   document.getElementById("editUserId").value = data.id;
   document.getElementById("editUserName").textContent =
@@ -384,15 +338,15 @@ function openEditUserModal(data) {
   document.getElementById("editRole").value = data.role || "staff";
   document.getElementById("editCategory").value = data.category || "staff";
 
-  // Build the sub-category <select>, then the year level/department <select>
   updateEditSubCategories(data.sub || "", data.year_level || "");
 
   document.getElementById("editEmpType").value = data.emp || "full-time";
   document.getElementById("editSalary").value = data.salary || 0;
-  document.getElementById("editCredits").value = data.credits || 0;
+  document.getElementById("editCredits").value = Math.round(
+    Number(data.credits) || 0
+  );
   document.getElementById("editStatus").value = data.status || "active";
 
-  // Position list must be built from the sub-category context
   populatePositionDropdown(
     "editPosition",
     data.position || "N/A",
@@ -407,13 +361,9 @@ function closeEditUserModal() {
   hideModal("editUserModal", "editUserCard");
 }
 
-// ============================================
-// Toggle Edit Leave Credits based on employment type
-// ============================================
 function handleEditEmploymentChange() {
   const employment = document.getElementById("editEmpType");
   const leaveCredits = document.getElementById("editCredits");
-
   if (!employment || !leaveCredits) return;
 
   if (employment.value === "part-time") {
@@ -422,12 +372,12 @@ function handleEditEmploymentChange() {
     leaveCredits.placeholder = "Not applicable";
   } else {
     leaveCredits.disabled = false;
-    leaveCredits.placeholder = "0.00";
+    leaveCredits.placeholder = "0";
   }
 }
 
 // ============================================
-// Archive modal
+// Archive
 // ============================================
 function openArchiveUserModal(id, fullName) {
   pendingArchiveId = id;
@@ -440,15 +390,12 @@ function closeArchiveUserModal() {
 
 async function confirmArchiveUser() {
   if (!pendingArchiveId) return;
-
   const fd = new FormData();
   fd.append("action", "archive");
   fd.append("id", pendingArchiveId);
-
   try {
-    const res = await fetch("/api/users", { method: "POST", body: fd });
+    const res = await fetch("/api/faculty", { method: "POST", body: fd });
     const data = await res.json();
-
     if (data.success) {
       closeArchiveUserModal();
       location.reload();
@@ -467,7 +414,49 @@ async function confirmArchiveUser() {
 }
 
 // ============================================
-// Send reset link modal
+// Restore
+// ============================================
+function openRestoreUserModal(id, fullName) {
+  pendingRestoreId = id;
+  document.getElementById("restoreUserName").textContent = fullName;
+  showModal("restoreUserModal", "restoreUserCard");
+}
+function closeRestoreUserModal() {
+  hideModal("restoreUserModal", "restoreUserCard");
+}
+
+async function confirmRestoreUser() {
+  if (!pendingRestoreId) return;
+  const fd = new FormData();
+  fd.append("action", "restore");
+  fd.append("id", pendingRestoreId);
+  try {
+    const res = await fetch("/api/faculty", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.success) {
+      closeRestoreUserModal();
+      showModal("restoreSuccessModal", "restoreSuccessCard");
+      initIcons();
+    } else if (data.error) {
+      closeRestoreUserModal();
+      showError("Could not restore user", data.error);
+    }
+  } catch (err) {
+    console.error("Restore error:", err);
+    closeRestoreUserModal();
+    showError(
+      "Connection error",
+      "Unable to reach the server. Please try again."
+    );
+  }
+}
+function closeRestoreSuccessModal() {
+  hideModal("restoreSuccessModal", "restoreSuccessCard");
+  setTimeout(() => location.reload(), 200);
+}
+
+// ============================================
+// Send reset
 // ============================================
 function openSendResetModal(id, fullName, email) {
   pendingResetId = id;
@@ -480,25 +469,20 @@ function closeSendResetModal() {
 
 async function confirmSendReset() {
   if (!pendingResetId) return;
-
   const email = document.getElementById("sendResetEmail").textContent;
   closeSendResetModal();
   showLoading(
     "Sending reset link...",
     "Sending a password reset link to the user."
   );
-
   const fd = new FormData();
   fd.append("action", "send_reset");
   fd.append("id", pendingResetId);
-
   try {
-    const res = await fetch("/api/users", { method: "POST", body: fd });
+    const res = await fetch("/api/faculty", { method: "POST", body: fd });
     const data = await res.json();
-
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((r) => setTimeout(r, 600));
     hideLoading();
-
     if (data.success) {
       const emailEl = document.getElementById("resetSentEmail");
       if (emailEl) emailEl.textContent = email;
@@ -516,29 +500,24 @@ async function confirmSendReset() {
     );
   }
 }
-
 function closeResetSentModal() {
   hideModal("resetSentModal", "resetSentCard");
   setTimeout(() => location.reload(), 200);
 }
 
 // ============================================
-// View toggle — List vs Grid
+// View toggle
 // ============================================
 let currentView = localStorage.getItem("usersView") || "list";
-
 function setView(view) {
   currentView = view;
   localStorage.setItem("usersView", view);
-
   const gridBtn = document.getElementById("viewGridBtn");
   const listBtn = document.getElementById("viewListBtn");
-
   const activeClass =
     "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-[#0F5E3D] shadow-sm transition";
   const inactiveClass =
     "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] transition";
-
   if (view === "list") {
     listBtn.className = activeClass;
     gridBtn.className = inactiveClass;
@@ -546,17 +525,14 @@ function setView(view) {
     gridBtn.className = activeClass;
     listBtn.className = inactiveClass;
   }
-
   applyView();
 }
-
 function applyView() {
   const listTable = document
     .querySelector("#usersTableBody")
     ?.closest(".hidden.md\\:block");
   const mobileCards = document.getElementById("mobileCards");
   const grid = document.getElementById("usersGrid");
-
   if (currentView === "grid") {
     if (grid) grid.style.display = "grid";
     if (listTable) listTable.style.display = "none";
@@ -566,46 +542,35 @@ function applyView() {
     if (listTable) listTable.style.display = "";
     if (mobileCards) mobileCards.style.display = "";
   }
-
   applyFilters();
 }
 
-function toggleSelectAll(checkbox) {
-  document
-    .querySelectorAll(".rowCheckbox")
-    .forEach((cb) => (cb.checked = checkbox.checked));
-}
-
 // ============================================
-// Create user
+// Create
 // ============================================
 async function submitCreateUser(formData) {
   showLoading(
     "Creating user...",
     "Setting up the account and sending the email."
   );
-
   try {
-    const res = await fetch("/api/users", { method: "POST", body: formData });
+    const res = await fetch("/api/faculty", { method: "POST", body: formData });
     const data = await res.json();
-
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((r) => setTimeout(r, 600));
     hideLoading();
-
     if (data.success) {
       closeAddUserModal();
       showModal("successModal", "successCard");
       initIcons();
     } else if (data.error) {
-      const errLower = data.error.toLowerCase();
-
-      if (errLower.includes("username")) {
+      const e = data.error.toLowerCase();
+      if (e.includes("username")) {
         markInvalid("addFirstName");
         showError("Username already taken", data.error);
-      } else if (errLower.includes("email")) {
+      } else if (e.includes("email")) {
         markInvalid("addEmail");
         showError("Email already in use", data.error);
-      } else if (errLower.includes("name")) {
+      } else if (e.includes("name")) {
         markInvalid("addFirstName");
         markInvalid("addLastName");
         showError("Name already exists", data.error);
@@ -622,20 +587,18 @@ async function submitCreateUser(formData) {
     );
   }
 }
-
 function closeSuccessModal() {
   hideModal("successModal", "successCard");
   setTimeout(() => location.reload(), 200);
 }
 
 // ============================================
-// Edit user
+// Edit
 // ============================================
 async function submitEditUser(formData) {
   try {
-    const res = await fetch("/api/users", { method: "POST", body: formData });
+    const res = await fetch("/api/faculty", { method: "POST", body: formData });
     const data = await res.json();
-
     if (data.success) {
       closeEditUserModal();
       showModal("editSuccessModal", "editSuccessCard");
@@ -652,23 +615,18 @@ async function submitEditUser(formData) {
     }
   } catch (err) {
     console.error("Edit error:", err);
-    showError(
-      "Connection error",
-      "Unable to reach the server. Please check your connection and try again."
-    );
+    showError("Connection error", "Unable to reach the server.");
   }
 }
-
 function closeEditSuccessModal() {
   hideModal("editSuccessModal", "editSuccessCard");
   setTimeout(() => location.reload(), 200);
 }
 
 // ============================================
-// Sort menu
+// Sort
 // ============================================
 let currentSort = "default";
-
 function toggleSortMenu() {
   const menu = document.getElementById("sortMenu");
   const filterMenu = document.getElementById("filterMenu");
@@ -676,24 +634,19 @@ function toggleSortMenu() {
   if (statusMenu) statusMenu.classList.add("hidden");
   const statusChevron = document.getElementById("statusChevron");
   if (statusChevron) statusChevron.style.transform = "";
-
   const chevron = document.getElementById("sortChevron");
   if (!menu) return;
-
   const willOpen = menu.classList.contains("hidden");
   menu.classList.toggle("hidden");
   if (filterMenu) filterMenu.classList.add("hidden");
   if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
-
-  if (willOpen) {
+  if (willOpen)
     setTimeout(
       () =>
         document.addEventListener("click", closeSortOnOutside, { once: true }),
       0
     );
-  }
 }
-
 function closeSortOnOutside(e) {
   const wrap = document.getElementById("sortWrap");
   const menu = document.getElementById("sortMenu");
@@ -701,14 +654,11 @@ function closeSortOnOutside(e) {
   if (wrap && menu && !wrap.contains(e.target)) {
     menu.classList.add("hidden");
     if (chevron) chevron.style.transform = "";
-  } else if (menu && !menu.classList.contains("hidden")) {
+  } else if (menu && !menu.classList.contains("hidden"))
     document.addEventListener("click", closeSortOnOutside, { once: true });
-  }
 }
-
 function applySort(type) {
   currentSort = type;
-
   const labels = {
     "name-asc": "Name (A → Z)",
     "name-desc": "Name (Z → A)",
@@ -719,26 +669,20 @@ function applySort(type) {
     default: "Sort by",
   };
   document.getElementById("sortLabel").textContent = labels[type] || "Sort by";
-
-  document.querySelectorAll(".sort-check").forEach((c) => {
-    c.style.opacity = c.dataset.sort === type ? "1" : "0";
-  });
-
+  document
+    .querySelectorAll(".sort-check")
+    .forEach((c) => (c.style.opacity = c.dataset.sort === type ? "1" : "0"));
   document.getElementById("sortMenu")?.classList.add("hidden");
   document.getElementById("sortChevron").style.transform = "";
-
   sortRows();
   applyFilters();
 }
-
 function sortRows() {
   if (currentSort === "default") return;
-
   const tbody = document.getElementById("usersTableBody");
   const mobileCards = document.getElementById("mobileCards");
   const grid = document.getElementById("usersGrid");
   if (!tbody) return;
-
   const compare = (a, b) => {
     switch (currentSort) {
       case "name-asc":
@@ -761,25 +705,22 @@ function sortRows() {
         return 0;
     }
   };
-
   const rows = Array.from(tbody.querySelectorAll("tr[data-name]"));
   rows.sort(compare);
   rows.forEach((row) => tbody.appendChild(row));
-
   if (mobileCards) {
     const cards = Array.from(
       mobileCards.querySelectorAll(":scope > div[data-name]")
     );
     cards.sort(compare);
-    cards.forEach((card) => mobileCards.appendChild(card));
+    cards.forEach((c) => mobileCards.appendChild(c));
   }
-
   if (grid) {
     const gridCards = Array.from(
       grid.querySelectorAll(":scope > div[data-name]")
     );
     gridCards.sort(compare);
-    gridCards.forEach((card) => grid.appendChild(card));
+    gridCards.forEach((c) => grid.appendChild(c));
   }
 }
 
@@ -789,15 +730,17 @@ function sortRows() {
 function toggleFilterMenu() {
   const menu = document.getElementById("filterMenu");
   const sortMenu = document.getElementById("sortMenu");
+  const statusMenu = document.getElementById("statusMenu");
   const chevron = document.getElementById("filterChevron");
   if (!menu) return;
-
   const willOpen = menu.classList.contains("hidden");
   menu.classList.toggle("hidden");
   if (sortMenu) sortMenu.classList.add("hidden");
+  if (statusMenu) statusMenu.classList.add("hidden");
+  const statusChevron = document.getElementById("statusChevron");
+  if (statusChevron) statusChevron.style.transform = "";
   if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
-
-  if (willOpen) {
+  if (willOpen)
     setTimeout(
       () =>
         document.addEventListener("click", closeFilterOnOutside, {
@@ -805,9 +748,7 @@ function toggleFilterMenu() {
         }),
       0
     );
-  }
 }
-
 function closeFilterOnOutside(e) {
   const wrap = document.getElementById("filterWrap");
   const menu = document.getElementById("filterMenu");
@@ -815,30 +756,25 @@ function closeFilterOnOutside(e) {
   if (wrap && menu && !wrap.contains(e.target)) {
     menu.classList.add("hidden");
     if (chevron) chevron.style.transform = "";
-  } else if (menu && !menu.classList.contains("hidden")) {
+  } else if (menu && !menu.classList.contains("hidden"))
     document.addEventListener("click", closeFilterOnOutside, { once: true });
-  }
 }
 
 // ============================================
-// Status dropdown
+// Status menu (open/close only — filtering is server-side)
 // ============================================
-let currentStatusFilter = "";
-
 function toggleStatusMenu() {
   const menu = document.getElementById("statusMenu");
   const sortMenu = document.getElementById("sortMenu");
   const filterMenu = document.getElementById("filterMenu");
   const chevron = document.getElementById("statusChevron");
   if (!menu) return;
-
   const willOpen = menu.classList.contains("hidden");
   menu.classList.toggle("hidden");
   if (sortMenu) sortMenu.classList.add("hidden");
   if (filterMenu) filterMenu.classList.add("hidden");
   if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
-
-  if (willOpen) {
+  if (willOpen)
     setTimeout(
       () =>
         document.addEventListener("click", closeStatusOnOutside, {
@@ -846,9 +782,7 @@ function toggleStatusMenu() {
         }),
       0
     );
-  }
 }
-
 function closeStatusOnOutside(e) {
   const wrap = document.getElementById("statusWrap");
   const menu = document.getElementById("statusMenu");
@@ -856,39 +790,14 @@ function closeStatusOnOutside(e) {
   if (wrap && menu && !wrap.contains(e.target)) {
     menu.classList.add("hidden");
     if (chevron) chevron.style.transform = "";
-  } else if (menu && !menu.classList.contains("hidden")) {
+  } else if (menu && !menu.classList.contains("hidden"))
     document.addEventListener("click", closeStatusOnOutside, { once: true });
-  }
 }
 
-function setStatusFilter(status) {
-  currentStatusFilter = status || "";
-
-  const labels = { "": "Status", active: "Active", inactive: "Archived" };
-  document.getElementById("statusLabel").textContent =
-    labels[currentStatusFilter] || "Status";
-
-  document.querySelectorAll(".status-check").forEach((c) => {
-    c.style.opacity = c.dataset.status === currentStatusFilter ? "1" : "0";
-  });
-
-  const badge = document.getElementById("statusCount");
-  if (badge) {
-    if (currentStatusFilter) {
-      badge.textContent = "1";
-      badge.classList.remove("hidden");
-    } else {
-      badge.classList.add("hidden");
-    }
-  }
-
-  document.getElementById("statusMenu")?.classList.add("hidden");
-  const chevron = document.getElementById("statusChevron");
-  if (chevron) chevron.style.transform = "";
-
-  applyFilters();
-}
-
+// ============================================
+// Filters (client-side, applies within the current page)
+// NOTE: Status filtering is now server-side via ?status= in the URL.
+// ============================================
 function applyFilters() {
   const search = (
     document.getElementById("searchInput")?.value || ""
@@ -901,7 +810,6 @@ function applyFilters() {
   const year = (
     document.getElementById("filterYearLevel")?.value || ""
   ).toLowerCase();
-  const status = currentStatusFilter;
 
   const rows = document.querySelectorAll("#usersTableBody tr[data-name]");
   const cards = document.querySelectorAll("#mobileCards > div[data-name]");
@@ -915,7 +823,6 @@ function applyFilters() {
     const rCat = row.dataset.category || "";
     const rSub = (row.dataset.sub || "").toLowerCase();
     const rYear = (row.dataset.year || "").toLowerCase();
-    const rStatus = row.dataset.status || "active";
 
     const matchesSearch =
       !search || name.includes(search) || username.includes(search);
@@ -923,16 +830,13 @@ function applyFilters() {
     const matchesCategory = !category || rCat === category;
     const matchesSub = !sub || rSub === sub;
     const matchesYear = !year || rYear === year;
-    const matchesStatus = !status || rStatus === status;
 
     const matches =
       matchesSearch &&
       matchesRole &&
       matchesCategory &&
       matchesSub &&
-      matchesYear &&
-      matchesStatus;
-
+      matchesYear;
     row.classList.toggle("hidden", !matches);
     if (matches) visible++;
   });
@@ -943,11 +847,8 @@ function applyFilters() {
     if (activeFilters > 0) {
       badge.textContent = activeFilters;
       badge.classList.remove("hidden");
-    } else {
-      badge.classList.add("hidden");
-    }
+    } else badge.classList.add("hidden");
   }
-
   document
     .getElementById("emptyState")
     ?.classList.toggle("hidden", visible > 0);
@@ -959,84 +860,21 @@ function clearAllFilters() {
   const subEl = document.getElementById("filterSubCategory");
   const yearEl = document.getElementById("filterYearLevel");
   const searchEl = document.getElementById("searchInput");
-
   if (roleEl) roleEl.value = "";
   if (catEl) catEl.value = "";
   if (subEl) subEl.value = "";
   if (yearEl) yearEl.value = "";
   if (searchEl) searchEl.value = "";
-
   updateFilterSubCategories();
   updateFilterYearLevels();
-
-  setStatusFilter("");
-
   applyFilters();
   document.getElementById("filterMenu")?.classList.add("hidden");
   const chevron = document.getElementById("filterChevron");
   if (chevron) chevron.style.transform = "";
 }
 
-function toggleCustomDropdown(btn) {
-  const wrap = btn.closest(".custom-dropdown");
-  const menu = wrap.querySelector(".custom-dropdown-menu");
-  const chevron = btn.querySelector("svg, [data-lucide]");
-
-  const willOpen = menu.classList.contains("hidden");
-
-  document
-    .querySelectorAll(".custom-dropdown-menu")
-    .forEach((m) => m.classList.add("hidden"));
-
-  if (willOpen) {
-    menu.classList.remove("hidden");
-    if (chevron) chevron.style.transform = "rotate(180deg)";
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeCustomOnOutside, {
-          once: true,
-        }),
-      0
-    );
-  }
-}
-
-function closeCustomOnOutside(e) {
-  let stillOpen = false;
-  document.querySelectorAll(".custom-dropdown").forEach((wrap) => {
-    if (wrap.contains(e.target)) stillOpen = true;
-    else {
-      wrap.querySelector(".custom-dropdown-menu")?.classList.add("hidden");
-      const chev = wrap.querySelector('[data-lucide="chevron-down"]');
-      if (chev) chev.style.transform = "";
-    }
-  });
-  if (stillOpen)
-    document.addEventListener("click", closeCustomOnOutside, { once: true });
-}
-
-function selectCustomOption(btn, value) {
-  const wrap = btn.closest(".custom-dropdown");
-  const label = wrap.querySelector(".custom-dropdown-label");
-  const menu = wrap.querySelector(".custom-dropdown-menu");
-
-  wrap
-    .querySelectorAll(".custom-dropdown-item")
-    .forEach((i) => i.classList.remove("selected"));
-  btn.classList.add("selected");
-
-  label.textContent = btn.querySelector("span:last-child").textContent;
-  label.className = "custom-dropdown-label text-[#2C3E50]";
-
-  wrap.dataset.value = value;
-
-  menu.classList.add("hidden");
-  const chev = wrap.querySelector('[data-lucide="chevron-down"]');
-  if (chev) chev.style.transform = "";
-}
-
 // ============================================
-// Edit modal — sub-category dropdown
+// Edit sub-categories
 // ============================================
 function updateEditSubCategories(
   selectedValue = null,
@@ -1045,10 +883,8 @@ function updateEditSubCategories(
   const catEl = document.getElementById("editCategory");
   const subEl = document.getElementById("editSub");
   if (!catEl || !subEl) return;
-
   const cat = catEl.value;
   const options = SUB_CATEGORIES[cat] || [];
-
   subEl.innerHTML = "";
 
   if (!cat) {
@@ -1063,45 +899,33 @@ function updateEditSubCategories(
     populatePositionDropdown("editPosition", "N/A", "");
     return;
   }
-
   subEl.disabled = false;
   subEl.innerHTML = '<option value="">Select department</option>';
-
   options.forEach((s) => {
     const opt = document.createElement("option");
     opt.value = s;
     opt.textContent = s;
     subEl.appendChild(opt);
   });
-
   if (selectedValue && !options.includes(selectedValue)) {
     const legacyOpt = document.createElement("option");
     legacyOpt.value = selectedValue;
     legacyOpt.textContent = selectedValue;
     subEl.appendChild(legacyOpt);
   }
-
-  if (selectedValue !== null && selectedValue !== undefined) {
+  if (selectedValue !== null && selectedValue !== undefined)
     subEl.value = selectedValue;
-  }
-
   updateYearLevelOrDepartment("edit", selectedYearLevel);
 }
 
-// ============================================
-// Populate the Year Level / Department dropdown
-// ============================================
 function updateYearLevelOrDepartment(prefix, selectedValue = null) {
   const subEl =
     document.getElementById(`${prefix}SubCategory`) ||
     document.getElementById(`${prefix}Sub`);
   const yearEl = document.getElementById(`${prefix}YearLevel`);
-
   if (!subEl || !yearEl) return;
-
   const sub = subEl.value;
   const options = YEAR_LEVELS_OR_DEPARTMENTS[sub] || [];
-
   yearEl.innerHTML = "";
 
   if (!sub) {
@@ -1109,48 +933,37 @@ function updateYearLevelOrDepartment(prefix, selectedValue = null) {
     yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
     return;
   }
-
   if (options.length === 0) {
     yearEl.disabled = true;
     yearEl.innerHTML =
       '<option value="">No year levels/departments available</option>';
     return;
   }
-
   yearEl.disabled = false;
   yearEl.innerHTML = '<option value="">Select year level / department</option>';
-
   options.forEach((opt) => {
     const o = document.createElement("option");
     o.value = opt;
     o.textContent = opt;
     yearEl.appendChild(o);
   });
-
   if (selectedValue && !options.includes(selectedValue)) {
     const legacy = document.createElement("option");
     legacy.value = selectedValue;
     legacy.textContent = selectedValue;
     yearEl.appendChild(legacy);
   }
-
-  if (selectedValue !== null && selectedValue !== undefined) {
+  if (selectedValue !== null && selectedValue !== undefined)
     yearEl.value = selectedValue;
-  }
 }
 
-// ============================================
-// Populate the filter sub-category dropdown
-// ============================================
 function updateFilterSubCategories(selectedValue = null) {
   const catEl = document.getElementById("filterCategory");
   const subEl = document.getElementById("filterSubCategory");
   const yearEl = document.getElementById("filterYearLevel");
   if (!subEl) return;
-
   const cat = catEl?.value || "";
   const options = SUB_CATEGORIES[cat] || [];
-
   subEl.innerHTML = '<option value="">All Departments</option>';
 
   if (!cat) {
@@ -1172,26 +985,15 @@ function updateFilterSubCategories(selectedValue = null) {
       subEl.appendChild(o);
     });
   }
-
-  if (selectedValue !== null) {
-    subEl.value = selectedValue;
-  }
-
-  if (yearEl) {
-    yearEl.innerHTML = '<option value="">All Year Levels</option>';
-  }
+  if (selectedValue !== null) subEl.value = selectedValue;
+  if (yearEl) yearEl.innerHTML = '<option value="">All Year Levels</option>';
 }
 
-// ============================================
-// Populate the filter year level dropdown
-// ============================================
 function updateFilterYearLevels(selectedValue = null) {
   const subEl = document.getElementById("filterSubCategory");
   const yearEl = document.getElementById("filterYearLevel");
   if (!yearEl) return;
-
   const sub = subEl?.value || "";
-
   yearEl.innerHTML = '<option value="">All Year Levels</option>';
 
   if (!sub) {
@@ -1217,15 +1019,9 @@ function updateFilterYearLevels(selectedValue = null) {
       yearEl.appendChild(o);
     });
   }
-
-  if (selectedValue !== null) {
-    yearEl.value = selectedValue;
-  }
+  if (selectedValue !== null) yearEl.value = selectedValue;
 }
 
-// ============================================
-// Populate a Position dropdown (context-aware)
-// ============================================
 function populatePositionDropdown(
   selectId,
   selectedValue = null,
@@ -1233,17 +1029,10 @@ function populatePositionDropdown(
 ) {
   const el = document.getElementById(selectId);
   if (!el) return;
-
-  // Look up allowed positions for the current context
-  let allowed = POSITIONS_BY_CONTEXT[subCategory] || DEFAULT_POSITIONS;
-
+  const allowed = POSITIONS_BY_CONTEXT[subCategory] || DEFAULT_POSITIONS;
   const options = [...allowed];
-
-  // Preserve an existing selection not in the allowed list (legacy data)
-  if (selectedValue && !options.includes(selectedValue)) {
+  if (selectedValue && !options.includes(selectedValue))
     options.push(selectedValue);
-  }
-
   el.innerHTML = '<option value="">Select position</option>';
   options.forEach((p) => {
     const o = document.createElement("option");
@@ -1251,29 +1040,49 @@ function populatePositionDropdown(
     o.textContent = p;
     el.appendChild(o);
   });
-
-  if (selectedValue !== null && selectedValue !== undefined) {
+  if (selectedValue !== null && selectedValue !== undefined)
     el.value = selectedValue;
+}
+
+function validateStep2() {
+  const role = document.getElementById("addRole").value;
+  const cat = document.getElementById("addCategory").value;
+  const pos = document.getElementById("addPosition").value;
+  const pwd = document.getElementById("addTempPassword").value.trim();
+
+  if (!role) { markInvalid("addRole"); return false; }
+  if (!cat) { markInvalid("addCategory"); return false; }
+  if (!pos) { markInvalid("addPosition"); return false; }
+  if (!pwd || pwd.length < 8) {
+    markInvalid("addTempPassword");
+    return false;
   }
+  return true;
 }
 
 // ============================================
-// Wire up forms on load
+// Wire up on load
 // ============================================
 document.addEventListener("DOMContentLoaded", () => {
   initIcons();
-
   setView(currentView);
-
   updateFilterSubCategories();
   updateFilterYearLevels();
-  setStatusFilter("");
 
   document
     .getElementById("addUserForm")
     ?.addEventListener("submit", async function (e) {
       e.preventDefault();
       if (!validateStep2()) return;
+
+      // Make sure a password is set — user-editable, no forced regenerate
+      const tempPassword = document
+        .getElementById("addTempPassword")
+        .value.trim();
+      if (!tempPassword) {
+        markInvalid("addTempPassword");
+        return;
+      }
 
       const formData = new FormData(this);
 
@@ -1284,16 +1093,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       formData.append("username", username);
 
-      const tempPassword = document.getElementById("addTempPassword").value;
-      if (!tempPassword) {
-        regeneratePassword();
-        formData.append(
-          "password",
-          document.getElementById("addTempPassword").value
-        );
-      } else {
-        formData.append("password", tempPassword);
-      }
+      // The <input id="addTempPassword"> has no `name` attribute, so FormData
+      // won't capture it. Append it explicitly.
+      formData.append("password", tempPassword);
 
       await submitCreateUser(formData);
     });
@@ -1302,12 +1104,10 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("editUserForm")
     ?.addEventListener("submit", async function (e) {
       e.preventDefault();
-
       const first = document.getElementById("editFirstName").value.trim();
       const last = document.getElementById("editLastName").value.trim();
       const username = document.getElementById("editUsername").value.trim();
       const position = document.getElementById("editPosition").value;
-
       if (!first) {
         markInvalid("editFirstName");
         return;
@@ -1324,7 +1124,6 @@ document.addEventListener("DOMContentLoaded", () => {
         markInvalid("editPosition");
         return;
       }
-
       await submitEditUser(new FormData(this));
     });
 

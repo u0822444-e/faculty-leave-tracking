@@ -6,50 +6,139 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../../config/database.php';
 
-$userId = (int) $_SESSION['user_id'];
-$role   = $_SESSION['role'] ?? 'staff';
+$userId  = (int) $_SESSION['user_id'];
+$role    = $_SESSION['role'] ?? 'staff';
 $isAdmin = ($role === 'admin');
 
 // ============================================
-// Fetch logs
-//   - Admin   → all logs
-//   - Others  → only their own logs
+// Action filter options — role-aware
 // ============================================
+$actionOptions = [
+    'admin' => [
+        'create_user'     => 'Created User',
+        'update_user'     => 'Updated User',
+        'archive_user'    => 'Archived User',
+        'restore_user'    => 'Restored User',
+        'send_reset'      => 'Sent Reset',
+        'leave_filed'     => 'Leave Filed',
+        'leave_decided'   => 'Leave Decided',
+        'leave_cancelled' => 'Leave Cancelled',
+        'login'           => 'Login',
+        'logout'          => 'Logout',
+    ],
+    'hr' => [
+        'leave_decided'   => 'Leave Decided',
+        'send_reset'      => 'Sent Reset',
+        'leave_filed'     => 'Leave Filed',
+        'leave_cancelled' => 'Leave Cancelled',
+        'login'           => 'Login',
+        'logout'          => 'Logout',
+    ],
+    'user' => [
+        'leave_filed'     => 'Leave Filed',
+        'leave_cancelled' => 'Leave Cancelled',
+        'login'           => 'Login',
+        'logout'          => 'Logout',
+    ],
+];
+
 if ($isAdmin) {
-    $stmt = $pdo->query("
-        SELECT * FROM activity_logs
-        ORDER BY created_at DESC
-        LIMIT 200
-    ");
-    $logs = $stmt->fetchAll();
+    $filterActions = $actionOptions['admin'];
+} elseif ($role === 'hr') {
+    $filterActions = $actionOptions['hr'];
 } else {
-    $stmt = $pdo->prepare("
-        SELECT * FROM activity_logs
-        WHERE user_id = ?
-        ORDER BY created_at DESC
-        LIMIT 200
-    ");
-    $stmt->execute([$userId]);
-    $logs = $stmt->fetchAll();
+    $filterActions = $actionOptions['user'];
 }
 
-// Action badge styles
+// ============================================
+// Active action filter (from URL)
+// ============================================
+$actionFilter = trim($_GET['action'] ?? '');
+
+// Whitelist — reject anything not in the allowed set
+if ($actionFilter !== '' && !array_key_exists($actionFilter, $filterActions)) {
+    $actionFilter = '';
+}
+
+// ============================================
+// Pagination
+// ============================================
+$perPage = 10;
+$page    = max(1, (int)($_GET['page'] ?? 1));
+$offset  = ($page - 1) * $perPage;
+
+// ============================================
+// Build WHERE clause (base + action filter)
+// ============================================
+$whereClauses = [];
+$params       = [];
+
+if (!$isAdmin) {
+    $whereClauses[] = "user_id = ?";
+    $params[]       = $userId;
+}
+
+if ($actionFilter !== '') {
+    $whereClauses[] = "action = ?";
+    $params[]       = $actionFilter;
+}
+
+$whereSql = $whereClauses ? ('WHERE ' . implode(' AND ', $whereClauses)) : '';
+
+// ============================================
+// Total count for pagination
+// ============================================
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM activity_logs {$whereSql}");
+$countStmt->execute($params);
+$totalLogs = (int) $countStmt->fetchColumn();
+
+$totalPages = max(1, (int) ceil($totalLogs / $perPage));
+
+if ($page > $totalPages) {
+    $page   = $totalPages;
+    $offset = ($page - 1) * $perPage;
+}
+
+// ============================================
+// Fetch current page
+// ============================================
+$sql = "SELECT * FROM activity_logs {$whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?";
+$stmt = $pdo->prepare($sql);
+
+$bindIndex = 1;
+foreach ($params as $p) {
+    $stmt->bindValue($bindIndex++, $p);
+}
+$stmt->bindValue($bindIndex++, $perPage, PDO::PARAM_INT);
+$stmt->bindValue($bindIndex++, $offset, PDO::PARAM_INT);
+$stmt->execute();
+$logs = $stmt->fetchAll();
+
+// Action badge styles (covers all known actions)
 $actionStyles = [
-    'create_user'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'update_user'  => 'text-blue-600 bg-blue-50',
-    'archive_user' => 'text-amber-600 bg-amber-50',
-    'send_reset'   => 'text-purple-600 bg-purple-50',
-    'login'        => 'text-emerald-600 bg-emerald-50',
-    'logout'       => 'text-slate-600 bg-slate-100',
+    'create_user'     => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'update_user'     => 'text-blue-600 bg-blue-50',
+    'archive_user'    => 'text-amber-600 bg-amber-50',
+    'restore_user'    => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'send_reset'      => 'text-purple-600 bg-purple-50',
+    'leave_filed'     => 'text-indigo-600 bg-indigo-50',
+    'leave_decided'   => 'text-emerald-600 bg-emerald-50',
+    'leave_cancelled' => 'text-slate-600 bg-slate-100',
+    'login'           => 'text-emerald-600 bg-emerald-50',
+    'logout'          => 'text-slate-600 bg-slate-100',
 ];
 
 $actionLabels = [
-    'create_user'  => 'Created User',
-    'update_user'  => 'Updated User',
-    'archive_user' => 'Archived User',
-    'send_reset'   => 'Sent Reset',
-    'login'        => 'Login',
-    'logout'       => 'Logout',
+    'create_user'     => 'Created User',
+    'update_user'     => 'Updated User',
+    'archive_user'    => 'Archived User',
+    'restore_user'    => 'Restored User',
+    'send_reset'      => 'Sent Reset',
+    'leave_filed'     => 'Leave Filed',
+    'leave_decided'   => 'Leave Decided',
+    'leave_cancelled' => 'Leave Cancelled',
+    'login'           => 'Login',
+    'logout'          => 'Logout',
 ];
 
 $pageTitle    = $isAdmin ? 'Activity Logs' : 'My Activity';
@@ -92,15 +181,17 @@ $activePage   = 'activity-logs';
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
 
                         <div class="flex flex-wrap items-center gap-2">
-                            <select id="actionFilter" onchange="filterLogs()"
+
+                            <!-- Action filter — role-aware, server-side -->
+                            <select id="actionFilter"
+                                onchange="window.location.href = this.value ? '?action=' + encodeURIComponent(this.value) : '<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>'"
                                 class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="">All Actions</option>
-                                <option value="create_user">Created User</option>
-                                <option value="update_user">Updated User</option>
-                                <option value="archive_user">Archived User</option>
-                                <option value="send_reset">Sent Reset</option>
-                                <option value="login">Login</option>
-                                <option value="logout">Logout</option>
+                                <?php foreach ($filterActions as $value => $label): ?>
+                                    <option value="<?= htmlspecialchars($value) ?>" <?= $actionFilter === $value ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($label) ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
 
                             <button onclick="filterToday(event)"
@@ -141,7 +232,9 @@ $activePage   = 'activity-logs';
                                     <i data-lucide="history" class="w-5 h-5"></i>
                                 </div>
                                 <p class="text-sm font-medium text-[#2C3E50]">No activity yet</p>
-                                <p class="text-xs text-[#2C3E50]/50 mt-1">System actions will appear here.</p>
+                                <p class="text-xs text-[#2C3E50]/50 mt-1">
+                                    <?= $actionFilter !== '' ? 'No logs for this action filter.' : 'System actions will appear here.' ?>
+                                </p>
                             </div>
                         <?php else: ?>
                             <?php foreach ($logs as $log):
@@ -151,11 +244,11 @@ $activePage   = 'activity-logs';
                                 $ts = strtotime($log['created_at']);
                                 $timeAgo = time() - $ts;
 
-                                if ($timeAgo < 60)      $timeLabel = 'Just now';
-                                elseif ($timeAgo < 3600)  $timeLabel = floor($timeAgo / 60) . 'm ago';
-                                elseif ($timeAgo < 86400) $timeLabel = floor($timeAgo / 3600) . 'h ago';
+                                if ($timeAgo < 60)         $timeLabel = 'Just now';
+                                elseif ($timeAgo < 3600)   $timeLabel = floor($timeAgo / 60) . 'm ago';
+                                elseif ($timeAgo < 86400)  $timeLabel = floor($timeAgo / 3600) . 'h ago';
                                 elseif ($timeAgo < 604800) $timeLabel = floor($timeAgo / 86400) . 'd ago';
-                                else                     $timeLabel = date('M j, Y', $ts);
+                                else                       $timeLabel = date('M j, Y', $ts);
                                 ?>
                                 <div class="log-row px-4 py-2.5 hover:bg-[#F1FDF6]/40 transition"
                                     data-action="<?= htmlspecialchars($log['action']) ?>"
@@ -210,10 +303,65 @@ $activePage   = 'activity-logs';
                         <p class="text-xs text-[#2C3E50]/50 mt-1">Try adjusting your search or filters.</p>
                     </div>
 
-                    <div class="px-4 sm:px-6 py-3 border-t border-[#E0E0E0] flex items-center justify-between">
+                    <!-- Pagination -->
+                    <div class="px-4 sm:px-6 py-3 border-t border-[#E0E0E0] flex flex-col sm:flex-row items-center justify-between gap-3">
                         <p class="text-xs text-[#2C3E50]/50">
-                            Showing <span class="font-medium text-[#2C3E50]"><?= count($logs) ?></span> recent activities
+                            Showing
+                            <span class="font-medium text-[#2C3E50]"><?= count($logs) ?></span>
+                            of
+                            <span class="font-medium text-[#2C3E50]"><?= $totalLogs ?></span>
+                            activities
+                            <?php if ($totalPages > 1): ?>
+                                · Page <span class="font-medium text-[#2C3E50]"><?= $page ?></span> of <span class="font-medium text-[#2C3E50]"><?= $totalPages ?></span>
+                            <?php endif; ?>
                         </p>
+
+                        <?php
+                        // Preserve action filter when paginating
+                        $pageQS = $actionFilter !== '' ? '&action=' . urlencode($actionFilter) : '';
+                        ?>
+
+                        <?php if ($totalPages > 1): ?>
+                            <div class="flex items-center gap-1">
+                                <?php if ($page > 1): ?>
+                                    <a href="?page=<?= $page - 1 ?><?= $pageQS ?>"
+                                        class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
+                                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                    </a>
+                                <?php else: ?>
+                                    <button class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/30 cursor-not-allowed" disabled>
+                                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                    </button>
+                                <?php endif; ?>
+
+                                <?php
+                                $start = max(1, $page - 2);
+                                $end   = min($totalPages, $start + 4);
+                                $start = max(1, $end - 4);
+                                for ($i = $start; $i <= $end; $i++):
+                                ?>
+                                    <?php if ($i === $page): ?>
+                                        <span class="w-8 h-8 rounded-lg bg-[#0F5E3D] text-white text-xs font-medium flex items-center justify-center"><?= $i ?></span>
+                                    <?php else: ?>
+                                        <a href="?page=<?= $i ?><?= $pageQS ?>"
+                                            class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition text-xs font-medium">
+                                            <?= $i ?>
+                                        </a>
+                                    <?php endif; ?>
+                                <?php endfor; ?>
+
+                                <?php if ($page < $totalPages): ?>
+                                    <a href="?page=<?= $page + 1 ?><?= $pageQS ?>"
+                                        class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
+                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                    </a>
+                                <?php else: ?>
+                                    <button class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/30 cursor-not-allowed" disabled>
+                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 

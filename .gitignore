@@ -33,3 +33,8 @@ User Accounts.xlsx
 
 # Logs
 *.log
+# Server-side only
+.htaccess
+public_html/.htaccess
+DO_NOT_UPLOAD_HERE
+public_html/__debug.php

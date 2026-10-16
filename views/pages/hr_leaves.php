@@ -1,9 +1,8 @@
 <?php
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'hr') {
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['admin', 'hr'], true)) {
     header('Location: /login');
     exit;
 }
-
 require_once __DIR__ . '/../../config/database.php';
 
 $stats = $pdo->query("
@@ -215,9 +214,11 @@ $leaveLabels = [
                                                     </div>
                                                     <div class="min-w-0">
                                                         <p class="text-sm font-medium text-[#2C3E50] truncate">
-                                                            <?= htmlspecialchars($fullName) ?></p>
+                                                            <?= htmlspecialchars($fullName) ?>
+                                                        </p>
                                                         <p class="text-xs text-[#2C3E50]/50 truncate">
-                                                            <?= htmlspecialchars($l['sub_category'] ?? '') ?></p>
+                                                            <?= htmlspecialchars($l['sub_category'] ?? '') ?>
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -279,7 +280,8 @@ $leaveLabels = [
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center justify-between gap-2 mb-1">
                                                 <p class="text-sm font-medium text-[#2C3E50] truncate">
-                                                    <?= htmlspecialchars($fullName) ?></p>
+                                                    <?= htmlspecialchars($fullName) ?>
+                                                </p>
                                                 <span
                                                     class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize <?= $statusClass ?>">
                                                     <?= htmlspecialchars($l['status']) ?>
@@ -296,7 +298,8 @@ $leaveLabels = [
                                             </div>
                                             <p class="text-xs text-[#2C3E50]/50">
                                                 <?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?>
-                                                days</p>
+                                                days
+                                            </p>
                                             <div class="flex items-center gap-2 mt-3">
                                                 <button onclick="openReview(<?= (int) $l['id'] ?>)"
                                                     class="w-full text-sm py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
@@ -529,13 +532,13 @@ $leaveLabels = [
                     <div id="rvDecideBar" class="hidden border-t border-[#E0E0E0] bg-white px-8 py-4 shrink-0">
                         <div class="flex items-center gap-3">
 
-                            <div class="flex items-center gap-2 shrink-0">  
+                            <div class="flex items-center gap-2 shrink-0">
                                 <button type="button" data-pay="with_pay" onclick="rvSelectPay('with_pay')"
-                                    class="rv-pay-btn px-3 py-1.5 rounded-md text-sm font-medium border border-[#E0E0E0] bg-white text-[#2C3E50]/70 hover:bg-[#F1FDF6] transition">
+                                    class="rv-pay-btn px-3 py-1.5 rounded-md text-sm font-medium border border-[#E0E0E0] bg-white text-[#2C3E50]/70 transition">
                                     With Pay
                                 </button>
                                 <button type="button" data-pay="without_pay" onclick="rvSelectPay('without_pay')"
-                                    class="rv-pay-btn px-3 py-1.5 rounded-md text-sm font-medium border border-[#E0E0E0] bg-white text-[#2C3E50]/70 hover:bg-[#F1FDF6] transition">
+                                    class="rv-pay-btn px-3 py-1.5 rounded-md text-sm font-medium border border-[#E0E0E0] bg-white text-[#2C3E50]/70 transition">
                                     Without Pay
                                 </button>
                             </div>

@@ -143,8 +143,10 @@ if (preg_match('#^/faculty/(\d+)$#', $uri, $matches)) {
 }
 
 // Leaves page (admin or HR)
+// Leaves page (admin or HR) — same review workspace for both
 if ($uri === '/leaves') {
-    if (($_SESSION['role'] ?? '') === 'hr') {
+    $role = $_SESSION['role'] ?? '';
+    if (in_array($role, ['admin', 'hr'], true)) {
         require __DIR__ . '/../views/pages/hr_leaves.php';
     } else {
         require __DIR__ . '/../views/pages/leaves.php';

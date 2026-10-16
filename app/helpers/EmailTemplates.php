@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/Env.php';
+
 class EmailTemplates
 {
     public static function welcome(
@@ -7,6 +9,8 @@ class EmailTemplates
         string $username,
         string $tempPassword
     ): string {
+$appUrl = rtrim(Env::get('APP_URL', 'http://localhost'), '/');
+
         return "
         <div style=\"font-family: 'Inter', Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #ffffff; border: 1px solid #E0E0E0; border-radius: 12px; overflow: hidden;\">
             <div style=\"background: linear-gradient(to bottom, #0F5E3D, #0a4a2f); padding: 32px 24px; text-align: center; color: white;\">
@@ -39,7 +43,7 @@ class EmailTemplates
                     For security reasons, please change your password after your first login.
                 </p>
 
-                <a href=\"http://localhost:8002/login\" style=\"display: inline-block; margin-top: 20px; background: #0F5E3D; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;\">
+                <a href=\"{$appUrl}/login\" style=\"display: inline-block; margin-top: 20px; background: #0F5E3D; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;\">
                     Sign In
                 </a>
             </div>

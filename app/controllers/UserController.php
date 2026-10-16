@@ -758,9 +758,8 @@ try {
             ");
             $stmt->execute([$token, $user['id']]);
 
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8002';
-            $resetLink = $scheme . '://' . $host . '/reset-password?token=' . urlencode($token);
+            $appUrl = rtrim(Env::get('APP_URL', 'http://localhost'), '/');
+	    $resetLink = $appUrl . '/reset-password?token=' . urlencode($token);
 
             try {
                 $mailer = new MailService();

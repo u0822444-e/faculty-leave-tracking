@@ -60,10 +60,8 @@ try {
             ");
             $stmt->execute([$token, $expires, $user['id']]);
 
-            // Build dynamic reset link (works on any host/port)
-            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-            $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8002';
-            $resetLink = $scheme . '://' . $host . '/reset-password?token=' . urlencode($token);
+            $appUrl = rtrim(Env::get('APP_URL', 'http://localhost'), '/');
+	    $resetLink = $appUrl . '/reset-password?token=' . urlencode($token);
 
             // Debug log
             error_log('RESET LINK: ' . $resetLink);

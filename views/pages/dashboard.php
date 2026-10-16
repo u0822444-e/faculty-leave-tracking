@@ -126,7 +126,7 @@ $stmt = $pdo->query("
     ORDER BY count DESC
 ");
 $usersByRole = $stmt->fetchAll();
-$roleCounts = ['admin' => 0, 'hr' => 0, 'faculty' => 0, 'staff' => 0, 'payroll' => 0, 'timekeeper' => 0];
+$roleCounts = ['admin' => 0, 'hr' => 0, 'faculty' => 0, 'staff' => 0];
 foreach ($usersByRole as $row) {
     if (isset($roleCounts[$row['role']])) {
         $roleCounts[$row['role']] = (int) $row['count'];
@@ -213,38 +213,32 @@ function timeAgo($timestamp)
             require __DIR__ . '/../components/topbar.php';
             ?>
 
-            <main class="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+            <main class="p-4 sm:p-6 lg:p-8 space-y-5">
 
                 <!-- ============================================ -->
                 <!-- HERO ROW                                       -->
                 <!-- ============================================ -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
                     <!-- Pending leave queue (spans 2 columns) -->
-                    <div
-                        class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
-                        <div class="flex items-start justify-between gap-4 mb-4">
+                    <div class="lg:col-span-2 animate-fade-in-up bg-white border border-[#E0E0E0] rounded-xl p-6 shadow-sm">
+                        <div class="flex items-start justify-between gap-4 mb-5">
                             <div>
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">
-                                    Pending Leave Requests</p>
-                                <div class="flex items-baseline gap-2">
-                                    <span class="text-3xl sm:text-4xl font-bold text-amber-600">
-                                        <?= (int) $leaveStats['pending'] ?>
-                                    </span>
-                                    <!-- <span class="text-sm text-[#2C3E50]/50">
-                                        request<?= ((int) $leaveStats['pending'] === 1) ? '' : 's' ?> awaiting decision
-                                    </span> -->
-                                </div>
+                                <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">
+                                    Pending Leave Requests
+                                </p>
+                                <p class="text-2xl font-bold text-amber-600">
+                                    <?= (int) $leaveStats['pending'] ?>
+                                </p>
                             </div>
-                            <div
-                                class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+                            <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
                                 <i data-lucide="clock" class="w-5 h-5"></i>
                             </div>
                         </div>
 
                         <?php if ((int) $leaveStats['pending_new'] > 0): ?>
-                            <div class="mb-4">
-                                <div class="flex items-center justify-between text-[11px] text-[#2C3E50]/60 mb-1.5">
+                            <div class="mb-5">
+                                <div class="flex items-center justify-between text-xs text-[#2C3E50]/60 mb-2">
                                     <span><?= (int) $leaveStats['pending_new'] ?> new this week</span>
                                 </div>
                                 <div class="h-2 bg-[#F1FDF6] rounded-full overflow-hidden">
@@ -259,116 +253,98 @@ function timeAgo($timestamp)
                             </div>
                         <?php endif; ?>
 
-                        <div class="grid grid-cols-3 gap-3 pt-4 border-t border-[#E0E0E0]">
+                        <div class="grid grid-cols-3 gap-4 pt-4 border-t border-[#E0E0E0]">
                             <div>
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                    Total</p>
-                                <p class="text-sm font-bold text-[#2C3E50]"><?= (int) $leaveStats['total'] ?></p>
+                                <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Total</p>
+                                <p class="text-base font-bold text-[#2C3E50]"><?= (int) $leaveStats['total'] ?></p>
                             </div>
                             <div>
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                    Approved</p>
-                                <p class="text-sm font-bold text-[#0F5E3D]"><?= (int) $leaveStats['approved'] ?></p>
+                                <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Approved</p>
+                                <p class="text-base font-bold text-[#0F5E3D]"><?= (int) $leaveStats['approved'] ?></p>
                             </div>
                             <div>
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                    Rejected</p>
-                                <p class="text-sm font-bold text-red-600"><?= (int) $leaveStats['rejected'] ?></p>
+                                <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Rejected</p>
+                                <p class="text-base font-bold text-red-600"><?= (int) $leaveStats['rejected'] ?></p>
                             </div>
                         </div>
 
                         <!-- Weekly decisions chart -->
-                        <div class="pt-4 mt-4 border-t border-[#E0E0E0]">
-                            <div class="flex items-center justify-between mb-2">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Weekly
-                                    Decisions</p>
-                                <div class="flex items-center gap-3 text-[10px] text-[#2C3E50]/50">
-                                    <span class="flex items-center gap-1">
+                        <div class="pt-5 mt-5 border-t border-[#E0E0E0]">
+                            <div class="flex items-center justify-between mb-3">
+                                <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold">
+                                    Weekly Decisions
+                                </p>
+                                <div class="flex items-center gap-4 text-xs text-[#2C3E50]/60">
+                                    <span class="flex items-center gap-1.5">
                                         <span class="w-2 h-2 rounded-full bg-amber-500"></span> Pending
                                     </span>
-                                    <span class="flex items-center gap-1">
+                                    <span class="flex items-center gap-1.5">
                                         <span class="w-2 h-2 rounded-full bg-[#0F5E3D]"></span> Approved
                                     </span>
-                                    <span class="flex items-center gap-1">
+                                    <span class="flex items-center gap-1.5">
                                         <span class="w-2 h-2 rounded-full bg-red-500"></span> Rejected
                                     </span>
                                 </div>
                             </div>
-                            <div class="relative h-32">
+                            <div class="relative h-36">
                                 <canvas id="weeklyDecisionsChart"></canvas>
                             </div>
                         </div>
                     </div>
 
-
-
                     <!-- Right column: two stacked cards -->
-                    <div class="flex flex-col gap-3 sm:gap-4">
+                    <div class="flex flex-col gap-5">
 
                         <!-- Payroll saved -->
-                        <div
-                            class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col">
+                        <div class="animate-fade-in-up-delay-1 bg-white border border-[#E0E0E0] rounded-xl p-6 shadow-sm flex flex-col">
                             <div class="flex items-start justify-between gap-4 mb-4">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Payroll
-                                    Saved</p>
-                                <div
-                                    class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                                    <i data-lucide="landmark" class="w-4 h-4"></i>
+                                <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Payroll Saved</p>
+                                <div class="w-10 h-10 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                    <i data-lucide="landmark" class="w-5 h-5"></i>
                                 </div>
                             </div>
-                            <p class="text-2xl sm:text-3xl font-bold text-[#0F5E3D] mb-2">
+                            <p class="text-2xl font-bold text-[#0F5E3D] mb-2">
                                 ₱<?= number_format($savedTotal, 2) ?>
                             </p>
-                            <p class="text-[10px] text-[#2C3E50]/50 mb-3">from unpaid leave days</p>
+                            <p class="text-sm text-[#2C3E50]/50 mb-4">from unpaid leave days</p>
 
-                            <div class="pt-3 mt-auto border-t border-[#E0E0E0]">
+                            <div class="pt-4 mt-auto border-t border-[#E0E0E0]">
                                 <div class="flex items-center justify-between">
-                                    <span class="text-xs text-[#2C3E50]/60">Convertible Liability</span>
-                                    <span class="text-xs font-semibold text-amber-600">
+                                    <span class="text-sm text-[#2C3E50]/60">Convertible Liability</span>
+                                    <span class="text-sm font-semibold text-amber-600">
                                         ₱<?= number_format($convertibleTotal, 2) ?>
                                     </span>
                                 </div>
-                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">remaining credits if cashed out</p>
+                                <p class="text-xs text-[#2C3E50]/40 mt-1">remaining credits if cashed out</p>
                             </div>
                         </div>
 
                         <!-- Users overview -->
-                        <div
-                            class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col">
-                            <div class="flex items-start justify-between gap-4 mb-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total
-                                    Users</p>
-                                <div
-                                    class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                                    <i data-lucide="users" class="w-4 h-4"></i>
+                        <div class="animate-fade-in-up-delay-1 bg-white border border-[#E0E0E0] rounded-xl p-6 shadow-sm flex flex-col">
+                            <div class="flex items-start justify-between gap-4 mb-4">
+                                <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total Users</p>
+                                <div class="w-10 h-10 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                    <i data-lucide="users" class="w-5 h-5"></i>
                                 </div>
                             </div>
-                            <p class="text-3xl font-bold text-[#2C3E50] mb-3"><?= $totalUsers ?></p>
+                            <p class="text-2xl font-bold text-[#2C3E50] mb-4"><?= $totalUsers ?></p>
 
-                            <div class="grid grid-cols-2 gap-2 pt-3 border-t border-[#E0E0E0]">
+                            <div class="grid grid-cols-2 gap-3 pt-4 border-t border-[#E0E0E0]">
                                 <div>
-                                    <p
-                                        class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                        Active</p>
-                                    <p class="text-sm font-bold text-[#0F5E3D]"><?= $activeUsers ?></p>
+                                    <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Active</p>
+                                    <p class="text-base font-bold text-[#0F5E3D]"><?= $activeUsers ?></p>
                                 </div>
                                 <div>
-                                    <p
-                                        class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                        Archived</p>
-                                    <p class="text-sm font-bold text-slate-500"><?= $archivedUsers ?></p>
+                                    <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Archived</p>
+                                    <p class="text-base font-bold text-slate-500"><?= $archivedUsers ?></p>
                                 </div>
                                 <div>
-                                    <p
-                                        class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                        Faculty</p>
-                                    <p class="text-sm font-bold text-[#2C3E50]"><?= $facultyCount ?></p>
+                                    <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Faculty</p>
+                                    <p class="text-base font-bold text-[#2C3E50]"><?= $facultyCount ?></p>
                                 </div>
                                 <div>
-                                    <p
-                                        class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                        Staff</p>
-                                    <p class="text-sm font-bold text-[#2C3E50]"><?= $staffCount ?></p>
+                                    <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Staff</p>
+                                    <p class="text-base font-bold text-[#2C3E50]"><?= $staffCount ?></p>
                                 </div>
                             </div>
                         </div>
@@ -380,46 +356,41 @@ function timeAgo($timestamp)
                 <!-- ============================================ -->
                 <!-- CHARTS ROW                                     -->
                 <!-- ============================================ -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
                     <!-- Line: leave submissions per month -->
-                    <div
-                        class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
-                        <div class="flex items-start justify-between mb-3">
+                    <div class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white border border-[#E0E0E0] rounded-xl p-6 shadow-sm">
+                        <div class="flex items-start justify-between mb-4">
                             <div>
-                                <h2 class="text-sm font-bold text-[#2C3E50]">Leave Submissions</h2>
-                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Requests submitted per month · last 6
-                                    months</p>
+                                <h2 class="text-base font-bold text-[#2C3E50]">Leave Submissions</h2>
+                                <p class="text-sm text-[#2C3E50]/50 mt-1">Requests submitted per month · last 6 months</p>
                             </div>
-                            <div class="flex items-center gap-1.5 text-[10px] text-[#2C3E50]/60">
+                            <div class="flex items-center gap-2 text-xs text-[#2C3E50]/60">
                                 <span class="w-2 h-2 rounded-full bg-[#0F5E3D]"></span>
                                 <span>Requests</span>
                             </div>
                         </div>
-                        <div class="relative h-56">
+                        <div class="relative h-60">
                             <canvas id="leaveTrendChart"></canvas>
                         </div>
                     </div>
 
                     <!-- Donut: users by role -->
-                    <div
-                        class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
-                        <div class="mb-3">
-                            <h2 class="text-sm font-bold text-[#2C3E50]">Users by Role</h2>
-                            <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Active accounts only</p>
+                    <div class="animate-fade-in-up-delay-2 bg-white border border-[#E0E0E0] rounded-xl p-6 shadow-sm">
+                        <div class="mb-4">
+                            <h2 class="text-base font-bold text-[#2C3E50]">Users by Role</h2>
+                            <p class="text-sm text-[#2C3E50]/50 mt-1">Active accounts only</p>
                         </div>
-                        <div class="relative h-40">
+                        <div class="relative h-44">
                             <canvas id="roleChart"></canvas>
                         </div>
-                        <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-[#E0E0E0]">
+                        <div class="grid grid-cols-2 gap-3 mt-5 pt-4 border-t border-[#E0E0E0]">
                             <?php
                             $roleMeta = [
                                 'admin' => ['Admin', '#0F5E3D'],
                                 'hr' => ['HR', '#3b82f6'],
                                 'faculty' => ['Faculty', '#a855f7'],
                                 'staff' => ['Staff', '#f59e0b'],
-                                'payroll' => ['Payroll', '#ef4444'],
-                                'timekeeper' => ['Timekeeper', '#64748b'],
                             ];
                             foreach ($roleMeta as $key => [$label, $color]):
                                 $c = $roleCounts[$key] ?? 0;
@@ -427,8 +398,8 @@ function timeAgo($timestamp)
                                 <div class="text-center">
                                     <span class="inline-block w-2 h-2 rounded-full mb-1"
                                         style="background: <?= $color ?>"></span>
-                                    <p class="text-[10px] text-[#2C3E50]/50 uppercase tracking-wider"><?= $label ?></p>
-                                    <p class="text-xs font-bold text-[#2C3E50]"><?= $c ?></p>
+                                    <p class="text-xs text-[#2C3E50]/50 uppercase tracking-wider"><?= $label ?></p>
+                                    <p class="text-sm font-bold text-[#2C3E50]"><?= $c ?></p>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -439,29 +410,21 @@ function timeAgo($timestamp)
                 <!-- ============================================ -->
                 <!-- QUICK STATS STRIP                              -->
                 <!-- ============================================ -->
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div
-                        class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total Users
-                        </p>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div class="animate-fade-in-up-delay-2 bg-white border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
+                        <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Total Users</p>
                         <p class="text-xl font-bold text-[#2C3E50]"><?= $totalUsers ?></p>
                     </div>
-                    <div
-                        class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Active
-                            Users</p>
+                    <div class="animate-fade-in-up-delay-2 bg-white border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
+                        <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Active Users</p>
                         <p class="text-xl font-bold text-[#0F5E3D]"><?= $activeUsers ?></p>
                     </div>
-                    <div
-                        class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Pending
-                            Leaves</p>
+                    <div class="animate-fade-in-up-delay-3 bg-white border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
+                        <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Pending Leaves</p>
                         <p class="text-xl font-bold text-amber-600"><?= (int) $leaveStats['pending'] ?></p>
                     </div>
-                    <div
-                        class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Payroll
-                            Saved</p>
+                    <div class="animate-fade-in-up-delay-3 bg-white border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
+                        <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Payroll Saved</p>
                         <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($savedTotal, 0) ?></p>
                     </div>
                 </div>
@@ -469,59 +432,55 @@ function timeAgo($timestamp)
                 <!-- ============================================ -->
                 <!-- ACTIVITY + QUICK ACTIONS                       -->
                 <!-- ============================================ -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
                     <!-- Recent activity -->
-                    <div
-                        class="animate-fade-in-up-delay-3 lg:col-span-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
-                        <div class="flex items-center justify-between mb-4">
+                    <div class="animate-fade-in-up-delay-3 lg:col-span-2 bg-white border border-[#E0E0E0] rounded-xl p-6 shadow-sm">
+                        <div class="flex items-center justify-between mb-5">
                             <div>
-                                <h2 class="text-base sm:text-lg font-bold text-[#2C3E50]">Recent Activity</h2>
-                                <p class="text-xs text-[#2C3E50]/50 mt-0.5">
+                                <h2 class="text-base font-bold text-[#2C3E50]">Recent Activity</h2>
+                                <p class="text-sm text-[#2C3E50]/50 mt-1">
                                     <?= $activityToday ?> today · <?= $activityWeek ?> this week
                                 </p>
                             </div>
                             <a href="/activity-logs"
-                                class="text-xs font-medium text-[#0F5E3D] hover:text-[#0a4a2f] transition">
+                                class="text-sm font-medium text-[#0F5E3D] hover:text-[#0a4a2f] transition">
                                 View all →
                             </a>
                         </div>
 
                         <?php if (empty($recentActivity)): ?>
-                            <div class="py-8 text-center">
-                                <div
-                                    class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                            <div class="py-10 text-center">
+                                <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                                     <i data-lucide="history" class="w-5 h-5"></i>
                                 </div>
                                 <p class="text-sm text-[#2C3E50]/60">No activity yet</p>
                                 <p class="text-xs text-[#2C3E50]/40 mt-1">Actions will appear here as they happen.</p>
                             </div>
                         <?php else: ?>
-                            <div class="space-y-1">
+                            <div class="space-y-2">
                                 <?php foreach ($recentActivity as $log):
                                     $actionClass = $actionStyles[$log['action']] ?? 'text-slate-600 bg-slate-100';
                                     $actionLabel = $actionLabels[$log['action']] ?? ucfirst(str_replace('_', ' ', $log['action']));
                                     $initial = strtoupper(substr($log['username'] ?? 'S', 0, 1));
                                     ?>
                                     <div class="flex items-start gap-3 p-3 rounded-lg hover:bg-[#F1FDF6]/60 transition">
-                                        <div
-                                            class="w-8 h-8 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
+                                        <div class="w-8 h-8 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xs shrink-0">
                                             <?= $initial ?>
                                         </div>
                                         <div class="flex-1 min-w-0">
-                                            <div class="flex flex-wrap items-center gap-2 mb-0.5">
+                                            <div class="flex flex-wrap items-center gap-2 mb-1">
                                                 <span class="text-sm font-medium text-[#2C3E50] truncate">
                                                     <?= htmlspecialchars($log['username'] ?? 'System') ?>
                                                 </span>
-                                                <span
-                                                    class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium <?= $actionClass ?>">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium <?= $actionClass ?>">
                                                     <?= $actionLabel ?>
                                                 </span>
                                             </div>
-                                            <p class="text-xs text-[#2C3E50]/60 truncate">
+                                            <p class="text-sm text-[#2C3E50]/60 truncate">
                                                 <?= htmlspecialchars($log['description'] ?? '—') ?>
                                             </p>
-                                            <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">
+                                            <p class="text-xs text-[#2C3E50]/40 mt-1">
                                                 <?= timeAgo($log['created_at']) ?>
                                             </p>
                                         </div>
@@ -532,9 +491,8 @@ function timeAgo($timestamp)
                     </div>
 
                     <!-- Quick actions + system status -->
-                    <div
-                        class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
-                        <h2 class="text-base sm:text-lg font-bold text-[#2C3E50] mb-4">Quick Actions</h2>
+                    <div class="animate-fade-in-up-delay-3 bg-white border border-[#E0E0E0] rounded-xl p-6 shadow-sm">
+                        <h2 class="text-base font-bold text-[#2C3E50] mb-5">Quick Actions</h2>
 
                         <div class="space-y-3">
                             <a href="/users"
@@ -559,15 +517,14 @@ function timeAgo($timestamp)
                             </a>
                         </div>
 
-                        <div class="mt-6 pt-4 border-t border-[#E0E0E0]">
+                        <div class="mt-6 pt-5 border-t border-[#E0E0E0]">
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <p class="text-xs font-medium text-[#2C3E50]">System Status</p>
-                                    <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">All systems operational</p>
+                                    <p class="text-sm font-medium text-[#2C3E50]">System Status</p>
+                                    <p class="text-xs text-[#2C3E50]/50 mt-1">All systems operational</p>
                                 </div>
                                 <span class="relative flex h-2.5 w-2.5">
-                                    <span
-                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1E8449] opacity-75"></span>
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1E8449] opacity-75"></span>
                                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#1E8449]"></span>
                                 </span>
                             </div>
@@ -629,7 +586,7 @@ function timeAgo($timestamp)
             };
 
             Chart.defaults.font.family = "'Inter', sans-serif";
-            Chart.defaults.font.size = 11;
+            Chart.defaults.font.size = 12;
             Chart.defaults.color = COLORS.textMuted;
 
             // Line: leave submissions per month
@@ -643,16 +600,20 @@ function timeAgo($timestamp)
                 new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: data.weeklyDecisions.labels,
+                        labels: data.leaveTrend.labels,
                         datasets: [{
-                            label: 'Pending',
-                            data: data.weeklyDecisions.pending,
-                            borderColor: COLORS.amber,
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            label: 'Requests',
+                            data: data.leaveTrend.values,
+                            borderColor: COLORS.green,
+                            backgroundColor: gradient,
                             borderWidth: 2,
                             tension: 0.35,
                             fill: true,
-                            pointRadius: 3,
+                            pointRadius: 4,
+                            pointBackgroundColor: COLORS.green,
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 6,
                         }]
                     },
                     options: {
@@ -664,7 +625,7 @@ function timeAgo($timestamp)
                                 backgroundColor: COLORS.text,
                                 titleColor: '#fff',
                                 bodyColor: '#fff',
-                                padding: 8,
+                                padding: 10,
                                 cornerRadius: 8,
                                 displayColors: false,
                                 callbacks: { label: (ctx) => `${ctx.parsed.y} request(s)` }
@@ -674,7 +635,7 @@ function timeAgo($timestamp)
                             x: {
                                 grid: { display: false },
                                 border: { display: false },
-                                ticks: { color: COLORS.textMuted, font: { size: 10 } }
+                                ticks: { color: COLORS.textMuted, font: { size: 11 } }
                             },
                             y: {
                                 beginAtZero: true,
@@ -682,7 +643,7 @@ function timeAgo($timestamp)
                                 border: { display: false },
                                 ticks: {
                                     color: COLORS.textMuted,
-                                    font: { size: 10 },
+                                    font: { size: 11 },
                                     stepSize: 1,
                                     precision: 0
                                 }
@@ -710,8 +671,6 @@ function timeAgo($timestamp)
                                 COLORS.blue,
                                 COLORS.purple,
                                 COLORS.amber,
-                                COLORS.red,
-                                COLORS.slate,
                             ],
                             borderColor: '#ffffff',
                             borderWidth: 3,
@@ -728,7 +687,7 @@ function timeAgo($timestamp)
                                 backgroundColor: COLORS.text,
                                 titleColor: '#fff',
                                 bodyColor: '#fff',
-                                padding: 8,
+                                padding: 10,
                                 cornerRadius: 8,
                                 displayColors: false,
                                 callbacks: {
@@ -752,11 +711,11 @@ function timeAgo($timestamp)
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'middle';
                             ctx.fillStyle = COLORS.text;
-                            ctx.font = 'bold 16px Inter, sans-serif';
-                            ctx.fillText(String(total), cx, cy - 4);
+                            ctx.font = 'bold 18px Inter, sans-serif';
+                            ctx.fillText(String(total), cx, cy - 6);
                             ctx.fillStyle = COLORS.textMuted;
-                            ctx.font = '9px Inter, sans-serif';
-                            ctx.fillText('active users', cx, cy + 12);
+                            ctx.font = '11px Inter, sans-serif';
+                            ctx.fillText('active users', cx, cy + 14);
                             ctx.restore();
                         }
                     }]
@@ -777,7 +736,7 @@ function timeAgo($timestamp)
                                 backgroundColor: COLORS.amber,
                                 borderRadius: 4,
                                 borderSkipped: false,
-                                barThickness: 12,
+                                barThickness: 14,
                             },
                             {
                                 label: 'Approved',
@@ -785,7 +744,7 @@ function timeAgo($timestamp)
                                 backgroundColor: COLORS.green,
                                 borderRadius: 4,
                                 borderSkipped: false,
-                                barThickness: 12,
+                                barThickness: 14,
                             },
                             {
                                 label: 'Rejected',
@@ -793,7 +752,7 @@ function timeAgo($timestamp)
                                 backgroundColor: COLORS.red,
                                 borderRadius: 4,
                                 borderSkipped: false,
-                                barThickness: 12,
+                                barThickness: 14,
                             },
                         ]
                     },
@@ -806,7 +765,7 @@ function timeAgo($timestamp)
                                 backgroundColor: COLORS.text,
                                 titleColor: '#fff',
                                 bodyColor: '#fff',
-                                padding: 8,
+                                padding: 10,
                                 cornerRadius: 8,
                                 displayColors: true,
                                 callbacks: {
@@ -818,7 +777,7 @@ function timeAgo($timestamp)
                             x: {
                                 grid: { display: false },
                                 border: { display: false },
-                                ticks: { color: COLORS.textMuted, font: { size: 10 } }
+                                ticks: { color: COLORS.textMuted, font: { size: 11 } }
                             },
                             y: {
                                 beginAtZero: true,
@@ -826,7 +785,7 @@ function timeAgo($timestamp)
                                 border: { display: false },
                                 ticks: {
                                     color: COLORS.textMuted,
-                                    font: { size: 10 },
+                                    font: { size: 11 },
                                     stepSize: 1,
                                     precision: 0
                                 }

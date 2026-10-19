@@ -161,33 +161,11 @@ function timeAgoShort($ts) {
 
             <main class="p-4 sm:p-6 lg:p-8 space-y-4">
 
-                <!-- Back + Profile header -->
-                <div class="animate-fade-in-up flex items-center justify-between gap-3">
-
+                <div class="animate-fade-in-up">
                     <a href="/faculty" class="flex items-center gap-1.5 text-xs font-medium text-[#2C3E50]/60 hover:text-[#0F5E3D] transition">
                         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
                         <span>Back to Users</span>
                     </a>
-
-                    <button onclick='openEditUserModal(<?= json_encode([
-                        "id" => $user["user_id"],
-                        "first" => $user["first_name"] ?? "",
-                        "middle" => $user["middle_name"] ?? "",
-                        "last" => $user["last_name"] ?? "",
-                        "email" => $user["email"] ?? "",
-                        "username" => $user["username"],
-                        "role" => $user["role"],
-                        "category" => $user["category"] ?? "staff",
-                        "sub" => $user["sub_category"] ?? "",
-                        "emp" => $user["employment_type"] ?? "full-time",
-                        "salary" => $user["basic_salary"] ?? 0,
-                        "credits" => $user["leave_credits"] ?? 0,
-                        "status" => $user["status"],
-                    ]) ?>)'
-                        class="flex items-center gap-1.5 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 px-4 rounded-lg transition text-xs shadow-sm hover:shadow-md">
-                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                        <span>Edit User</span>
-                    </button>
                 </div>
 
                 <!-- Profile card -->

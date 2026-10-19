@@ -11,9 +11,9 @@ $leadershipPositions = [
     'Elementary Principal',
     'High School Principal',
 ];
-$myPosition  = $_SESSION['position']     ?? '';
-$mySubCat    = $_SESSION['sub_category'] ?? '';
-$myYearLevel = $_SESSION['year_level']   ?? '';
+$myPosition = $_SESSION['position'] ?? '';
+$mySubCat = $_SESSION['sub_category'] ?? '';
+$myYearLevel = $_SESSION['year_level'] ?? '';
 
 if (!in_array($myPosition, $leadershipPositions, true)) {
     header('Location: /faculty/dashboard');
@@ -40,23 +40,23 @@ $myEmployeeId = (int) ($me['employee_id'] ?? 0);
 // ============================================
 // Scope filter based on position
 // ============================================
-$where  = ["lr.status IN ('pending','approved')"];
+$where = ["lr.status IN ('pending','approved')"];
 $params = [];
 
-$where[]  = "lr.employee_id <> ?";
+$where[] = "lr.employee_id <> ?";
 $params[] = $myEmployeeId;
 
 $where[] = "emp.category = 'faculty'";
 
 if ($myPosition === 'College Dean') {
     if ($myYearLevel !== '') {
-        $where[]  = "emp.year_level = ?";
+        $where[] = "emp.year_level = ?";
         $params[] = $myYearLevel;
     }
 } elseif ($myPosition === 'Elementary Principal') {
-    $where[]  = "emp.sub_category = 'Elementary'";
+    $where[] = "emp.sub_category = 'Elementary'";
 } elseif ($myPosition === 'High School Principal') {
-    $where[]  = "emp.sub_category = 'High School'";
+    $where[] = "emp.sub_category = 'High School'";
 }
 
 $whereSql = implode(' AND ', $where);
@@ -68,6 +68,7 @@ $sql = "
         emp.first_name, emp.middle_name, emp.last_name, emp.email,
         emp.category, emp.sub_category, emp.year_level, emp.position,
         emp.employment_type,
+        emp.leave_credits AS total_allocated_credits,
         approver.username AS approver_username
     FROM leave_requests lr
     INNER JOIN employees emp ON lr.employee_id = emp.id
@@ -81,25 +82,53 @@ $stmt->execute($params);
 $leaves = $stmt->fetchAll();
 
 // ============================================
-// Precompute credits per employee for the view modal
+// Precompute detailed credits per employee for the view modal
 // ============================================
+$TYPE_CAPS = ['vacation' => 7.5, 'sick' => 7.5];
+$allTypes = ['vacation', 'sick', 'maternity', 'paternity', 'terminal', 'other'];
+
 $employeeCredits = [];
 $stmt = $pdo->query("
-    SELECT 
-        e.id,
-        e.leave_credits,
-        COALESCE(SUM(CASE WHEN lr.status = 'approved' THEN lr.days_count ELSE 0 END), 0) AS used_days
-    FROM employees e
-    LEFT JOIN leave_requests lr ON lr.employee_id = e.id
-    GROUP BY e.id
+    SELECT employee_id, leave_type, SUM(days_count) AS used
+    FROM leave_requests
+    WHERE status = 'approved'
+    GROUP BY employee_id, leave_type
 ");
+$usageData = [];
 foreach ($stmt->fetchAll() as $row) {
-    $cap = (float) $row['leave_credits'];
-    $used = (float) $row['used_days'];
-    $employeeCredits[(int) $row['id']] = [
-        'total' => $cap,
-        'used' => $used,
-        'remaining' => max(0, $cap - $used),
+    $usageData[(int) $row['employee_id']][strtolower($row['leave_type'])] = (float) $row['used'];
+}
+
+foreach ($leaves as $l) {
+    $empId = (int) $l['employee_id'];
+    if (isset($employeeCredits[$empId]))
+        continue; // already processed
+
+    $totalAllocated = (float) $l['total_allocated_credits'];
+    $usedByType = $usageData[$empId] ?? [];
+
+    $totalUsedApproved = 0;
+    $remainingByType = [];
+
+    foreach ($allTypes as $t) {
+        $cap = $TYPE_CAPS[$t] ?? null;
+        $used = $usedByType[$t] ?? 0;
+        $totalUsedApproved += $used;
+
+        $remainingByType[$t] = [
+            'cap' => $cap,
+            'used' => $used,
+            'remaining' => $cap !== null ? max(0, $cap - $used) : null,
+        ];
+    }
+
+    $totalRemaining = max(0, $totalAllocated - $totalUsedApproved);
+
+    $employeeCredits[$empId] = [
+        'total' => $totalAllocated,
+        'used' => $totalUsedApproved,
+        'remaining' => $totalRemaining,
+        'by_type' => $remainingByType,
     ];
 }
 
@@ -108,37 +137,42 @@ foreach ($stmt->fetchAll() as $row) {
 // ============================================
 $summary = ['total' => count($leaves), 'pending' => 0, 'approved' => 0];
 foreach ($leaves as $l) {
-    if (isset($summary[$l['status']])) $summary[$l['status']]++;
+    if (isset($summary[$l['status']]))
+        $summary[$l['status']]++;
 }
 
 $statusStyles = [
-    'pending'   => 'text-amber-700 bg-amber-50',
-    'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'rejected'  => 'text-red-700 bg-red-50',
+    'pending' => 'text-amber-700 bg-amber-50',
+    'approved' => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'rejected' => 'text-red-700 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
 ];
 $statusLabels = [
-    'pending'   => 'Pending',
-    'approved'  => 'Approved',
-    'rejected'  => 'Rejected',
+    'pending' => 'Pending',
+    'approved' => 'Approved',
+    'rejected' => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
 
-// Group the DB type into the 3 presentation categories
-function groupTypeKey($dbType) {
+// Group the DB type into the 3 presentation categories for the main table
+function groupTypeKey($dbType)
+{
     $t = strtolower($dbType ?? '');
-    if ($t === 'sick') return 'sick';
-    if ($t === 'vacation') return 'vacation';
+    if ($t === 'sick')
+        return 'sick';
+    if ($t === 'vacation')
+        return 'vacation';
     return 'others';
 }
-
-function groupTypeLabel($dbType) {
+function groupTypeLabel($dbType)
+{
     $g = groupTypeKey($dbType);
-    if ($g === 'sick') return 'Sick';
-    if ($g === 'vacation') return 'Mandatory / Vacation';
+    if ($g === 'sick')
+        return 'Sick';
+    if ($g === 'vacation')
+        return 'Mandatory / Vacation';
     return 'Others';
 }
-
 $typeStyles = [
     'sick' => 'text-rose-700 bg-rose-50',
     'vacation' => 'text-blue-700 bg-blue-50',
@@ -146,11 +180,20 @@ $typeStyles = [
 ];
 
 switch ($myPosition) {
-    case 'College Dean':         $scopeLabel = $myYearLevel ?: 'Your College'; break;
-    case 'Elementary Principal': $scopeLabel = 'Elementary'; break;
-    case 'High School Principal':$scopeLabel = 'High School'; break;
-    case 'Academic Dean':        $scopeLabel = 'All Faculty'; break;
-    default:                     $scopeLabel = 'Faculty';
+    case 'College Dean':
+        $scopeLabel = $myYearLevel ?: 'Your College';
+        break;
+    case 'Elementary Principal':
+        $scopeLabel = 'Elementary';
+        break;
+    case 'High School Principal':
+        $scopeLabel = 'High School';
+        break;
+    case 'Academic Dean':
+        $scopeLabel = 'All Faculty';
+        break;
+    default:
+        $scopeLabel = 'Faculty';
 }
 ?>
 <!DOCTYPE html>
@@ -179,9 +222,9 @@ switch ($myPosition) {
 
         <div class="flex-1 md:ml-64 w-full min-w-0">
             <?php
-            $pageTitle    = 'Faculty Leave Oversight';
+            $pageTitle = 'Faculty Leave Oversight';
             $pageSubtitle = 'Viewing ' . $scopeLabel . ' · read-only';
-            $pageIcon     = 'clipboard-list';
+            $pageIcon = 'clipboard-list';
             require __DIR__ . '/../components/topbar.php';
             ?>
 
@@ -210,7 +253,8 @@ switch ($myPosition) {
                         <p class="text-xl font-bold text-[#2C3E50]"><?= $summary['total'] ?></p>
                     </div>
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Approved</p>
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Approved
+                        </p>
                         <p class="text-xl font-bold text-[#0F5E3D]"><?= $summary['approved'] ?></p>
                     </div>
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
@@ -220,10 +264,13 @@ switch ($myPosition) {
                 </div>
 
                 <!-- Toolbar -->
-                <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <div
+                    class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
                     <div class="relative flex-1 sm:max-w-sm">
-                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
-                        <input type="text" id="flSearch" oninput="filterFacultyLeaves()" placeholder="Search name or type"
+                        <i data-lucide="search"
+                            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
+                        <input type="text" id="flSearch" oninput="filterFacultyLeaves()"
+                            placeholder="Search name or type"
                             class="w-full pl-10 pr-4 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                     </div>
                     <select id="flStatus" onchange="filterFacultyLeaves()"
@@ -259,75 +306,81 @@ switch ($myPosition) {
                                             No faculty leave requests to show.
                                         </td>
                                     </tr>
-                                <?php else: foreach ($leaves as $l):
-                                    $empName = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? ''));
-                                    $sClass  = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
-                                    $sLabel  = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                                    
-                                    $groupKey   = groupTypeKey($l['leave_type']);
-                                    $groupLabel = groupTypeLabel($l['leave_type']);
-                                    $tClass     = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
-                                    
-                                    $credit  = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
-                                    ?>
-                                    <tr class="hover:bg-[#F1FDF6]/40 transition h-12 faculty-leave-row"
-                                        data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
-                                        data-status="<?= htmlspecialchars($l['status']) ?>">
-                                        <td class="px-4">
-                                            <div class="flex flex-col">
-                                                <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($empName) ?></span>
-                                                <span class="text-[10px] text-[#2C3E50]/50">
-                                                    <?= htmlspecialchars($l['year_level'] ?: $l['sub_category'] ?: '—') ?>
-                                                    <?= $l['position'] ? '· ' . htmlspecialchars($l['position']) : '' ?>
+                                <?php else:
+                                    foreach ($leaves as $l):
+                                        $empName = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? ''));
+                                        $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
+                                        $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
+
+                                        $groupKey = groupTypeKey($l['leave_type']);
+                                        $groupLabel = groupTypeLabel($l['leave_type']);
+                                        $tClass = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
+
+                                        $credit = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
+                                        ?>
+                                        <tr class="hover:bg-[#F1FDF6]/40 transition h-12 faculty-leave-row"
+                                            data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
+                                            data-status="<?= htmlspecialchars($l['status']) ?>">
+                                            <td class="px-4">
+                                                <div class="flex flex-col">
+                                                    <span
+                                                        class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($empName) ?></span>
+                                                    <span class="text-[10px] text-[#2C3E50]/50">
+                                                        <?= htmlspecialchars($l['year_level'] ?: $l['sub_category'] ?: '—') ?>
+                                                        <?= $l['position'] ? '· ' . htmlspecialchars($l['position']) : '' ?>
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-0">
+                                                <span
+                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $tClass ?>">
+                                                    <?= htmlspecialchars($groupLabel) ?>
                                                 </span>
-                                            </div>
-                                        </td>
-                                        <td class="px-4 py-0">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $tClass ?>">
-                                                <?= htmlspecialchars($groupLabel) ?>
-                                            </span>
-                                        </td>
-                                        <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
-                                        <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
-                                        <td class="px-4 text-sm text-[#2C3E50]/70">
-                                            <?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?>
-                                        </td>
-                                        <td class="px-4">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
-                                                <?= $sLabel ?>
-                                            </span>
-                                        </td>
-                                        <td class="px-4">
-                                            <div class="flex items-center justify-end">
-                                                <button onclick='openViewFacultyLeave(<?= json_encode([
-                                                    "id"         => (int) $l["id"],
-                                                    "name"       => $empName,
-                                                    "email"      => $l["email"] ?? "—",
-                                                    "category"   => ucfirst($l["category"] ?? "—"),
-                                                    "subcat"     => $l["sub_category"] ?? "—",
-                                                    "year_level" => $l["year_level"] ?? "—",
-                                                    "position"   => $l["position"] ?? "—",
-                                                    "employment" => ucfirst($l["employment_type"] ?? "—"),
-                                                    "type"       => $groupLabel,
-                                                    "start"      => $l["start_date"],
-                                                    "end"        => $l["end_date"],
-                                                    "days"       => $l["days_count"],
-                                                    "reason"     => $l["reason"] ?? "",
-                                                    "status"     => $l["status"],
-                                                    "remarks"    => $l["remarks"] ?? "",
-                                                    "created"    => $l["created_at"],
-                                                    "approver"   => $l["approver_username"] ?? "",
-                                                    "approved"   => $l["approved_at"] ?? "",
-                                                    "credits"    => $credit,
-                                                ]) ?>)'
-                                                    class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
-                                                    title="View details">
-                                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; endif; ?>
+                                            </td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                <?= date('M j, Y', strtotime($l['start_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                <?= date('M j, Y', strtotime($l['end_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70">
+                                                <?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?>
+                                            </td>
+                                            <td class="px-4">
+                                                <span
+                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
+                                                    <?= $sLabel ?>
+                                                </span>
+                                            </td>
+                                            <td class="px-4">
+                                                <div class="flex items-center justify-end">
+                                                    <button onclick='openViewFacultyLeave(<?= json_encode([
+                                                        "id" => (int) $l["id"],
+                                                        "name" => $empName,
+                                                        "email" => $l["email"] ?? "—",
+                                                        "category" => ucfirst($l["category"] ?? "—"),
+                                                        "subcat" => $l["sub_category"] ?? "—",
+                                                        "year_level" => $l["year_level"] ?? "—",
+                                                        "position" => $l["position"] ?? "—",
+                                                        "employment" => ucfirst($l["employment_type"] ?? "—"),
+                                                        "type" => $groupLabel,
+                                                        "start" => $l["start_date"],
+                                                        "end" => $l["end_date"],
+                                                        "days" => $l["days_count"],
+                                                        "reason" => $l["reason"] ?? "",
+                                                        "status" => $l["status"],
+                                                        "remarks" => $l["remarks"] ?? "",
+                                                        "created" => $l["created_at"],
+                                                        "approver" => $l["approver_username"] ?? "",
+                                                        "approved" => $l["approved_at"] ?? "",
+                                                        "credits" => $credit,
+                                                    ]) ?>)'
+                                                        class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
+                                                        title="View details">
+                                                        <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; endif; ?>
                             </tbody>
                         </table>
                     </div>
@@ -336,72 +389,77 @@ switch ($myPosition) {
                     <div id="flMobileCards" class="md:hidden divide-y divide-[#E0E0E0]">
                         <?php if (empty($leaves)): ?>
                             <div class="p-10 text-center text-sm text-[#2C3E50]/50">No faculty leave requests.</div>
-                        <?php else: foreach ($leaves as $l):
-                            $empName = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? ''));
-                            $sClass  = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
-                            $sLabel  = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                            
-                            $groupKey   = groupTypeKey($l['leave_type']);
-                            $groupLabel = groupTypeLabel($l['leave_type']);
-                            $tClass     = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
-                            
-                            $credit  = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
-                            ?>
-                            <div class="p-4 faculty-leave-row"
-                                data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
-                                data-status="<?= htmlspecialchars($l['status']) ?>">
-                                <div class="flex items-start justify-between gap-2 mb-1">
-                                    <div class="min-w-0">
-                                        <p class="text-sm font-medium text-[#2C3E50] truncate"><?= htmlspecialchars($empName) ?></p>
-                                        <p class="text-[10px] text-[#2C3E50]/50 truncate">
-                                            <?= htmlspecialchars($l['year_level'] ?: $l['sub_category'] ?: '—') ?>
-                                        </p>
+                        <?php else:
+                            foreach ($leaves as $l):
+                                $empName = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? ''));
+                                $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
+                                $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
+
+                                $groupKey = groupTypeKey($l['leave_type']);
+                                $groupLabel = groupTypeLabel($l['leave_type']);
+                                $tClass = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
+
+                                $credit = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
+                                ?>
+                                <div class="p-4 faculty-leave-row"
+                                    data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
+                                    data-status="<?= htmlspecialchars($l['status']) ?>">
+                                    <div class="flex items-start justify-between gap-2 mb-1">
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-medium text-[#2C3E50] truncate">
+                                                <?= htmlspecialchars($empName) ?></p>
+                                            <p class="text-[10px] text-[#2C3E50]/50 truncate">
+                                                <?= htmlspecialchars($l['year_level'] ?: $l['sub_category'] ?: '—') ?>
+                                            </p>
+                                        </div>
+                                        <span
+                                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
+                                            <?= $sLabel ?>
+                                        </span>
                                     </div>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
-                                        <?= $sLabel ?>
-                                    </span>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span
+                                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $tClass ?>">
+                                            <?= htmlspecialchars($groupLabel) ?>
+                                        </span>
+                                        <span class="text-xs text-[#2C3E50]/60">
+                                            <?= date('M j', strtotime($l['start_date'])) ?>
+                                            <?php if ($l['start_date'] !== $l['end_date']): ?>
+                                                → <?= date('M j, Y', strtotime($l['end_date'])) ?>
+                                            <?php endif; ?>
+                                        </span>
+                                    </div>
+                                    <button onclick='openViewFacultyLeave(<?= json_encode([
+                                        "id" => (int) $l["id"],
+                                        "name" => $empName,
+                                        "email" => $l["email"] ?? "—",
+                                        "category" => ucfirst($l["category"] ?? "—"),
+                                        "subcat" => $l["sub_category"] ?? "—",
+                                        "year_level" => $l["year_level"] ?? "—",
+                                        "position" => $l["position"] ?? "—",
+                                        "employment" => ucfirst($l["employment_type"] ?? "—"),
+                                        "type" => $groupLabel,
+                                        "start" => $l["start_date"],
+                                        "end" => $l["end_date"],
+                                        "days" => $l["days_count"],
+                                        "reason" => $l["reason"] ?? "",
+                                        "status" => $l["status"],
+                                        "remarks" => $l["remarks"] ?? "",
+                                        "created" => $l["created_at"],
+                                        "approver" => $l["approver_username"] ?? "",
+                                        "approved" => $l["approved_at"] ?? "",
+                                        "credits" => $credit,
+                                    ]) ?>)'
+                                        class="mt-3 w-full text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
+                                        View Details
+                                    </button>
                                 </div>
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $tClass ?>">
-                                        <?= htmlspecialchars($groupLabel) ?>
-                                    </span>
-                                    <span class="text-xs text-[#2C3E50]/60">
-                                        <?= date('M j', strtotime($l['start_date'])) ?>
-                                        <?php if ($l['start_date'] !== $l['end_date']): ?>
-                                            → <?= date('M j, Y', strtotime($l['end_date'])) ?>
-                                        <?php endif; ?>
-                                    </span>
-                                </div>
-                                <button onclick='openViewFacultyLeave(<?= json_encode([
-                                    "id"         => (int) $l["id"],
-                                    "name"       => $empName,
-                                    "email"      => $l["email"] ?? "—",
-                                    "category"   => ucfirst($l["category"] ?? "—"),
-                                    "subcat"     => $l["sub_category"] ?? "—",
-                                    "year_level" => $l["year_level"] ?? "—",
-                                    "position"   => $l["position"] ?? "—",
-                                    "employment" => ucfirst($l["employment_type"] ?? "—"),
-                                    "type"       => $groupLabel,
-                                    "start"      => $l["start_date"],
-                                    "end"        => $l["end_date"],
-                                    "days"       => $l["days_count"],
-                                    "reason"     => $l["reason"] ?? "",
-                                    "status"     => $l["status"],
-                                    "remarks"    => $l["remarks"] ?? "",
-                                    "created"    => $l["created_at"],
-                                    "approver"   => $l["approver_username"] ?? "",
-                                    "approved"   => $l["approved_at"] ?? "",
-                                    "credits"    => $credit,
-                                ]) ?>)'
-                                    class="mt-3 w-full text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
-                                    View Details
-                                </button>
-                            </div>
-                        <?php endforeach; endif; ?>
+                            <?php endforeach; endif; ?>
                     </div>
 
                     <div id="flEmpty" class="hidden p-12 text-center">
-                        <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                        <div
+                            class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
                         <p class="text-sm font-medium text-[#2C3E50]">No matching leaves</p>
@@ -416,25 +474,29 @@ switch ($myPosition) {
     <!-- ============================================ -->
     <!-- View leave modal — split-pane (view-only)       -->
     <!-- ============================================ -->
-    <div id="flViewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div id="flViewModal"
+        class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
         <div id="flViewCard"
             class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] transform transition-all duration-200 scale-95 overflow-hidden flex flex-col">
 
             <!-- Top bar with leave type -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0] shrink-0 bg-white">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] border border-[#0F5E3D]/15 flex items-center justify-center text-[#0F5E3D] shrink-0">
+                    <div
+                        class="w-9 h-9 rounded-lg bg-[#F1FDF6] border border-[#0F5E3D]/15 flex items-center justify-center text-[#0F5E3D] shrink-0">
                         <i data-lucide="file-text" class="w-4 h-4"></i>
                     </div>
                     <div>
                         <div class="flex items-center gap-2 flex-wrap">
                             <h3 class="text-base font-semibold text-[#2C3E50]">Leave Request</h3>
-                            <span id="flvHeaderType" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-slate-700 bg-slate-100">—</span>
+                            <span id="flvHeaderType"
+                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-slate-700 bg-slate-100">—</span>
                         </div>
                         <p class="text-sm text-[#2C3E50]/50" id="flvRequestId">—</p>
                     </div>
                 </div>
-                <button onclick="closeViewFacultyLeave()" class="w-9 h-9 rounded-lg flex items-center justify-center text-[#2C3E50]/50 hover:bg-[#F1FDF6] hover:text-[#2C3E50] transition">
+                <button onclick="closeViewFacultyLeave()"
+                    class="w-9 h-9 rounded-lg flex items-center justify-center text-[#2C3E50]/50 hover:bg-[#F1FDF6] hover:text-[#2C3E50] transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
@@ -446,14 +508,17 @@ switch ($myPosition) {
                 <aside class="w-72 border-r border-[#E0E0E0] bg-[#F9FAFB] flex flex-col shrink-0 overflow-y-auto">
 
                     <div class="p-6">
-                        <div id="flvInitials" class="w-16 h-16 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xl mb-4">—</div>
+                        <div id="flvInitials"
+                            class="w-16 h-16 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xl mb-4">
+                            —</div>
                         <p id="flvName" class="text-base font-semibold text-[#2C3E50] leading-tight">—</p>
                         <p id="flvPosition" class="text-sm text-[#2C3E50]/60 mt-1 leading-snug">—</p>
                         <p id="flvDepartment" class="text-sm text-[#2C3E50]/60 leading-snug">—</p>
                         <p id="flvEmail" class="text-xs text-[#2C3E50]/40 mt-2 truncate">—</p>
 
                         <div class="flex flex-wrap gap-1.5 mt-3">
-                            <span id="flvSidebarType" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-slate-700 bg-white border border-[#E0E0E0]">
+                            <span id="flvSidebarType"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-slate-700 bg-white border border-[#E0E0E0]">
                                 <i data-lucide="tag" class="w-3 h-3"></i>
                                 <span>—</span>
                             </span>
@@ -468,22 +533,9 @@ switch ($myPosition) {
                             <span id="flvCreditTotal">—</span>
                         </p>
 
-                        <div class="space-y-3">
-                            <div>
-                                <div class="flex items-baseline justify-between gap-2">
-                                    <span class="text-sm text-[#2C3E50]">Used</span>
-                                    <span class="text-sm text-[#2C3E50]" id="flvCreditUsed">—</span>
-                                </div>
-                            </div>
-                            <div>
-                                <div class="flex items-baseline justify-between gap-2">
-                                    <span class="text-sm text-[#2C3E50]">Remaining</span>
-                                    <span class="text-sm font-semibold text-[#0F5E3D]" id="flvCreditRemaining">—</span>
-                                </div>
-                                <div class="mt-1.5 h-1 bg-[#E0E0E0] rounded-full overflow-hidden">
-                                    <div id="flvCreditBar" class="bg-[#0F5E3D] h-full" style="width: 0%"></div>
-                                </div>
-                            </div>
+                        <!-- Per-type credits list -->
+                        <div id="flvCreditsList" class="space-y-4">
+                            <!-- populated by JS -->
                         </div>
                     </div>
 
@@ -497,13 +549,16 @@ switch ($myPosition) {
                         <!-- Status + dates -->
                         <div class="pb-5 border-b border-[#F0F0F0]">
                             <div class="flex items-center gap-2 flex-wrap mb-3">
-                                <span id="flvStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-700 bg-slate-100">—</span>
+                                <span id="flvStatusBadge"
+                                    class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-700 bg-slate-100">—</span>
                             </div>
                             <p class="text-base text-[#2C3E50]">
                                 <span id="flvDates" class="font-medium">—</span>
                                 <span class="text-[#2C3E50]/30 mx-2">·</span>
                                 <span id="flvDays" class="text-[#2C3E50]/70">—</span>
-                                <span id="flvHalfDayTag" class="hidden ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold text-amber-700 bg-amber-50">Half Day</span>
+                                <span id="flvHalfDayTag"
+                                    class="hidden ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold text-amber-700 bg-amber-50">Half
+                                    Day</span>
                             </p>
                             <p class="text-sm text-[#2C3E50]/50 mt-1">
                                 Filed <span id="flvCreated">—</span>
@@ -518,7 +573,8 @@ switch ($myPosition) {
 
                         <!-- Decision -->
                         <div id="flvDecisionWrap" class="hidden py-5">
-                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">Decision</p>
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">Decision
+                            </p>
                             <p class="text-sm text-[#2C3E50]">
                                 <span id="flvDecisionSummary" class="font-medium">—</span>
                             </p>

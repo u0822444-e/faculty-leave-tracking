@@ -72,13 +72,11 @@ function openViewFacultyLeave(data) {
     const typeClasses = getTypeClasses(data.type);
     const typeLabel = data.type || "—";
 
-    // Header pill
     const headerType = $("flvHeaderType");
     headerType.textContent = typeLabel;
     headerType.className =
         "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium " + typeClasses;
 
-    // Sidebar badge
     const sidebarType = $("flvSidebarType");
     if (sidebarType) {
         const span = sidebarType.querySelector("span:last-child");
@@ -88,23 +86,56 @@ function openViewFacultyLeave(data) {
             typeClasses;
     }
 
-    // ── Sidebar: credits ──
-    const credits = data.credits || { total: 0, used: 0, remaining: 0 };
+    // ── Sidebar: detailed credits (matching HR layout) ──
+    const credits = data.credits || { total: 0, used: 0, remaining: 0, by_type: {} };
+    
     const fmtShort = (n) => {
         const v = parseFloat(n) || 0;
         return Number.isInteger(v) ? String(v) : v.toFixed(1);
     };
-
+    
     $("flvCreditTotal").textContent = `${fmtShort(credits.remaining)} / ${fmtShort(credits.total)}`;
-    $("flvCreditUsed").textContent = `${fmtShort(credits.used)} day(s)`;
-    $("flvCreditRemaining").textContent = `${fmtShort(credits.remaining)} day(s)`;
 
-    const pct = credits.total > 0 ? Math.min(100, (credits.remaining / credits.total) * 100) : 0;
-    const bar = $("flvCreditBar");
-    bar.style.width = pct + "%";
-    bar.className =
-        (pct > 50 ? "bg-[#0F5E3D]" : pct > 20 ? "bg-amber-500" : "bg-red-500") +
-        " h-full";
+    const creditRows = [];
+    const TYPE_LABELS = {
+        vacation: 'Vacation', sick: 'Sick',
+        maternity: 'Maternity', paternity: 'Paternity',
+        terminal: 'Terminal', other: 'Others'
+    };
+
+    Object.keys(credits.by_type || {}).forEach(t => {
+        const c = credits.by_type[t];
+        if (c.cap === null && c.used === 0) return;
+
+        let bar = '';
+        if (c.cap !== null) {
+            const pct = c.cap > 0 ? Math.min(100, (c.remaining / c.cap) * 100) : 0;
+            const barColor = pct > 50 ? 'bg-[#0F5E3D]' : pct > 20 ? 'bg-amber-500' : 'bg-red-500';
+            bar = `
+                <div class="mt-1.5 h-1 bg-[#E0E0E0] rounded-full overflow-hidden">
+                    <div class="${barColor} h-full" style="width: ${pct}%"></div>
+                </div>
+            `;
+        } else {
+            bar = `<div class="mt-1.5 h-1 bg-[#F0F0F0] rounded-full"></div>`;
+        }
+
+        const rightLabel = c.cap === null
+            ? `<span class="text-sm text-[#2C3E50]/50">${fmtShort(c.used)} used</span>`
+            : `<span class="text-sm text-[#2C3E50]">${fmtShort(c.remaining)}<span class="text-[#2C3E50]/40">/${fmtShort(c.cap)}</span></span>`;
+
+        creditRows.push(`
+            <div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <span class="text-sm text-[#2C3E50]">${TYPE_LABELS[t] || t}</span>
+                    ${rightLabel}
+                </div>
+                ${bar}
+            </div>
+        `);
+    });
+
+    $("flvCreditsList").innerHTML = creditRows.join('');
 
     // ── Status pill ──
     const statusKey = (data.status || "").toLowerCase();

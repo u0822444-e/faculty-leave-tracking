@@ -1,12 +1,4 @@
 <?php
-// ============================================
-// TEMP DEBUG — REMOVE AFTER CONFIRMING FIX
-// ============================================
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-// ============================================
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -54,8 +46,8 @@ try {
                     e.year_level,
                     e.position,
                     e.employment_type,
-                    e.basic_salary,
                     e.leave_credits,
+                    e.leave_pay,
                     u.created_at
                 FROM users u
                 LEFT JOIN employees e ON u.employee_id = e.id
@@ -92,7 +84,7 @@ try {
                     'year_level' => $u['year_level'] ?? '',
                     'position' => $u['position'] ?? '',
                     'employment_type' => $u['employment_type'] ?? 'full-time',
-                    'basic_salary' => $u['basic_salary'] ?? 0,
+                    'leave_pay' => $u['leave_pay'] ?? 0,
                     'leave_credits' => $u['leave_credits'] ?? 0,
                     'status' => $u['status'],
                     'joined' => date('Y-m-d', strtotime($u['created_at'])),
@@ -119,7 +111,7 @@ try {
             $yearLevel = trim($_POST['year_level'] ?? '');
             $position = trim($_POST['position'] ?? '');
             $empType = $_POST['employment_type'] ?? 'full-time';
-            $salary = floatval($_POST['basic_salary'] ?? 0);
+            $leavePay = floatval($_POST['leave_pay'] ?? 0);
             $creditsRaw = $_POST['leave_credits'] ?? '';
             $credits = ($creditsRaw === '' || $creditsRaw === null)
                 ? 15.0
@@ -136,6 +128,23 @@ try {
             if (empty($first) || empty($last) || empty($username) || empty($password) || empty($role) || empty($category)) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'error' => 'Please fill in all required fields.']);
+                break;
+            }
+
+            // Role ↔ Category coupling enforcement
+            if ($role === 'faculty' && $category !== 'faculty') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Faculty role requires Faculty category.']);
+                break;
+            }
+            if ($role === 'staff' && $category !== 'staff') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Staff role requires Staff category.']);
+                break;
+            }
+            if ($role === 'hr' && $category !== 'staff') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'HR role requires Staff category.']);
                 break;
             }
 
@@ -179,7 +188,7 @@ try {
             try {
                 $stmt = $pdo->prepare("
                     INSERT INTO employees 
-                        (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_credits)
+                        (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, leave_pay, leave_credits)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
@@ -192,16 +201,16 @@ try {
                     $yearLevel,
                     $position,
                     $empType,
-                    $salary,
+                    $leavePay,
                     $credits,
                 ]);
                 $employeeId = $pdo->lastInsertId();
 
                 $hashed = password_hash($password, PASSWORD_DEFAULT);
                 $stmt = $pdo->prepare("
-    INSERT INTO users (username, password, role, employee_id, status, must_change_password)
-    VALUES (?, ?, ?, ?, 'active', 1)
-");
+                    INSERT INTO users (username, password, role, employee_id, status, must_change_password)
+                    VALUES (?, ?, ?, ?, 'active', 1)
+                ");
                 $stmt->execute([$username, $hashed, $role, $employeeId]);
                 $newUserId = (int) $pdo->lastInsertId();
 
@@ -215,7 +224,6 @@ try {
 
             // ── Post-commit side effects (isolated) ──
 
-            // Activity log
             try {
                 ActivityLogger::log(
                     $pdo,
@@ -228,7 +236,6 @@ try {
                 error_log('ActivityLogger failed (create_user): ' . $e->getMessage());
             }
 
-            // Welcome notification
             try {
                 NotificationService::notify(
                     $pdo,
@@ -242,7 +249,6 @@ try {
                 error_log('Notify user failed (create_user): ' . $e->getMessage());
             }
 
-            // Admin broadcast
             try {
                 NotificationService::notifyAdmins(
                     $pdo,
@@ -255,7 +261,6 @@ try {
                 error_log('Notify admins failed (create_user): ' . $e->getMessage());
             }
 
-            // Welcome email
             $emailSent = false;
             $emailError = null;
 
@@ -303,7 +308,7 @@ try {
             $yearLevel = trim($_POST['year_level'] ?? '');
             $position = trim($_POST['position'] ?? '');
             $empType = $_POST['employment_type'] ?? 'full-time';
-            $salary = floatval($_POST['basic_salary'] ?? 0);
+            $leavePay = floatval($_POST['leave_pay'] ?? 0);
             $status = $_POST['status'] ?? 'active';
 
             $creditsRaw = $_POST['leave_credits'] ?? '';
@@ -325,12 +330,29 @@ try {
                 break;
             }
 
+            // Role ↔ Category coupling enforcement
+            if ($role === 'faculty' && $category !== 'faculty') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Faculty role requires Faculty category.']);
+                break;
+            }
+            if ($role === 'staff' && $category !== 'staff') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Staff role requires Staff category.']);
+                break;
+            }
+            if ($role === 'hr' && $category !== 'staff') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'HR role requires Staff category.']);
+                break;
+            }
+
             $stmt = $pdo->prepare("
                 SELECT 
                     u.id AS user_id, u.username, u.role, u.status, u.employee_id,
                     e.first_name, e.middle_name, e.last_name, e.email,
                     e.category, e.sub_category, e.year_level, e.position,
-                    e.employment_type, e.basic_salary, e.leave_credits
+                    e.employment_type, e.leave_pay, e.leave_credits
                 FROM users u
                 LEFT JOIN employees e ON u.employee_id = e.id
                 WHERE u.id = ?
@@ -405,6 +427,8 @@ try {
                 break;
             }
 
+            $passwordChanged = !empty($password);
+
             $pdo->beginTransaction();
 
             try {
@@ -413,7 +437,7 @@ try {
                         UPDATE employees 
                         SET first_name = ?, middle_name = ?, last_name = ?, email = ?, 
                             category = ?, sub_category = ?, year_level = ?, position = ?,
-                            employment_type = ?, basic_salary = ?, leave_credits = ?
+                            employment_type = ?, leave_pay = ?, leave_credits = ?
                         WHERE id = ?
                     ");
                     $stmt->execute([
@@ -426,14 +450,14 @@ try {
                         $yearLevel,
                         $position,
                         $empType,
-                        $salary,
+                        $leavePay,
                         $credits,
                         $employeeId,
                     ]);
                 } else {
                     $stmt = $pdo->prepare("
                         INSERT INTO employees 
-                            (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_credits)
+                            (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, leave_pay, leave_credits)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
@@ -446,7 +470,7 @@ try {
                         $yearLevel,
                         $position,
                         $empType,
-                        $salary,
+                        $leavePay,
                         $credits,
                     ]);
                     $employeeId = (int) $pdo->lastInsertId();
@@ -455,18 +479,18 @@ try {
                     $stmt->execute([$employeeId, $id]);
                 }
 
-                if (!empty($password)) {
+                if ($passwordChanged) {
                     $hashed = password_hash($password, PASSWORD_DEFAULT);
                     $stmt = $pdo->prepare("
-        UPDATE users 
-        SET username = ?, password = ?, role = ?, status = ?, must_change_password = 1 
-        WHERE id = ?
-    ");
+                        UPDATE users 
+                        SET username = ?, password = ?, role = ?, status = ?, must_change_password = 1 
+                        WHERE id = ?
+                    ");
                     $stmt->execute([$username, $hashed, $role, $status, $id]);
                 } else {
                     $stmt = $pdo->prepare("
-        UPDATE users SET username = ?, role = ?, status = ? WHERE id = ?
-    ");
+                        UPDATE users SET username = ?, role = ?, status = ? WHERE id = ?
+                    ");
                     $stmt->execute([$username, $role, $status, $id]);
                 }
 
@@ -486,7 +510,6 @@ try {
                 error_log('ActivityLogger failed (update_user): ' . $e->getMessage());
             }
 
-            // Build diff summary
             $changes = [];
 
             $fields = [
@@ -512,9 +535,9 @@ try {
                 }
             }
 
-            $beforeSalary = (float) ($before['basic_salary'] ?? 0);
-            if (abs($beforeSalary - $salary) > 0.001) {
-                $changes[] = 'Basic salary: ₱' . number_format($beforeSalary, 2) . ' → ₱' . number_format($salary, 2);
+            $beforeLeavePay = (float) ($before['leave_pay'] ?? 0);
+            if (abs($beforeLeavePay - $leavePay) > 0.001) {
+                $changes[] = 'Leave pay: ₱' . number_format($beforeLeavePay, 2) . ' → ₱' . number_format($leavePay, 2);
             }
 
             $beforeCredits = (float) ($before['leave_credits'] ?? 0);
@@ -522,11 +545,11 @@ try {
                 $changes[] = 'Leave credits: ' . number_format($beforeCredits, 2) . ' → ' . number_format($credits, 2);
             }
 
-            if (!empty($password)) {
+            if ($passwordChanged) {
                 $changes[] = 'Password was reset';
             }
 
-            // Notify the affected user
+            // In-app notification to the affected user
             try {
                 if (!empty($changes)) {
                     $creditsOnly =
@@ -556,7 +579,7 @@ try {
                 error_log('Notify user failed (update_user): ' . $e->getMessage());
             }
 
-            // Notify other admins
+            // Admin broadcast
             try {
                 NotificationService::notifyAdmins(
                     $pdo,
@@ -569,12 +592,148 @@ try {
                 error_log('Notify admins failed (update_user): ' . $e->getMessage());
             }
 
+            // ============================================
+            // Password-change confirmation email
+            // ============================================
+            $passwordEmailSent = false;
+            $passwordEmailError = null;
+
+            if ($passwordChanged) {
+                try {
+                    // Resolve the recipient's email + display name (in case
+                    // the admin edited the email field in the same submit)
+                    $stmtMail = $pdo->prepare("
+                        SELECT u.username, e.first_name, e.middle_name, e.last_name, e.email
+                        FROM users u
+                        LEFT JOIN employees e ON u.employee_id = e.id
+                        WHERE u.id = ?
+                        LIMIT 1
+                    ");
+                    $stmtMail->execute([$id]);
+                    $recipient = $stmtMail->fetch();
+
+                    $recipientEmail = trim($recipient['email'] ?? '');
+                    $recipientName = trim(
+                        ($recipient['first_name'] ?? '') . ' ' .
+                        ($recipient['middle_name'] ?? '') . ' ' .
+                        ($recipient['last_name'] ?? '')
+                    );
+                    // Collapse multiple spaces from empty middle name
+                    $recipientName = preg_replace('/\s+/', ' ', $recipientName);
+                    if ($recipientName === '') {
+                        $recipientName = $recipient['username'] ?? 'User';
+                    }
+
+                    if ($recipientEmail !== '') {
+                        $mailer = new MailService();
+                        $passwordEmailSent = $mailer
+                            ->to($recipientEmail, $recipientName)
+                            ->subject('Your DAMMC password was reset')
+                            ->body(EmailTemplates::passwordChanged(
+                                $recipientName,
+                                $recipient['username'] ?? $username,
+                                date('F j, Y \\a\\t g:i A'),
+                                $_SESSION['username'] ?? 'an administrator'
+                            ))
+                            ->send();
+
+                        if (!$passwordEmailSent) {
+                            $passwordEmailError = 'Email could not be sent.';
+                        }
+                    } else {
+                        $passwordEmailError = 'No email address on file for this user.';
+                        error_log('Password change email skipped: no email on file for user #' . $id);
+                    }
+                } catch (Throwable $e) {
+                    $passwordEmailError = $e->getMessage();
+                    error_log('Password change email failed (update_user): ' . $e->getMessage());
+                }
+            }
+
             header('Content-Type: application/json');
             echo json_encode([
                 'success' => true,
                 'message' => 'User updated successfully.',
                 'changes' => $changes,
+                'password_email_sent' => $passwordEmailSent,
+                'password_email_error' => $passwordEmailError,
             ]);
+            break;
+
+        // ============================================
+        // Approve Profile Edit
+        // ============================================
+        case 'approve_profile_edit':
+            $id = intval($_POST['id'] ?? 0);
+
+            if ($id <= 0) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Invalid user ID.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("UPDATE users SET profile_edit_requested = 0 WHERE id = ?");
+            $stmt->execute([$id]);
+
+            try {
+                ActivityLogger::log($pdo, 'approve_profile_edit', "Approved profile edit request", 'user', $id);
+            } catch (Throwable $e) {
+                error_log('ActivityLogger failed (approve_profile_edit): ' . $e->getMessage());
+            }
+
+            try {
+                NotificationService::notify(
+                    $pdo,
+                    $id,
+                    'profile_edit_approved',
+                    'Profile Update Approved',
+                    'Your profile update has been approved by an administrator. You can now edit your details again if needed.',
+                    '/profile'
+                );
+            } catch (Throwable $e) {
+                error_log('Notify user failed (approve_profile_edit): ' . $e->getMessage());
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Profile edit approved.']);
+            break;
+
+        // ============================================
+        // Reject Profile Edit
+        // ============================================
+        case 'reject_profile_edit':
+            $id = intval($_POST['id'] ?? 0);
+
+            if ($id <= 0) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Invalid user ID.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("UPDATE users SET profile_edit_requested = 0 WHERE id = ?");
+            $stmt->execute([$id]);
+
+            try {
+                ActivityLogger::log($pdo, 'reject_profile_edit', "Rejected profile edit request", 'user', $id);
+            } catch (Throwable $e) {
+                error_log('ActivityLogger failed (reject_profile_edit): ' . $e->getMessage());
+            }
+
+            try {
+                NotificationService::notify(
+                    $pdo,
+                    $id,
+                    'profile_edit_rejected',
+                    'Profile Update Rejected',
+                    'Your recent profile update was rejected by an administrator. Please contact HR if you need assistance.',
+                    '/profile'
+                );
+            } catch (Throwable $e) {
+                error_log('Notify user failed (reject_profile_edit): ' . $e->getMessage());
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true, 'message' => 'Profile edit rejected.']);
             break;
 
         // ============================================
@@ -722,7 +881,7 @@ try {
             break;
 
         // ============================================
-        // Admin-initiated password reset
+        // Admin-initiated password reset (email link)
         // ============================================
         case 'send_reset':
             $id = intval($_POST['id'] ?? 0);
@@ -759,7 +918,7 @@ try {
             $stmt->execute([$token, $user['id']]);
 
             $appUrl = rtrim(Env::get('APP_URL', 'http://localhost'), '/');
-	    $resetLink = $appUrl . '/reset-password?token=' . urlencode($token);
+            $resetLink = $appUrl . '/reset-password?token=' . urlencode($token);
 
             try {
                 $mailer = new MailService();

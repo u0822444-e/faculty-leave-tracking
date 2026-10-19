@@ -7,28 +7,13 @@ const SUB_CATEGORIES = {
   staff: [
     "Registrar's Office",
     "Accounting Section",
-    "HR",
     "Library & Guidance",
   ],
 };
 
 const YEAR_LEVELS_OR_DEPARTMENTS = {
-  Elementary: [
-    "Grade 1",
-    "Grade 2",
-    "Grade 3",
-    "Grade 4",
-    "Grade 5",
-    "Grade 6",
-  ],
-  "High School": [
-    "Grade 7",
-    "Grade 8",
-    "Grade 9",
-    "Grade 10",
-    "Grade 11",
-    "Grade 12",
-  ],
+  Elementary: ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"],
+  "High School": ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"],
   College: [
     "College of Education",
     "College of Social Work and Community Development",
@@ -40,70 +25,110 @@ const YEAR_LEVELS_OR_DEPARTMENTS = {
 
 const POSITIONS_BY_CONTEXT = {
   Elementary: [
-    "N/A",
-    "Elementary Principal",
-    "Department Head",
-    "Teacher",
-    "Guidance Counselor",
-    "Librarian",
+    "N/A", "Elementary Principal", "Assistant Principal", "Department Head",
+    "Master Teacher", "Teacher I", "Teacher II", "Teacher III",
+    "Guidance Counselor", "Librarian", "Registrar Staff"
   ],
   "High School": [
-    "N/A",
-    "High School Principal",
-    "Department Head",
-    "Teacher",
-    "Guidance Counselor",
-    "Librarian",
+    "N/A", "High School Principal", "Assistant Principal", "Department Head",
+    "Master Teacher", "Teacher I", "Teacher II", "Teacher III",
+    "Guidance Counselor", "Librarian", "Registrar Staff"
   ],
   College: [
-    "N/A",
-    "College Dean",
-    "Academic Dean",
-    "Department Head",
-    "Professor",
-    "Instructor",
-    "Lecturer",
-    "Guidance Counselor",
-    "Librarian",
+    "N/A", "College Dean", "Academic Dean", "Department Head",
+    "Professor I", "Professor II", "Professor III", "Professor IV",
+    "Associate Professor", "Assistant Professor",
+    "Instructor I", "Instructor II", "Instructor III",
+    "Lecturer", "Guidance Counselor", "Librarian", "Registrar Staff"
   ],
   "Registrar's Office": [
-    "N/A",
-    "Registrar",
-    "Registrar Staff",
-    "Admin Staff",
-    "Utility",
+    "N/A", "University Registrar", "Assistant Registrar",
+    "Registrar Staff", "Records Officer", "Admin Staff"
   ],
   "Accounting Section": [
-    "N/A",
-    "Accounting Head",
-    "Accounting Staff",
-    "Admin Staff",
-    "Utility",
+    "N/A", "Chief Accountant", "Accountant", "Accounting Staff",
+    "Cashier", "Admin Staff"
   ],
-  HR: ["N/A", "HR Head", "HR Staff", "Admin Staff", "Utility"],
   "Library & Guidance": [
-    "N/A",
-    "Librarian",
-    "Library Staff",
-    "Guidance Counselor",
-    "Guidance Staff",
-    "Admin Staff",
-    "Utility",
+    "N/A", "Head Librarian", "Librarian", "Library Assistant",
+    "Guidance Counselor", "Guidance Staff", "Admin Staff"
   ],
 };
 
 const DEFAULT_POSITIONS = [
-  "N/A",
-  "Admin Staff",
-  "Utility",
-  "Teacher",
-  "Instructor",
+  "N/A", "Admin Staff", "Teacher I", "Teacher II", "Instructor I"
 ];
 
+// ============================================
+// Role ↔ Category coupling
+// ============================================
+const ROLE_TO_CATEGORY = {
+  faculty: "faculty",
+  staff: "staff",
+  hr: "staff",
+  // admin is special — can be either faculty or staff
+};
+
+const CATEGORY_TO_ROLE = {
+  faculty: "faculty",
+  staff: "staff",
+};
+
 let currentStep = 1;
+let currentView = localStorage.getItem("usersView") || "list";
+let currentSort = "default";
+
 let pendingArchiveId = null;
 let pendingRestoreId = null;
 let pendingResetId = null;
+let pendingProfileEditId = null;
+let pendingProfileEditAction = null;
+
+// ============================================
+// Role ↔ Category coupling enforcement
+// Keeps the disabled <select>'s value mirrored into a hidden input
+// so it's still included in FormData.
+// ============================================
+function enforceRoleCategoryCoupling(prefix = "add", source = "") {
+  const roleEl = document.getElementById(`${prefix}Role`);
+  const catEl = document.getElementById(`${prefix}Category`);
+  const hiddenCatEl = document.getElementById(`${prefix}CategoryHidden`);
+  if (!roleEl || !catEl) return;
+
+  const role = roleEl.value;
+  const cat = catEl.value;
+
+  if (source === "role" && role) {
+    if (role === "admin") {
+      if (cat !== "faculty" && cat !== "staff") {
+        catEl.value = "";
+      }
+      catEl.disabled = false;
+      if (hiddenCatEl) hiddenCatEl.value = "";
+      return;
+    }
+
+    const requiredCat = ROLE_TO_CATEGORY[role];
+    if (requiredCat) {
+      catEl.value = requiredCat;
+      catEl.disabled = true;
+      if (hiddenCatEl) hiddenCatEl.value = requiredCat;
+      updateSubCategories(prefix);
+    }
+    return;
+  }
+
+  if (source === "category" && cat) {
+    const requiredRole = CATEGORY_TO_ROLE[cat];
+    if (requiredRole) {
+      if (role === "faculty" && cat === "staff") roleEl.value = "staff";
+      if (role === "staff" && cat === "faculty") roleEl.value = "faculty";
+      if (role === "hr" && cat === "faculty") roleEl.value = "staff";
+    }
+    if (hiddenCatEl && catEl.disabled) hiddenCatEl.value = catEl.value;
+    return;
+  }
+}
 
 // ============================================
 // Step navigation
@@ -157,37 +182,42 @@ function goToStep(step) {
     nextBtn.classList.add("hidden");
     submitBtn.classList.remove("hidden");
   }
-  initIcons();
+  if (typeof initIcons === "function") initIcons();
 }
 
-function handleEmploymentChange() {
-  const employment = document.getElementById("addEmployment");
-  const leaveCredits = document.getElementById("addLeaveCredits");
+// ============================================
+// Employment change — handles BOTH 'add' and 'edit'
+// ============================================
+function handleEmploymentChange(prefix = "add") {
+  const employment =
+    document.getElementById(`${prefix}Employment`) ||
+    document.getElementById(`${prefix}EmpType`);
+  const leaveCredits =
+    document.getElementById(`${prefix}LeaveCredits`) ||
+    document.getElementById(`${prefix}Credits`);
   if (!employment || !leaveCredits) return;
 
   if (employment.value === "part-time") {
     leaveCredits.disabled = true;
     leaveCredits.value = "0";
-    leaveCredits.placeholder = "N/A";
+    leaveCredits.placeholder = "Not applicable";
   } else {
     leaveCredits.disabled = false;
     leaveCredits.placeholder = "0";
-    if (!leaveCredits.value || leaveCredits.value === "0")
+    if (prefix === "add" && (!leaveCredits.value || leaveCredits.value === "0")) {
       leaveCredits.value = "15";
+    }
   }
 }
 
+// ============================================
+// Validation
+// ============================================
 function validateStep1() {
   const first = document.getElementById("addFirstName").value.trim();
   const last = document.getElementById("addLastName").value.trim();
-  if (!first) {
-    markInvalid("addFirstName");
-    return false;
-  }
-  if (!last) {
-    markInvalid("addLastName");
-    return false;
-  }
+  if (!first) { markInvalid("addFirstName"); return false; }
+  if (!last) { markInvalid("addLastName"); return false; }
   if (!document.getElementById("addUsernamePreview").value) {
     markInvalid("addFirstName");
     return false;
@@ -199,723 +229,95 @@ function validateStep2() {
   const role = document.getElementById("addRole").value;
   const cat = document.getElementById("addCategory").value;
   const pos = document.getElementById("addPosition").value;
-  if (!role) {
-    markInvalid("addRole");
+  const pwd = document.getElementById("addTempPassword").value.trim();
+
+  if (!role) { markInvalid("addRole"); return false; }
+  if (!cat) { markInvalid("addCategory"); return false; }
+  if (!pos) { markInvalid("addPosition"); return false; }
+  if (!pwd || pwd.length < 8) { markInvalid("addTempPassword"); return false; }
+
+  if (role === "faculty" && cat !== "faculty") {
+    showError("Role mismatch", "Faculty role requires Faculty category.");
     return false;
   }
-  if (!cat) {
-    markInvalid("addCategory");
+  if (role === "staff" && cat !== "staff") {
+    showError("Role mismatch", "Staff role requires Staff category.");
     return false;
   }
-  if (!pos) {
-    markInvalid("addPosition");
+  if (role === "hr" && cat !== "staff") {
+    showError("Role mismatch", "HR role requires Staff category.");
     return false;
   }
   return true;
 }
 
+// ============================================
+// Username previews
+// ============================================
 function previewUsername() {
-  const first = document
-    .getElementById("addFirstName")
-    .value.trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const last = document
-    .getElementById("addLastName")
-    .value.trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  document.getElementById("addUsernamePreview").value =
-    first && last ? `${first}.${last}` : "";
+  const first = document.getElementById("addFirstName").value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const last = document.getElementById("addLastName").value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  document.getElementById("addUsernamePreview").value = first && last ? `${first}.${last}` : "";
 }
 
 function previewEditUsername() {
-  const first = document
-    .getElementById("editFirstName")
-    .value.trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  const last = document
-    .getElementById("editLastName")
-    .value.trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-  if (first && last)
-    document.getElementById("editUsername").value = `${first}.${last}`;
+  const first = document.getElementById("editFirstName").value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const last = document.getElementById("editLastName").value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (first && last) document.getElementById("editUsername").value = `${first}.${last}`;
 }
 
+// ============================================
+// Temp password
+// ============================================
 function generateTempPassword(length = 10) {
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let pwd = "";
-  for (let i = 0; i < length; i++)
-    pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < length; i++) pwd += chars.charAt(Math.floor(Math.random() * chars.length));
   return pwd;
 }
 function regeneratePassword() {
   document.getElementById("addTempPassword").value = generateTempPassword();
 }
 
-function updateSubCategories() {
-  const cat = document.getElementById("addCategory").value;
-  const sub = document.getElementById("addSubCategory");
-  sub.innerHTML = "";
-
-  if (!cat || !SUB_CATEGORIES[cat]) {
-    sub.disabled = true;
-    sub.innerHTML = '<option value="">Select a category first</option>';
-    const yearEl = document.getElementById("addYearLevel");
-    if (yearEl) {
-      yearEl.disabled = true;
-      yearEl.innerHTML =
-        '<option value="">Select a sub-category first</option>';
-    }
-    populatePositionDropdown("addPosition", "N/A", "");
-    return;
-  }
-
-  sub.disabled = false;
-  sub.innerHTML = '<option value="">Select department</option>';
-  SUB_CATEGORIES[cat].forEach((s) => {
-    const opt = document.createElement("option");
-    opt.value = s;
-    opt.textContent = s;
-    sub.appendChild(opt);
-  });
-
-  const yearEl = document.getElementById("addYearLevel");
-  if (yearEl) {
-    yearEl.disabled = true;
-    yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
-  }
-
-  populatePositionDropdown("addPosition", "N/A", "");
-}
-
-function openAddUserModal() {
-  document.getElementById("addUserForm").reset();
-  document.getElementById("addUsernamePreview").value = "";
-
-  const sub = document.getElementById("addSubCategory");
-  sub.innerHTML = '<option value="">Select a category first</option>';
-  sub.disabled = true;
-
-  const yearEl = document.getElementById("addYearLevel");
-  if (yearEl) {
-    yearEl.disabled = true;
-    yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
-  }
-
-  // Prefill the password from the default in the field itself.
-  // The field's value= attribute holds the initial default; form.reset()
-  // restores it. If it's empty for any reason, generate one.
-  const pwdEl = document.getElementById("addTempPassword");
-  if (!pwdEl.value) {
-    regeneratePassword();
-  }
-
-  populatePositionDropdown("addPosition", "N/A", "");
-  handleEmploymentChange();
-
-  currentStep = 1;
-  goToStep(1);
-  initIcons();
-  showModal("addUserModal", "addUserCard");
-}
-
-function closeAddUserModal() {
-  hideModal("addUserModal", "addUserCard");
-}
-
-function openEditUserModal(data) {
-  document.getElementById("editUserId").value = data.id;
-  document.getElementById("editUserName").textContent =
-    `${data.first} ${data.last}`.trim() || data.username;
-  document.getElementById("editFirstName").value = data.first || "";
-  document.getElementById("editLastName").value = data.last || "";
-  document.getElementById("editMiddleName").value = data.middle || "";
-  document.getElementById("editEmail").value = data.email || "";
-  document.getElementById("editUsername").value = data.username || "";
-  document.getElementById("editRole").value = data.role || "staff";
-  document.getElementById("editCategory").value = data.category || "staff";
-
-  updateEditSubCategories(data.sub || "", data.year_level || "");
-
-  document.getElementById("editEmpType").value = data.emp || "full-time";
-  document.getElementById("editSalary").value = data.salary || 0;
-  document.getElementById("editCredits").value = Math.round(
-    Number(data.credits) || 0
-  );
-  document.getElementById("editStatus").value = data.status || "active";
-
-  populatePositionDropdown(
-    "editPosition",
-    data.position || "N/A",
-    data.sub || ""
-  );
-
-  handleEditEmploymentChange();
-  showModal("editUserModal", "editUserCard");
-}
-
-function closeEditUserModal() {
-  hideModal("editUserModal", "editUserCard");
-}
-
-function handleEditEmploymentChange() {
-  const employment = document.getElementById("editEmpType");
-  const leaveCredits = document.getElementById("editCredits");
-  if (!employment || !leaveCredits) return;
-
-  if (employment.value === "part-time") {
-    leaveCredits.disabled = true;
-    leaveCredits.value = "0";
-    leaveCredits.placeholder = "Not applicable";
-  } else {
-    leaveCredits.disabled = false;
-    leaveCredits.placeholder = "0";
-  }
-}
-
 // ============================================
-// Archive
+// Cascading dropdowns — unified for add/edit
 // ============================================
-function openArchiveUserModal(id, fullName) {
-  pendingArchiveId = id;
-  document.getElementById("archiveUserName").textContent = fullName;
-  showModal("archiveUserModal", "archiveUserCard");
-}
-function closeArchiveUserModal() {
-  hideModal("archiveUserModal", "archiveUserCard");
-}
-
-async function confirmArchiveUser() {
-  if (!pendingArchiveId) return;
-  const fd = new FormData();
-  fd.append("action", "archive");
-  fd.append("id", pendingArchiveId);
-  try {
-    const res = await fetch("/api/faculty", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.success) {
-      closeArchiveUserModal();
-      location.reload();
-    } else if (data.error) {
-      closeArchiveUserModal();
-      showError("Could not archive user", data.error);
-    }
-  } catch (err) {
-    console.error("Archive error:", err);
-    closeArchiveUserModal();
-    showError(
-      "Connection error",
-      "Unable to reach the server. Please try again."
-    );
-  }
-}
-
-// ============================================
-// Restore
-// ============================================
-function openRestoreUserModal(id, fullName) {
-  pendingRestoreId = id;
-  document.getElementById("restoreUserName").textContent = fullName;
-  showModal("restoreUserModal", "restoreUserCard");
-}
-function closeRestoreUserModal() {
-  hideModal("restoreUserModal", "restoreUserCard");
-}
-
-async function confirmRestoreUser() {
-  if (!pendingRestoreId) return;
-  const fd = new FormData();
-  fd.append("action", "restore");
-  fd.append("id", pendingRestoreId);
-  try {
-    const res = await fetch("/api/faculty", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.success) {
-      closeRestoreUserModal();
-      showModal("restoreSuccessModal", "restoreSuccessCard");
-      initIcons();
-    } else if (data.error) {
-      closeRestoreUserModal();
-      showError("Could not restore user", data.error);
-    }
-  } catch (err) {
-    console.error("Restore error:", err);
-    closeRestoreUserModal();
-    showError(
-      "Connection error",
-      "Unable to reach the server. Please try again."
-    );
-  }
-}
-function closeRestoreSuccessModal() {
-  hideModal("restoreSuccessModal", "restoreSuccessCard");
-  setTimeout(() => location.reload(), 200);
-}
-
-// ============================================
-// Send reset
-// ============================================
-function openSendResetModal(id, fullName, email) {
-  pendingResetId = id;
-  document.getElementById("sendResetEmail").textContent = email || "—";
-  showModal("sendResetModal", "sendResetCard");
-}
-function closeSendResetModal() {
-  hideModal("sendResetModal", "sendResetCard");
-}
-
-async function confirmSendReset() {
-  if (!pendingResetId) return;
-  const email = document.getElementById("sendResetEmail").textContent;
-  closeSendResetModal();
-  showLoading(
-    "Sending reset link...",
-    "Sending a password reset link to the user."
-  );
-  const fd = new FormData();
-  fd.append("action", "send_reset");
-  fd.append("id", pendingResetId);
-  try {
-    const res = await fetch("/api/faculty", { method: "POST", body: fd });
-    const data = await res.json();
-    await new Promise((r) => setTimeout(r, 600));
-    hideLoading();
-    if (data.success) {
-      const emailEl = document.getElementById("resetSentEmail");
-      if (emailEl) emailEl.textContent = email;
-      showModal("resetSentModal", "resetSentCard");
-      initIcons();
-    } else if (data.error) {
-      showError("Could not send reset link", data.error);
-    }
-  } catch (err) {
-    hideLoading();
-    console.error("Send reset error:", err);
-    showError(
-      "Connection error",
-      "Unable to reach the server. Please try again."
-    );
-  }
-}
-function closeResetSentModal() {
-  hideModal("resetSentModal", "resetSentCard");
-  setTimeout(() => location.reload(), 200);
-}
-
-// ============================================
-// View toggle
-// ============================================
-let currentView = localStorage.getItem("usersView") || "list";
-function setView(view) {
-  currentView = view;
-  localStorage.setItem("usersView", view);
-  const gridBtn = document.getElementById("viewGridBtn");
-  const listBtn = document.getElementById("viewListBtn");
-  const activeClass =
-    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-[#0F5E3D] shadow-sm transition";
-  const inactiveClass =
-    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] transition";
-  if (view === "list") {
-    listBtn.className = activeClass;
-    gridBtn.className = inactiveClass;
-  } else {
-    gridBtn.className = activeClass;
-    listBtn.className = inactiveClass;
-  }
-  applyView();
-}
-function applyView() {
-  const listTable = document
-    .querySelector("#usersTableBody")
-    ?.closest(".hidden.md\\:block");
-  const mobileCards = document.getElementById("mobileCards");
-  const grid = document.getElementById("usersGrid");
-  if (currentView === "grid") {
-    if (grid) grid.style.display = "grid";
-    if (listTable) listTable.style.display = "none";
-    if (mobileCards) mobileCards.style.display = "none";
-  } else {
-    if (grid) grid.style.display = "none";
-    if (listTable) listTable.style.display = "";
-    if (mobileCards) mobileCards.style.display = "";
-  }
-  applyFilters();
-}
-
-// ============================================
-// Create
-// ============================================
-async function submitCreateUser(formData) {
-  showLoading(
-    "Creating user...",
-    "Setting up the account and sending the email."
-  );
-  try {
-    const res = await fetch("/api/faculty", { method: "POST", body: formData });
-    const data = await res.json();
-    await new Promise((r) => setTimeout(r, 600));
-    hideLoading();
-    if (data.success) {
-      closeAddUserModal();
-      showModal("successModal", "successCard");
-      initIcons();
-    } else if (data.error) {
-      const e = data.error.toLowerCase();
-      if (e.includes("username")) {
-        markInvalid("addFirstName");
-        showError("Username already taken", data.error);
-      } else if (e.includes("email")) {
-        markInvalid("addEmail");
-        showError("Email already in use", data.error);
-      } else if (e.includes("name")) {
-        markInvalid("addFirstName");
-        markInvalid("addLastName");
-        showError("Name already exists", data.error);
-      } else {
-        showError("Could not create user", data.error);
-      }
-    }
-  } catch (err) {
-    hideLoading();
-    console.error("Create error:", err);
-    showError(
-      "Connection error",
-      "Unable to reach the server. Please try again."
-    );
-  }
-}
-function closeSuccessModal() {
-  hideModal("successModal", "successCard");
-  setTimeout(() => location.reload(), 200);
-}
-
-// ============================================
-// Edit
-// ============================================
-async function submitEditUser(formData) {
-  try {
-    const res = await fetch("/api/faculty", { method: "POST", body: formData });
-    const data = await res.json();
-    if (data.success) {
-      closeEditUserModal();
-      showModal("editSuccessModal", "editSuccessCard");
-      initIcons();
-    } else if (data.error && data.error.toLowerCase().includes("username")) {
-      markInvalid("editUsername");
-    } else if (data.error) {
-      showError("Could not save changes", data.error);
-    } else {
-      showError(
-        "Could not save changes",
-        "The server returned an unexpected response."
-      );
-    }
-  } catch (err) {
-    console.error("Edit error:", err);
-    showError("Connection error", "Unable to reach the server.");
-  }
-}
-function closeEditSuccessModal() {
-  hideModal("editSuccessModal", "editSuccessCard");
-  setTimeout(() => location.reload(), 200);
-}
-
-// ============================================
-// Sort
-// ============================================
-let currentSort = "default";
-function toggleSortMenu() {
-  const menu = document.getElementById("sortMenu");
-  const filterMenu = document.getElementById("filterMenu");
-  const statusMenu = document.getElementById("statusMenu");
-  if (statusMenu) statusMenu.classList.add("hidden");
-  const statusChevron = document.getElementById("statusChevron");
-  if (statusChevron) statusChevron.style.transform = "";
-  const chevron = document.getElementById("sortChevron");
-  if (!menu) return;
-  const willOpen = menu.classList.contains("hidden");
-  menu.classList.toggle("hidden");
-  if (filterMenu) filterMenu.classList.add("hidden");
-  if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
-  if (willOpen)
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeSortOnOutside, { once: true }),
-      0
-    );
-}
-function closeSortOnOutside(e) {
-  const wrap = document.getElementById("sortWrap");
-  const menu = document.getElementById("sortMenu");
-  const chevron = document.getElementById("sortChevron");
-  if (wrap && menu && !wrap.contains(e.target)) {
-    menu.classList.add("hidden");
-    if (chevron) chevron.style.transform = "";
-  } else if (menu && !menu.classList.contains("hidden"))
-    document.addEventListener("click", closeSortOnOutside, { once: true });
-}
-function applySort(type) {
-  currentSort = type;
-  const labels = {
-    "name-asc": "Name (A → Z)",
-    "name-desc": "Name (Z → A)",
-    "role-asc": "Role (A → Z)",
-    "role-desc": "Role (Z → A)",
-    newest: "Newest First",
-    oldest: "Oldest First",
-    default: "Sort by",
-  };
-  document.getElementById("sortLabel").textContent = labels[type] || "Sort by";
-  document
-    .querySelectorAll(".sort-check")
-    .forEach((c) => (c.style.opacity = c.dataset.sort === type ? "1" : "0"));
-  document.getElementById("sortMenu")?.classList.add("hidden");
-  document.getElementById("sortChevron").style.transform = "";
-  sortRows();
-  applyFilters();
-}
-function sortRows() {
-  if (currentSort === "default") return;
-  const tbody = document.getElementById("usersTableBody");
-  const mobileCards = document.getElementById("mobileCards");
-  const grid = document.getElementById("usersGrid");
-  if (!tbody) return;
-  const compare = (a, b) => {
-    switch (currentSort) {
-      case "name-asc":
-        return (a.dataset.name || "").localeCompare(b.dataset.name || "");
-      case "name-desc":
-        return (b.dataset.name || "").localeCompare(a.dataset.name || "");
-      case "role-asc":
-        return (a.dataset.role || "").localeCompare(b.dataset.role || "");
-      case "role-desc":
-        return (b.dataset.role || "").localeCompare(a.dataset.role || "");
-      case "newest":
-        return (
-          parseInt(b.dataset.created || 0) - parseInt(a.dataset.created || 0)
-        );
-      case "oldest":
-        return (
-          parseInt(a.dataset.created || 0) - parseInt(b.dataset.created || 0)
-        );
-      default:
-        return 0;
-    }
-  };
-  const rows = Array.from(tbody.querySelectorAll("tr[data-name]"));
-  rows.sort(compare);
-  rows.forEach((row) => tbody.appendChild(row));
-  if (mobileCards) {
-    const cards = Array.from(
-      mobileCards.querySelectorAll(":scope > div[data-name]")
-    );
-    cards.sort(compare);
-    cards.forEach((c) => mobileCards.appendChild(c));
-  }
-  if (grid) {
-    const gridCards = Array.from(
-      grid.querySelectorAll(":scope > div[data-name]")
-    );
-    gridCards.sort(compare);
-    gridCards.forEach((c) => grid.appendChild(c));
-  }
-}
-
-// ============================================
-// Filter menu
-// ============================================
-function toggleFilterMenu() {
-  const menu = document.getElementById("filterMenu");
-  const sortMenu = document.getElementById("sortMenu");
-  const statusMenu = document.getElementById("statusMenu");
-  const chevron = document.getElementById("filterChevron");
-  if (!menu) return;
-  const willOpen = menu.classList.contains("hidden");
-  menu.classList.toggle("hidden");
-  if (sortMenu) sortMenu.classList.add("hidden");
-  if (statusMenu) statusMenu.classList.add("hidden");
-  const statusChevron = document.getElementById("statusChevron");
-  if (statusChevron) statusChevron.style.transform = "";
-  if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
-  if (willOpen)
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeFilterOnOutside, {
-          once: true,
-        }),
-      0
-    );
-}
-function closeFilterOnOutside(e) {
-  const wrap = document.getElementById("filterWrap");
-  const menu = document.getElementById("filterMenu");
-  const chevron = document.getElementById("filterChevron");
-  if (wrap && menu && !wrap.contains(e.target)) {
-    menu.classList.add("hidden");
-    if (chevron) chevron.style.transform = "";
-  } else if (menu && !menu.classList.contains("hidden"))
-    document.addEventListener("click", closeFilterOnOutside, { once: true });
-}
-
-// ============================================
-// Status menu (open/close only — filtering is server-side)
-// ============================================
-function toggleStatusMenu() {
-  const menu = document.getElementById("statusMenu");
-  const sortMenu = document.getElementById("sortMenu");
-  const filterMenu = document.getElementById("filterMenu");
-  const chevron = document.getElementById("statusChevron");
-  if (!menu) return;
-  const willOpen = menu.classList.contains("hidden");
-  menu.classList.toggle("hidden");
-  if (sortMenu) sortMenu.classList.add("hidden");
-  if (filterMenu) filterMenu.classList.add("hidden");
-  if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
-  if (willOpen)
-    setTimeout(
-      () =>
-        document.addEventListener("click", closeStatusOnOutside, {
-          once: true,
-        }),
-      0
-    );
-}
-function closeStatusOnOutside(e) {
-  const wrap = document.getElementById("statusWrap");
-  const menu = document.getElementById("statusMenu");
-  const chevron = document.getElementById("statusChevron");
-  if (wrap && menu && !wrap.contains(e.target)) {
-    menu.classList.add("hidden");
-    if (chevron) chevron.style.transform = "";
-  } else if (menu && !menu.classList.contains("hidden"))
-    document.addEventListener("click", closeStatusOnOutside, { once: true });
-}
-
-// ============================================
-// Filters (client-side, applies within the current page)
-// NOTE: Status filtering is now server-side via ?status= in the URL.
-// ============================================
-function applyFilters() {
-  const search = (
-    document.getElementById("searchInput")?.value || ""
-  ).toLowerCase();
-  const role = document.getElementById("filterRole")?.value || "";
-  const category = document.getElementById("filterCategory")?.value || "";
-  const sub = (
-    document.getElementById("filterSubCategory")?.value || ""
-  ).toLowerCase();
-  const year = (
-    document.getElementById("filterYearLevel")?.value || ""
-  ).toLowerCase();
-
-  const rows = document.querySelectorAll("#usersTableBody tr[data-name]");
-  const cards = document.querySelectorAll("#mobileCards > div[data-name]");
-  const grids = document.querySelectorAll("#usersGrid > div[data-name]");
-  let visible = 0;
-
-  [...rows, ...cards, ...grids].forEach((row) => {
-    const name = row.dataset.name || "";
-    const username = row.dataset.username || "";
-    const rRole = row.dataset.role || "";
-    const rCat = row.dataset.category || "";
-    const rSub = (row.dataset.sub || "").toLowerCase();
-    const rYear = (row.dataset.year || "").toLowerCase();
-
-    const matchesSearch =
-      !search || name.includes(search) || username.includes(search);
-    const matchesRole = !role || rRole === role;
-    const matchesCategory = !category || rCat === category;
-    const matchesSub = !sub || rSub === sub;
-    const matchesYear = !year || rYear === year;
-
-    const matches =
-      matchesSearch &&
-      matchesRole &&
-      matchesCategory &&
-      matchesSub &&
-      matchesYear;
-    row.classList.toggle("hidden", !matches);
-    if (matches) visible++;
-  });
-
-  const activeFilters = [role, category, sub, year].filter((v) => v).length;
-  const badge = document.getElementById("filterCount");
-  if (badge) {
-    if (activeFilters > 0) {
-      badge.textContent = activeFilters;
-      badge.classList.remove("hidden");
-    } else badge.classList.add("hidden");
-  }
-  document
-    .getElementById("emptyState")
-    ?.classList.toggle("hidden", visible > 0);
-}
-
-function clearAllFilters() {
-  const roleEl = document.getElementById("filterRole");
-  const catEl = document.getElementById("filterCategory");
-  const subEl = document.getElementById("filterSubCategory");
-  const yearEl = document.getElementById("filterYearLevel");
-  const searchEl = document.getElementById("searchInput");
-  if (roleEl) roleEl.value = "";
-  if (catEl) catEl.value = "";
-  if (subEl) subEl.value = "";
-  if (yearEl) yearEl.value = "";
-  if (searchEl) searchEl.value = "";
-  updateFilterSubCategories();
-  updateFilterYearLevels();
-  applyFilters();
-  document.getElementById("filterMenu")?.classList.add("hidden");
-  const chevron = document.getElementById("filterChevron");
-  if (chevron) chevron.style.transform = "";
-}
-
-// ============================================
-// Edit sub-categories
-// ============================================
-function updateEditSubCategories(
-  selectedValue = null,
-  selectedYearLevel = null
-) {
-  const catEl = document.getElementById("editCategory");
-  const subEl = document.getElementById("editSub");
+function updateSubCategories(prefix = "add") {
+  const catEl = document.getElementById(`${prefix}Category`);
+  const subEl =
+    document.getElementById(`${prefix}SubCategory`) ||
+    document.getElementById(`${prefix}Sub`);
+  const yearEl = document.getElementById(`${prefix}YearLevel`);
   if (!catEl || !subEl) return;
+
   const cat = catEl.value;
-  const options = SUB_CATEGORIES[cat] || [];
   subEl.innerHTML = "";
 
-  if (!cat) {
+  if (!cat || !SUB_CATEGORIES[cat]) {
     subEl.disabled = true;
     subEl.innerHTML = '<option value="">Select a category first</option>';
-    const yearEl = document.getElementById("editYearLevel");
     if (yearEl) {
       yearEl.disabled = true;
-      yearEl.innerHTML =
-        '<option value="">Select a sub-category first</option>';
+      yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
     }
-    populatePositionDropdown("editPosition", "N/A", "");
+    populatePositionDropdown(`${prefix}Position`, "N/A", "");
     return;
   }
+
   subEl.disabled = false;
   subEl.innerHTML = '<option value="">Select department</option>';
-  options.forEach((s) => {
+  SUB_CATEGORIES[cat].forEach((s) => {
     const opt = document.createElement("option");
     opt.value = s;
     opt.textContent = s;
     subEl.appendChild(opt);
   });
-  if (selectedValue && !options.includes(selectedValue)) {
-    const legacyOpt = document.createElement("option");
-    legacyOpt.value = selectedValue;
-    legacyOpt.textContent = selectedValue;
-    subEl.appendChild(legacyOpt);
+
+  if (yearEl) {
+    yearEl.disabled = true;
+    yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
   }
-  if (selectedValue !== null && selectedValue !== undefined)
-    subEl.value = selectedValue;
-  updateYearLevelOrDepartment("edit", selectedYearLevel);
+  populatePositionDropdown(`${prefix}Position`, "N/A", "");
 }
 
 function updateYearLevelOrDepartment(prefix, selectedValue = null) {
@@ -935,8 +337,7 @@ function updateYearLevelOrDepartment(prefix, selectedValue = null) {
   }
   if (options.length === 0) {
     yearEl.disabled = true;
-    yearEl.innerHTML =
-      '<option value="">No year levels/departments available</option>';
+    yearEl.innerHTML = '<option value="">No year levels/departments available</option>';
     return;
   }
   yearEl.disabled = false;
@@ -953,10 +354,28 @@ function updateYearLevelOrDepartment(prefix, selectedValue = null) {
     legacy.textContent = selectedValue;
     yearEl.appendChild(legacy);
   }
-  if (selectedValue !== null && selectedValue !== undefined)
-    yearEl.value = selectedValue;
+  if (selectedValue !== null && selectedValue !== undefined) yearEl.value = selectedValue;
 }
 
+function populatePositionDropdown(selectId, selectedValue = null, subCategory = "") {
+  const el = document.getElementById(selectId);
+  if (!el) return;
+  const allowed = POSITIONS_BY_CONTEXT[subCategory] || DEFAULT_POSITIONS;
+  const options = [...allowed];
+  if (selectedValue && !options.includes(selectedValue)) options.push(selectedValue);
+  el.innerHTML = '<option value="">Select position</option>';
+  options.forEach((p) => {
+    const o = document.createElement("option");
+    o.value = p;
+    o.textContent = p;
+    el.appendChild(o);
+  });
+  if (selectedValue !== null && selectedValue !== undefined) el.value = selectedValue;
+}
+
+// ============================================
+// Filter dropdowns
+// ============================================
 function updateFilterSubCategories(selectedValue = null) {
   const catEl = document.getElementById("filterCategory");
   const subEl = document.getElementById("filterSubCategory");
@@ -968,9 +387,7 @@ function updateFilterSubCategories(selectedValue = null) {
 
   if (!cat) {
     const allSubs = new Set();
-    Object.values(SUB_CATEGORIES).forEach((arr) =>
-      arr.forEach((s) => allSubs.add(s))
-    );
+    Object.values(SUB_CATEGORIES).forEach((arr) => arr.forEach((s) => allSubs.add(s)));
     [...allSubs].sort().forEach((s) => {
       const o = document.createElement("option");
       o.value = s.toLowerCase();
@@ -998,9 +415,7 @@ function updateFilterYearLevels(selectedValue = null) {
 
   if (!sub) {
     const allYears = new Set();
-    Object.values(YEAR_LEVELS_OR_DEPARTMENTS).forEach((arr) =>
-      arr.forEach((y) => allYears.add(y))
-    );
+    Object.values(YEAR_LEVELS_OR_DEPARTMENTS).forEach((arr) => arr.forEach((y) => allYears.add(y)));
     [...allYears].sort().forEach((y) => {
       const o = document.createElement("option");
       o.value = y.toLowerCase();
@@ -1008,9 +423,7 @@ function updateFilterYearLevels(selectedValue = null) {
       yearEl.appendChild(o);
     });
   } else {
-    const matchKey = Object.keys(YEAR_LEVELS_OR_DEPARTMENTS).find(
-      (k) => k.toLowerCase() === sub
-    );
+    const matchKey = Object.keys(YEAR_LEVELS_OR_DEPARTMENTS).find((k) => k.toLowerCase() === sub);
     const options = matchKey ? YEAR_LEVELS_OR_DEPARTMENTS[matchKey] : [];
     options.forEach((y) => {
       const o = document.createElement("option");
@@ -1022,110 +435,651 @@ function updateFilterYearLevels(selectedValue = null) {
   if (selectedValue !== null) yearEl.value = selectedValue;
 }
 
-function populatePositionDropdown(
-  selectId,
-  selectedValue = null,
-  subCategory = ""
-) {
-  const el = document.getElementById(selectId);
-  if (!el) return;
-  const allowed = POSITIONS_BY_CONTEXT[subCategory] || DEFAULT_POSITIONS;
-  const options = [...allowed];
-  if (selectedValue && !options.includes(selectedValue))
-    options.push(selectedValue);
-  el.innerHTML = '<option value="">Select position</option>';
-  options.forEach((p) => {
-    const o = document.createElement("option");
-    o.value = p;
-    o.textContent = p;
-    el.appendChild(o);
-  });
-  if (selectedValue !== null && selectedValue !== undefined)
-    el.value = selectedValue;
+// ============================================
+// Add user modal
+// ============================================
+function openAddUserModal() {
+  document.getElementById("addUserForm").reset();
+  document.getElementById("addUsernamePreview").value = "";
+
+  const sub = document.getElementById("addSubCategory");
+  sub.innerHTML = '<option value="">Select a category first</option>';
+  sub.disabled = true;
+
+  const yearEl = document.getElementById("addYearLevel");
+  if (yearEl) {
+    yearEl.disabled = true;
+    yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
+  }
+
+  const catEl = document.getElementById("addCategory");
+  if (catEl) catEl.disabled = false;
+
+  const addCatHidden = document.getElementById("addCategoryHidden");
+  if (addCatHidden) addCatHidden.value = "";
+
+  const leavePayEl = document.getElementById("addLeavePay");
+  if (leavePayEl) leavePayEl.value = 0;
+
+  const pwdEl = document.getElementById("addTempPassword");
+  if (!pwdEl.value) regeneratePassword();
+
+  populatePositionDropdown("addPosition", "N/A", "");
+  handleEmploymentChange("add");
+
+  currentStep = 1;
+  goToStep(1);
+  if (typeof initIcons === "function") initIcons();
+  showModal("addUserModal", "addUserCard");
 }
 
-function validateStep2() {
-  const role = document.getElementById("addRole").value;
-  const cat = document.getElementById("addCategory").value;
-  const pos = document.getElementById("addPosition").value;
-  const pwd = document.getElementById("addTempPassword").value.trim();
+function closeAddUserModal() {
+  hideModal("addUserModal", "addUserCard");
+}
 
-  if (!role) { markInvalid("addRole"); return false; }
-  if (!cat) { markInvalid("addCategory"); return false; }
-  if (!pos) { markInvalid("addPosition"); return false; }
-  if (!pwd || pwd.length < 8) {
-    markInvalid("addTempPassword");
-    return false;
+// ============================================
+// Edit user modal
+// ============================================
+function openEditUserModal(data) {
+  document.getElementById("editUserId").value = data.id;
+  document.getElementById("editUserName").textContent =
+    `${data.first} ${data.last}`.trim() || data.username;
+
+  document.getElementById("editFirstName").value = data.first || "";
+  document.getElementById("editLastName").value = data.last || "";
+  document.getElementById("editMiddleName").value = data.middle || "";
+  document.getElementById("editEmail").value = data.email || "";
+  document.getElementById("editUsername").value = data.username || "";
+
+  document.getElementById("editRole").value = data.role || "staff";
+  document.getElementById("editCategory").value = data.category || "staff";
+
+  const catEl = document.getElementById("editCategory");
+  const roleEl = document.getElementById("editRole");
+  const hiddenCatEl = document.getElementById("editCategoryHidden");
+
+  if (roleEl.value !== "admin") {
+    catEl.disabled = true;
+    if (hiddenCatEl) hiddenCatEl.value = catEl.value;
+  } else {
+    catEl.disabled = false;
+    if (hiddenCatEl) hiddenCatEl.value = "";
   }
-  return true;
+
+  updateSubCategories("edit");
+
+  const subEl = document.getElementById("editSub");
+  if (subEl) subEl.value = data.sub || "";
+  updateYearLevelOrDepartment("edit", data.year_level || "");
+  populatePositionDropdown("editPosition", data.position || "N/A", data.sub || "");
+
+  document.getElementById("editEmpType").value = data.emp || "full-time";
+
+  const editLeavePayEl = document.getElementById("editLeavePay");
+  if (editLeavePayEl) {
+    editLeavePayEl.value =
+      data.leave_pay !== undefined && data.leave_pay !== null
+        ? data.leave_pay
+        : 0;
+  }
+
+  document.getElementById("editCredits").value =
+    Math.round(Number(data.credits) || 0);
+
+  document.getElementById("editStatus").value = data.status || "active";
+
+  handleEmploymentChange("edit");
+
+  showModal("editUserModal", "editUserCard");
+}
+
+function closeEditUserModal() {
+  hideModal("editUserModal", "editUserCard");
+}
+
+// ============================================
+// Approve / Reject Profile Edit
+// ============================================
+function openProfileEditModal(userId, fullName, action) {
+  pendingProfileEditId = userId;
+  pendingProfileEditAction = action;
+
+  const title = document.getElementById("editReqTitle");
+  const desc = document.getElementById("editReqDesc");
+  const btn = document.getElementById("editReqConfirmBtn");
+  const iconWrap = document.getElementById("editReqIconWrap");
+  const icon = document.getElementById("editReqIcon");
+
+  if (action === "approve") {
+    title.textContent = "Approve Profile Edit";
+    desc.innerHTML = `Approve the profile update request for <span class="font-semibold text-[#2C3E50]">${fullName}</span>? They will be able to edit their details again.`;
+    btn.textContent = "Approve";
+    btn.className = "flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm";
+    iconWrap.className = "flex items-center justify-center w-12 h-12 rounded-full bg-[#F1FDF6] mx-auto mb-4";
+    icon.setAttribute("data-lucide", "check-circle");
+    icon.className = "w-6 h-6 text-[#0F5E3D]";
+  } else {
+    title.textContent = "Reject Profile Edit";
+    desc.innerHTML = `Reject the profile update request for <span class="font-semibold text-[#2C3E50]">${fullName}</span>? They will be notified that their changes were not accepted.`;
+    btn.textContent = "Reject";
+    btn.className = "flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition text-sm";
+    iconWrap.className = "flex items-center justify-center w-12 h-12 rounded-full bg-red-50 mx-auto mb-4";
+    icon.setAttribute("data-lucide", "x-circle");
+    icon.className = "w-6 h-6 text-red-600";
+  }
+
+  if (typeof initIcons === "function") initIcons();
+  showModal("editRequestModal", "editRequestCard");
+}
+
+function closeProfileEditModal() {
+  hideModal("editRequestModal", "editRequestCard");
+  pendingProfileEditId = null;
+  pendingProfileEditAction = null;
+}
+
+async function confirmProfileEditAction() {
+  if (!pendingProfileEditId || !pendingProfileEditAction) return;
+
+  const action = pendingProfileEditAction === "approve" ? "approve_profile_edit" : "reject_profile_edit";
+  const fd = new FormData();
+  fd.append("action", action);
+  fd.append("id", pendingProfileEditId);
+
+  closeProfileEditModal();
+  showLoading(
+    pendingProfileEditAction === "approve" ? "Approving..." : "Rejecting...",
+    "Updating request status."
+  );
+
+  try {
+    const res = await fetch("/api/faculty", { method: "POST", body: fd });
+    const data = await res.json();
+    await new Promise((r) => setTimeout(r, 400));
+    hideLoading();
+
+    if (data.success) {
+      location.reload();
+    } else {
+      showError("Could not save decision", data.error || "Unknown error");
+    }
+  } catch (err) {
+    hideLoading();
+    console.error("Profile edit action error:", err);
+    showError("Connection error", "Unable to reach the server.");
+  }
+}
+
+// ============================================
+// Archive
+// ============================================
+function openArchiveUserModal(id, fullName) {
+  pendingArchiveId = id;
+  document.getElementById("archiveUserName").textContent = fullName;
+  showModal("archiveUserModal", "archiveUserCard");
+}
+function closeArchiveUserModal() {
+  hideModal("archiveUserModal", "archiveUserCard");
+}
+async function confirmArchiveUser() {
+  if (!pendingArchiveId) return;
+  const fd = new FormData();
+  fd.append("action", "archive");
+  fd.append("id", pendingArchiveId);
+  try {
+    const res = await fetch("/api/faculty", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.success) {
+      closeArchiveUserModal();
+      location.reload();
+    } else {
+      closeArchiveUserModal();
+      showError("Could not archive user", data.error || "Unknown error");
+    }
+  } catch (err) {
+    console.error("Archive error:", err);
+    closeArchiveUserModal();
+    showError("Connection error", "Unable to reach the server. Please try again.");
+  }
+}
+
+// ============================================
+// Restore
+// ============================================
+function openRestoreUserModal(id, fullName) {
+  pendingRestoreId = id;
+  document.getElementById("restoreUserName").textContent = fullName;
+  showModal("restoreUserModal", "restoreUserCard");
+}
+function closeRestoreUserModal() {
+  hideModal("restoreUserModal", "restoreUserCard");
+}
+async function confirmRestoreUser() {
+  if (!pendingRestoreId) return;
+  const fd = new FormData();
+  fd.append("action", "restore");
+  fd.append("id", pendingRestoreId);
+  try {
+    const res = await fetch("/api/faculty", { method: "POST", body: fd });
+    const data = await res.json();
+    if (data.success) {
+      closeRestoreUserModal();
+      showModal("restoreSuccessModal", "restoreSuccessCard");
+      if (typeof initIcons === "function") initIcons();
+    } else {
+      closeRestoreUserModal();
+      showError("Could not restore user", data.error || "Unknown error");
+    }
+  } catch (err) {
+    console.error("Restore error:", err);
+    closeRestoreUserModal();
+    showError("Connection error", "Unable to reach the server. Please try again.");
+  }
+}
+function closeRestoreSuccessModal() {
+  hideModal("restoreSuccessModal", "restoreSuccessCard");
+  setTimeout(() => location.reload(), 200);
+}
+
+// ============================================
+// Send reset
+// ============================================
+function openSendResetModal(id, fullName, email) {
+  pendingResetId = id;
+  document.getElementById("sendResetEmail").textContent = email || "—";
+  showModal("sendResetModal", "sendResetCard");
+}
+function closeSendResetModal() {
+  hideModal("sendResetModal", "sendResetCard");
+}
+async function confirmSendReset() {
+  if (!pendingResetId) return;
+  const email = document.getElementById("sendResetEmail").textContent;
+  closeSendResetModal();
+  showLoading("Sending reset link...", "Sending a password reset link to the user.");
+  const fd = new FormData();
+  fd.append("action", "send_reset");
+  fd.append("id", pendingResetId);
+  try {
+    const res = await fetch("/api/faculty", { method: "POST", body: fd });
+    const data = await res.json();
+    await new Promise((r) => setTimeout(r, 600));
+    hideLoading();
+    if (data.success) {
+      const emailEl = document.getElementById("resetSentEmail");
+      if (emailEl) emailEl.textContent = email;
+      showModal("resetSentModal", "resetSentCard");
+      if (typeof initIcons === "function") initIcons();
+    } else {
+      showError("Could not send reset link", data.error || "Unknown error");
+    }
+  } catch (err) {
+    hideLoading();
+    console.error("Send reset error:", err);
+    showError("Connection error", "Unable to reach the server. Please try again.");
+  }
+}
+function closeResetSentModal() {
+  hideModal("resetSentModal", "resetSentCard");
+  setTimeout(() => location.reload(), 200);
+}
+
+// ============================================
+// View toggle
+// ============================================
+function setView(view) {
+  currentView = view;
+  localStorage.setItem("usersView", view);
+  const gridBtn = document.getElementById("viewGridBtn");
+  const listBtn = document.getElementById("viewListBtn");
+  const activeClass =
+    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-white text-[#0F5E3D] shadow-sm transition";
+  const inactiveClass =
+    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] transition";
+  if (view === "list") {
+    listBtn.className = activeClass;
+    gridBtn.className = inactiveClass;
+  } else {
+    gridBtn.className = activeClass;
+    listBtn.className = inactiveClass;
+  }
+  applyView();
+}
+
+function applyView() {
+  const grid = document.getElementById("usersGrid");
+  const listView = document.getElementById("usersListView");
+  if (currentView === "grid") {
+    if (grid) { grid.classList.remove("hidden"); grid.style.display = "grid"; }
+    if (listView) listView.style.display = "none";
+  } else {
+    if (grid) { grid.classList.add("hidden"); grid.style.display = "none"; }
+    if (listView) listView.style.display = "";
+  }
+  applyFilters();
+}
+
+// ============================================
+// Create
+// ============================================
+async function submitCreateUser(formData) {
+  showLoading("Creating user...", "Setting up the account and sending the email.");
+  try {
+    const res = await fetch("/api/faculty", { method: "POST", body: formData });
+    const data = await res.json();
+    await new Promise((r) => setTimeout(r, 600));
+    hideLoading();
+    if (data.success) {
+      closeAddUserModal();
+      showModal("successModal", "successCard");
+      if (typeof initIcons === "function") initIcons();
+    } else if (data.error) {
+      const e = data.error.toLowerCase();
+      if (e.includes("username")) { markInvalid("addFirstName"); showError("Username already taken", data.error); }
+      else if (e.includes("email")) { markInvalid("addEmail"); showError("Email already in use", data.error); }
+      else if (e.includes("name")) { markInvalid("addFirstName"); markInvalid("addLastName"); showError("Name already exists", data.error); }
+      else showError("Could not create user", data.error);
+    }
+  } catch (err) {
+    hideLoading();
+    console.error("Create error:", err);
+    showError("Connection error", "Unable to reach the server. Please try again.");
+  }
+}
+function closeSuccessModal() {
+  hideModal("successModal", "successCard");
+  setTimeout(() => location.reload(), 200);
+}
+
+// ============================================
+// Edit
+// ============================================
+async function submitEditUser(formData) {
+  const isPasswordChange = !!formData.get("password") && String(formData.get("password")).trim() !== "";
+
+  showLoading(
+    isPasswordChange ? "Updating user & sending email..." : "Saving changes...",
+    isPasswordChange
+      ? "Updating the account and emailing the user."
+      : "Applying your changes to the user."
+  );
+
+  try {
+    const res = await fetch("/api/faculty", { method: "POST", body: formData });
+    const data = await res.json();
+
+    await new Promise((r) => setTimeout(r, isPasswordChange ? 800 : 400));
+    hideLoading();
+
+    if (data.success) {
+      closeEditUserModal();
+      showModal("editSuccessModal", "editSuccessCard");
+      if (typeof initIcons === "function") initIcons();
+    } else if (data.error && data.error.toLowerCase().includes("username")) {
+      markInvalid("editUsername");
+    } else if (data.error) {
+      showError("Could not save changes", data.error);
+    } else {
+      showError("Could not save changes", "The server returned an unexpected response.");
+    }
+  } catch (err) {
+    hideLoading();
+    console.error("Edit error:", err);
+    showError("Connection error", "Unable to reach the server.");
+  }
+}
+function closeEditSuccessModal() {
+  hideModal("editSuccessModal", "editSuccessCard");
+  setTimeout(() => location.reload(), 200);
+}
+
+// ============================================
+// Sort
+// ============================================
+function toggleSortMenu() {
+  const menu = document.getElementById("sortMenu");
+  const filterMenu = document.getElementById("filterMenu");
+  const statusMenu = document.getElementById("statusMenu");
+  if (statusMenu) statusMenu.classList.add("hidden");
+  const statusChevron = document.getElementById("statusChevron");
+  if (statusChevron) statusChevron.style.transform = "";
+  const chevron = document.getElementById("sortChevron");
+  if (!menu) return;
+  const willOpen = menu.classList.contains("hidden");
+  menu.classList.toggle("hidden");
+  if (filterMenu) filterMenu.classList.add("hidden");
+  const filterChevron = document.getElementById("filterChevron");
+  if (filterChevron) filterChevron.style.transform = "";
+  if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
+  if (willOpen) setTimeout(() => document.addEventListener("click", closeSortOnOutside, { once: true }), 0);
+}
+function closeSortOnOutside(e) {
+  const wrap = document.getElementById("sortWrap");
+  const menu = document.getElementById("sortMenu");
+  const chevron = document.getElementById("sortChevron");
+  if (wrap && menu && !wrap.contains(e.target)) {
+    menu.classList.add("hidden");
+    if (chevron) chevron.style.transform = "";
+  } else if (menu && !menu.classList.contains("hidden")) {
+    document.addEventListener("click", closeSortOnOutside, { once: true });
+  }
+}
+function applySort(type) {
+  currentSort = type;
+  const labels = {
+    "name-asc": "Name (A → Z)", "name-desc": "Name (Z → A)",
+    "role-asc": "Role (A → Z)", "role-desc": "Role (Z → A)",
+    newest: "Newest First", oldest: "Oldest First", default: "Sort by",
+  };
+  document.getElementById("sortLabel").textContent = labels[type] || "Sort by";
+  document.querySelectorAll(".sort-check").forEach((c) => (c.style.opacity = c.dataset.sort === type ? "1" : "0"));
+  document.getElementById("sortMenu")?.classList.add("hidden");
+  document.getElementById("sortChevron").style.transform = "";
+  sortRows();
+  applyFilters();
+}
+function sortRows() {
+  if (currentSort === "default") return;
+  const tbody = document.getElementById("usersTableBody");
+  const mobileCards = document.getElementById("mobileCards");
+  const grid = document.getElementById("usersGrid");
+  if (!tbody) return;
+  const compare = (a, b) => {
+    switch (currentSort) {
+      case "name-asc": return (a.dataset.name || "").localeCompare(b.dataset.name || "");
+      case "name-desc": return (b.dataset.name || "").localeCompare(a.dataset.name || "");
+      case "role-asc": return (a.dataset.role || "").localeCompare(b.dataset.role || "");
+      case "role-desc": return (b.dataset.role || "").localeCompare(a.dataset.role || "");
+      case "newest": return parseInt(b.dataset.created || 0) - parseInt(a.dataset.created || 0);
+      case "oldest": return parseInt(a.dataset.created || 0) - parseInt(b.dataset.created || 0);
+      default: return 0;
+    }
+  };
+  const rows = Array.from(tbody.querySelectorAll("tr[data-name]"));
+  rows.sort(compare);
+  rows.forEach((row) => tbody.appendChild(row));
+  if (mobileCards) {
+    const cards = Array.from(mobileCards.querySelectorAll(":scope > div[data-name]"));
+    cards.sort(compare);
+    cards.forEach((c) => mobileCards.appendChild(c));
+  }
+  if (grid) {
+    const gridCards = Array.from(grid.querySelectorAll(":scope > div[data-name]"));
+    gridCards.sort(compare);
+    gridCards.forEach((c) => grid.appendChild(c));
+  }
+}
+
+// ============================================
+// Filter menu
+// ============================================
+function toggleFilterMenu() {
+  const menu = document.getElementById("filterMenu");
+  const sortMenu = document.getElementById("sortMenu");
+  const statusMenu = document.getElementById("statusMenu");
+  const chevron = document.getElementById("filterChevron");
+  if (!menu) return;
+  const willOpen = menu.classList.contains("hidden");
+  menu.classList.toggle("hidden");
+  if (sortMenu) sortMenu.classList.add("hidden");
+  if (statusMenu) statusMenu.classList.add("hidden");
+  const statusChevron = document.getElementById("statusChevron");
+  if (statusChevron) statusChevron.style.transform = "";
+  const sortChevron = document.getElementById("sortChevron");
+  if (sortChevron) sortChevron.style.transform = "";
+  if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
+  if (willOpen) setTimeout(() => document.addEventListener("click", closeFilterOnOutside, { once: true }), 0);
+}
+function closeFilterOnOutside(e) {
+  const wrap = document.getElementById("filterWrap");
+  const menu = document.getElementById("filterMenu");
+  const chevron = document.getElementById("filterChevron");
+  if (wrap && menu && !wrap.contains(e.target)) {
+    menu.classList.add("hidden");
+    if (chevron) chevron.style.transform = "";
+  } else if (menu && !menu.classList.contains("hidden")) {
+    document.addEventListener("click", closeFilterOnOutside, { once: true });
+  }
+}
+
+// ============================================
+// Status menu
+// ============================================
+function toggleStatusMenu() {
+  const menu = document.getElementById("statusMenu");
+  const sortMenu = document.getElementById("sortMenu");
+  const filterMenu = document.getElementById("filterMenu");
+  const chevron = document.getElementById("statusChevron");
+  if (!menu) return;
+  const willOpen = menu.classList.contains("hidden");
+  menu.classList.toggle("hidden");
+  if (sortMenu) sortMenu.classList.add("hidden");
+  if (filterMenu) filterMenu.classList.add("hidden");
+  const sortChevron = document.getElementById("sortChevron");
+  if (sortChevron) sortChevron.style.transform = "";
+  const filterChevron = document.getElementById("filterChevron");
+  if (filterChevron) filterChevron.style.transform = "";
+  if (chevron) chevron.style.transform = willOpen ? "rotate(180deg)" : "";
+  if (willOpen) setTimeout(() => document.addEventListener("click", closeStatusOnOutside, { once: true }), 0);
+}
+function closeStatusOnOutside(e) {
+  const wrap = document.getElementById("statusWrap");
+  const menu = document.getElementById("statusMenu");
+  const chevron = document.getElementById("statusChevron");
+  if (wrap && menu && !wrap.contains(e.target)) {
+    menu.classList.add("hidden");
+    if (chevron) chevron.style.transform = "";
+  } else if (menu && !menu.classList.contains("hidden")) {
+    document.addEventListener("click", closeStatusOnOutside, { once: true });
+  }
+}
+
+// ============================================
+// Filters (client-side within current page)
+// ============================================
+function applyFilters() {
+  const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
+  const role = document.getElementById("filterRole")?.value || "";
+  const category = document.getElementById("filterCategory")?.value || "";
+  const sub = (document.getElementById("filterSubCategory")?.value || "").toLowerCase();
+  const year = (document.getElementById("filterYearLevel")?.value || "").toLowerCase();
+
+  const rows = document.querySelectorAll("#usersTableBody tr[data-name]");
+  const cards = document.querySelectorAll("#mobileCards > div[data-name]");
+  const grids = document.querySelectorAll("#usersGrid > div[data-name]");
+  let visible = 0;
+
+  [...rows, ...cards, ...grids].forEach((row) => {
+    const name = row.dataset.name || "";
+    const username = row.dataset.username || "";
+    const rRole = row.dataset.role || "";
+    const rCat = row.dataset.category || "";
+    const rSub = (row.dataset.sub || "").toLowerCase();
+    const rYear = (row.dataset.year || "").toLowerCase();
+
+    const matchesSearch = !search || name.includes(search) || username.includes(search);
+    const matchesRole = !role || rRole === role;
+    const matchesCategory = !category || rCat === category;
+    const matchesSub = !sub || rSub === sub;
+    const matchesYear = !year || rYear === year;
+
+    const matches = matchesSearch && matchesRole && matchesCategory && matchesSub && matchesYear;
+    row.classList.toggle("hidden", !matches);
+    if (matches) visible++;
+  });
+
+  const activeFilters = [role, category, sub, year].filter((v) => v).length;
+  const badge = document.getElementById("filterCount");
+  if (badge) {
+    if (activeFilters > 0) {
+      badge.textContent = activeFilters;
+      badge.classList.remove("hidden");
+    } else badge.classList.add("hidden");
+  }
+  const empty = document.getElementById("emptyState");
+  if (empty) empty.classList.toggle("hidden", visible > 0);
+}
+
+function clearAllFilters() {
+  ["filterRole", "filterCategory", "filterSubCategory", "filterYearLevel", "searchInput"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  updateFilterSubCategories();
+  updateFilterYearLevels();
+  applyFilters();
+  document.getElementById("filterMenu")?.classList.add("hidden");
+  const chevron = document.getElementById("filterChevron");
+  if (chevron) chevron.style.transform = "";
 }
 
 // ============================================
 // Wire up on load
 // ============================================
 document.addEventListener("DOMContentLoaded", () => {
-  initIcons();
+  if (typeof initIcons === "function") initIcons();
   setView(currentView);
   updateFilterSubCategories();
   updateFilterYearLevels();
 
-  document
-    .getElementById("addUserForm")
-    ?.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      if (!validateStep2()) return;
+  const addRoleEl = document.getElementById("addRole");
+  const addCategoryEl = document.getElementById("addCategory");
+  if (addRoleEl) addRoleEl.addEventListener("change", () => enforceRoleCategoryCoupling("add", "role"));
+  if (addCategoryEl) addCategoryEl.addEventListener("change", () => enforceRoleCategoryCoupling("add", "category"));
 
-      // Make sure a password is set — user-editable, no forced regenerate
-      const tempPassword = document
-        .getElementById("addTempPassword")
-        .value.trim();
-      if (!tempPassword) {
-        markInvalid("addTempPassword");
-        return;
-      }
+  const editRoleEl = document.getElementById("editRole");
+  const editCategoryEl = document.getElementById("editCategory");
+  if (editRoleEl) editRoleEl.addEventListener("change", () => enforceRoleCategoryCoupling("edit", "role"));
+  if (editCategoryEl) editCategoryEl.addEventListener("change", () => enforceRoleCategoryCoupling("edit", "category"));
 
-      const formData = new FormData(this);
+  document.getElementById("addUserForm")?.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    if (!validateStep2()) return;
 
-      const username = document.getElementById("addUsernamePreview").value;
-      if (!username) {
-        markInvalid("addFirstName");
-        return;
-      }
-      formData.append("username", username);
+    const tempPassword = document.getElementById("addTempPassword").value.trim();
+    if (!tempPassword) { markInvalid("addTempPassword"); return; }
 
-      // The <input id="addTempPassword"> has no `name` attribute, so FormData
-      // won't capture it. Append it explicitly.
-      formData.append("password", tempPassword);
+    const formData = new FormData(this);
+    const username = document.getElementById("addUsernamePreview").value;
+    if (!username) { markInvalid("addFirstName"); return; }
+    formData.append("username", username);
+    formData.append("password", tempPassword);
 
-      await submitCreateUser(formData);
-    });
+    await submitCreateUser(formData);
+  });
 
-  document
-    .getElementById("editUserForm")
-    ?.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      const first = document.getElementById("editFirstName").value.trim();
-      const last = document.getElementById("editLastName").value.trim();
-      const username = document.getElementById("editUsername").value.trim();
-      const position = document.getElementById("editPosition").value;
-      if (!first) {
-        markInvalid("editFirstName");
-        return;
-      }
-      if (!last) {
-        markInvalid("editLastName");
-        return;
-      }
-      if (!username) {
-        markInvalid("editUsername");
-        return;
-      }
-      if (!position) {
-        markInvalid("editPosition");
-        return;
-      }
-      await submitEditUser(new FormData(this));
-    });
+  document.getElementById("editUserForm")?.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const first = document.getElementById("editFirstName").value.trim();
+    const last = document.getElementById("editLastName").value.trim();
+    const username = document.getElementById("editUsername").value.trim();
+    const position = document.getElementById("editPosition").value;
+    if (!first) { markInvalid("editFirstName"); return; }
+    if (!last) { markInvalid("editLastName"); return; }
+    if (!username) { markInvalid("editUsername"); return; }
+    if (!position) { markInvalid("editPosition"); return; }
+    await submitEditUser(new FormData(this));
+  });
 
   document.addEventListener("keydown", function (e) {
     if (

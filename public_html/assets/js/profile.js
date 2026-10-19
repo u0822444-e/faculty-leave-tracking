@@ -3,7 +3,7 @@
 // ============================================
 
 // ============================================
-// Password strength rules (same as reset-password)
+// Password strength rules
 // ============================================
 const PROFILE_RULES = {
   length: (v) => v.length >= 8,
@@ -32,13 +32,10 @@ function checkProfilePasswordStrength() {
   const hint = document.getElementById("pwStrengthHint");
   const reqList = document.getElementById("pwRequirements");
 
-  // Empty — reset UI
   if (pw.length === 0) {
     if (wrap) wrap.classList.add("hidden");
     if (reqList) {
-      reqList.querySelectorAll(".pw-req").forEach((li) => {
-        li.classList.remove("is-ok");
-      });
+      reqList.querySelectorAll(".pw-req").forEach((li) => li.classList.remove("is-ok"));
     }
     checkProfilePasswordMatch();
     return;
@@ -46,52 +43,33 @@ function checkProfilePasswordStrength() {
 
   if (wrap) wrap.classList.remove("hidden");
 
-  // Evaluate rules
   let passed = 0;
   if (reqList) {
     reqList.querySelectorAll(".pw-req").forEach((li) => {
       const key = li.dataset.req;
       const ok = PROFILE_RULES[key] ? PROFILE_RULES[key](pw) : false;
-      if (ok) {
-        passed++;
-        li.classList.add("is-ok");
-      } else {
-        li.classList.remove("is-ok");
-      }
+      if (ok) { passed++; li.classList.add("is-ok"); }
+      else { li.classList.remove("is-ok"); }
     });
   }
 
-  // Bar colors/label based on passed count (0–5)
   let barColor = "bg-gray-200";
   let levelLabel = "Very Weak";
   let levelHint = "Add more variety";
   let labelColor = "text-gray-500";
 
   if (passed <= 1) {
-    barColor = "bg-red-500";
-    levelLabel = "Very Weak";
-    levelHint = "Add uppercase, numbers, or symbols";
+    barColor = "bg-red-500"; levelLabel = "Very Weak"; levelHint = "Add uppercase, numbers, or symbols";
   } else if (passed === 2) {
-    barColor = "bg-orange-500";
-    levelLabel = "Weak";
-    levelHint = "Add numbers or symbols";
+    barColor = "bg-orange-500"; levelLabel = "Weak"; levelHint = "Add numbers or symbols";
   } else if (passed === 3) {
-    barColor = "bg-yellow-500";
-    levelLabel = "Fair";
-    levelHint = "Almost there";
+    barColor = "bg-yellow-500"; levelLabel = "Fair"; levelHint = "Almost there";
   } else if (passed === 4) {
-    barColor = "bg-[#0F5E3D]";
-    levelLabel = "Strong";
-    levelHint = "Great password!";
-    labelColor = "text-[#0F5E3D]";
+    barColor = "bg-[#0F5E3D]"; levelLabel = "Strong"; levelHint = "Great password!"; labelColor = "text-[#0F5E3D]";
   } else if (passed === 5) {
-    barColor = "bg-[#0F5E3D]";
-    levelLabel = "Very Strong";
-    levelHint = "Excellent!";
-    labelColor = "text-[#0F5E3D]";
+    barColor = "bg-[#0F5E3D]"; levelLabel = "Very Strong"; levelHint = "Excellent!"; labelColor = "text-[#0F5E3D]";
   }
 
-  // Fill 4 bars proportionally to 0–5 score
   const filledBars = Math.min(4, Math.ceil((passed / 5) * 4));
   bars.forEach((bar, i) => {
     bar.className =
@@ -112,16 +90,11 @@ function checkProfilePasswordMatch() {
   const pwInput = document.getElementById("newPassword");
   const confirmInput = document.getElementById("confirmPassword");
   const hint = document.getElementById("pwMatchHint");
-
   if (!pwInput || !confirmInput || !hint) return;
 
   const pw = pwInput.value;
   const confirm = confirmInput.value;
-
-  if (confirm.length === 0) {
-    hint.classList.add("hidden");
-    return;
-  }
+  if (confirm.length === 0) { hint.classList.add("hidden"); return; }
 
   hint.classList.remove("hidden");
   if (pw === confirm) {
@@ -135,7 +108,6 @@ function checkProfilePasswordMatch() {
 
 // Tab switcher
 function switchProfileTab(tab) {
-  // Update buttons
   document.querySelectorAll(".profile-tab").forEach((btn) => {
     btn.className =
       "profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#2C3E50]/60 border-b-2 border-transparent hover:text-[#2C3E50] transition";
@@ -146,10 +118,7 @@ function switchProfileTab(tab) {
       "profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D] transition";
   }
 
-  // Show/hide panels
-  document
-    .querySelectorAll(".profile-panel")
-    .forEach((p) => p.classList.add("hidden"));
+  document.querySelectorAll(".profile-panel").forEach((p) => p.classList.add("hidden"));
   const panel = document.getElementById("panel" + capitalize(tab));
   if (panel) panel.classList.remove("hidden");
 }
@@ -176,13 +145,9 @@ function toggleProfileMenu() {
   const menu = document.getElementById("profileMenu");
   if (!menu) return;
   menu.classList.toggle("hidden");
-
-  // Close on outside click
   if (!menu.classList.contains("hidden")) {
     setTimeout(() => {
-      document.addEventListener("click", closeProfileOnOutside, {
-        once: true,
-      });
+      document.addEventListener("click", closeProfileOnOutside, { once: true });
     }, 0);
   }
 }
@@ -197,9 +162,7 @@ function closeProfileOnOutside(e) {
   if (wrap && !wrap.contains(e.target)) {
     closeProfileMenu();
   } else {
-    document.addEventListener("click", closeProfileOnOutside, {
-      once: true,
-    });
+    document.addEventListener("click", closeProfileOnOutside, { once: true });
   }
 }
 
@@ -207,118 +170,67 @@ function closeProfileOnOutside(e) {
 // Client-side image compression
 // ============================================
 async function compressImage(file, maxDimension = 512, quality = 0.9) {
-    if (!file.type.startsWith("image/")) return file;
-    if (file.type === "image/gif" || file.size < 300 * 1024) return file;
+  if (!file.type.startsWith("image/")) return file;
+  if (file.type === "image/gif" || file.size < 300 * 1024) return file;
 
-    const bitmap = await createImageBitmap(file);
-    try {
-        const { width, height } = bitmap;
-        const scale = Math.min(1, maxDimension / Math.max(width, height));
-        const w = Math.round(width * scale);
-        const h = Math.round(height * scale);
+  const bitmap = await createImageBitmap(file);
+  try {
+    const { width, height } = bitmap;
+    const scale = Math.min(1, maxDimension / Math.max(width, height));
+    const w = Math.round(width * scale);
+    const h = Math.round(height * scale);
 
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(bitmap, 0, 0, w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0, w, h);
 
-        const blob = await new Promise((resolve) =>
-            canvas.toBlob(resolve, "image/jpeg", quality)
-        );
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
 
-        return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", {
-            type: "image/jpeg",
-        });
-    } finally {
-        bitmap.close();
-    }
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } finally {
+    bitmap.close();
+  }
 }
 
 // ============================================
-// Avatar upload
+// Avatar upload (pending or immediate depending on role)
 // ============================================
 async function handleAvatarUpload(input) {
-    let file = input.files && input.files[0];   // ← let, not const
-    if (!file) return;
+  let file = input.files && input.files[0];
+  if (!file) return;
 
-    // 1. Type check
-    const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    if (!allowed.includes(file.type)) {
-        showError("Invalid file type", "Please choose a JPG, PNG, WEBP, or GIF image.");
-        input.value = "";
-        return;
-    }
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  if (!allowed.includes(file.type)) {
+    showError("Invalid file type", "Please choose a JPG, PNG, WEBP, or GIF image.");
+    input.value = "";
+    return;
+  }
 
-    // 2. Hard ceiling — avoid decoding something insane
-    if (file.size > 25 * 1024 * 1024) {
-        showError("File too large", "Original image must be 25MB or smaller.");
-        input.value = "";
-        return;
-    }
+  if (file.size > 25 * 1024 * 1024) {
+    showError("File too large", "Original image must be 25MB or smaller.");
+    input.value = "";
+    return;
+  }
 
-    // 3. Compress (best effort)
-    try {
-        file = await compressImage(file);
-    } catch (e) {
-        console.warn("Compression failed, uploading original", e);
-    }
+  try {
+    file = await compressImage(file);
+  } catch (e) {
+    console.warn("Compression failed, uploading original", e);
+  }
 
-    // 4. Soft ceiling on the result
-    if (file.size > 10 * 1024 * 1024) {
-        showError("File too large", "Profile pictures must be 10MB or smaller.");
-        input.value = "";
-        return;
-    }
-
-    // 5. Build FormData
-    const fd = new FormData();
-    fd.append("action", "upload");
-    fd.append("avatar", file, file.name || "avatar.jpg");   // explicit filename
-
-    showLoading("Uploading...", "Updating your profile picture.");
-
-    try {
-        const res = await fetch("/api/avatar", { method: "POST", body: fd });
-        const data = await res.json();
-
-        await new Promise((r) => setTimeout(r, 400));
-        hideLoading();
-
-        if (data.success) {
-            const wrap =
-                document.querySelector("#profileAvatarImg")?.parentElement ||
-                document.querySelector("#profileAvatarInitials")?.parentElement;
-
-            if (wrap) {
-                wrap.innerHTML = `<img id="profileAvatarImg" src="${data.avatar}?t=${Date.now()}" alt="Avatar" class="w-full h-full object-cover">`;
-            }
-
-            // If your topbar/sidebar also render the avatar from the session,
-            // you may want to reload so they pick up the new file:
-            // setTimeout(() => location.reload(), 300);
-        } else {
-            showError("Could not upload picture", data.error || "Please try again.");
-        }
-    } catch (err) {
-        hideLoading();
-        console.error(err);
-        showError("Connection error", "Unable to reach the server.");
-    } finally {
-        input.value = "";
-    }
-}
-
-// ============================================
-// Remove avatar
-// ============================================
-async function removeAvatar() {
-  if (!confirm("Remove your profile picture?")) return;
+  if (file.size > 10 * 1024 * 1024) {
+    showError("File too large", "Profile pictures must be 10MB or smaller.");
+    input.value = "";
+    return;
+  }
 
   const fd = new FormData();
-  fd.append("action", "remove");
+  fd.append("action", "upload");
+  fd.append("avatar", file, file.name || "avatar.jpg");
 
-  showLoading("Removing...", "Deleting your profile picture.");
+  showLoading("Uploading...", "Sending your profile picture.");
 
   try {
     const res = await fetch("/api/avatar", { method: "POST", body: fd });
@@ -328,21 +240,75 @@ async function removeAvatar() {
     hideLoading();
 
     if (data.success) {
-      // Replace the avatar with the initials fallback
-      const wrap = document.querySelector("#profileAvatarImg")?.parentElement;
-      if (wrap) {
-        const initials =
-          document.querySelector("#profileAvatarInitials")?.textContent ||
-          wrap
-            .closest(".relative")
-            ?.querySelector("h2")
-            ?.textContent?.trim()
-            .charAt(0) ||
-          "?";
-        wrap.innerHTML = `<span id="profileAvatarInitials" class="text-white font-bold text-lg">${initials}</span>`;
+      if (data.pending) {
+        // Faculty / Staff / HR — held for admin approval
+        document.getElementById("successTitle").textContent = "Submitted for Approval";
+        document.getElementById("successMessage").textContent =
+          data.message || "Your avatar change is pending admin approval.";
+        showModal("successModal", "successCard");
+        if (typeof initIcons === "function") initIcons();
+      } else {
+        // Admin — applied immediately
+        const wrap =
+          document.querySelector("#profileAvatarImg")?.parentElement ||
+          document.querySelector("#profileAvatarInitials")?.parentElement;
+        if (wrap) {
+          wrap.innerHTML = `<img id="profileAvatarImg" src="${data.avatar}?t=${Date.now()}" alt="Avatar" class="w-full h-full object-cover">`;
+        }
+        document.getElementById("successTitle").textContent = "Avatar Updated";
+        document.getElementById("successMessage").textContent =
+          data.message || "Your profile picture has been updated.";
+        showModal("successModal", "successCard");
+        if (typeof initIcons === "function") initIcons();
       }
-      // Simplest robust approach: reload so all avatars refresh
-      setTimeout(() => location.reload(), 300);
+    } else {
+      showError("Could not upload picture", data.error || "Please try again.");
+    }
+  } catch (err) {
+    hideLoading();
+    console.error(err);
+    showError("Connection error", "Unable to reach the server.");
+  } finally {
+    input.value = "";
+  }
+}
+
+// ============================================
+// Remove avatar (pending or immediate depending on role)
+// ============================================
+async function removeAvatar() {
+  if (!confirm("Remove your profile picture?")) return;
+
+  const fd = new FormData();
+  fd.append("action", "remove");
+
+  showLoading("Removing...", "Processing your request.");
+
+  try {
+    const res = await fetch("/api/avatar", { method: "POST", body: fd });
+    const data = await res.json();
+
+    await new Promise((r) => setTimeout(r, 400));
+    hideLoading();
+
+    if (data.success) {
+      if (data.pending) {
+        document.getElementById("successTitle").textContent = "Submitted for Approval";
+        document.getElementById("successMessage").textContent =
+          data.message || "Your avatar removal is pending admin approval.";
+        showModal("successModal", "successCard");
+        if (typeof initIcons === "function") initIcons();
+      } else {
+        const wrap = document.querySelector("#profileAvatarImg")?.parentElement;
+        if (wrap) {
+          const initials =
+            document.querySelector("#profileAvatarInitials")?.textContent ||
+            wrap.closest(".relative")?.querySelector("h2")?.textContent?.trim().charAt(0) ||
+            "?";
+          wrap.innerHTML = `<span id="profileAvatarInitials" class="text-white font-bold text-lg">${initials}</span>`;
+        }
+        setTimeout(() => location.reload(), 300);
+      }
     } else {
       showError("Could not remove picture", data.error || "Please try again.");
     }
@@ -359,7 +325,6 @@ async function removeAvatar() {
 document.addEventListener("DOMContentLoaded", () => {
   if (typeof initIcons === "function") initIcons();
 
-  // ---- Attach password strength listeners ----
   const newPwInput = document.getElementById("newPassword");
   const confirmPwInput = document.getElementById("confirmPassword");
 
@@ -368,7 +333,6 @@ document.addEventListener("DOMContentLoaded", () => {
     newPwInput.addEventListener("keyup", checkProfilePasswordStrength);
     newPwInput.addEventListener("change", checkProfilePasswordStrength);
   }
-
   if (confirmPwInput) {
     confirmPwInput.addEventListener("input", checkProfilePasswordMatch);
     confirmPwInput.addEventListener("keyup", checkProfilePasswordMatch);
@@ -376,136 +340,107 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ---- Info form ----
-  document
-    .getElementById("profileInfoForm")
-    ?.addEventListener("submit", async function (e) {
-      e.preventDefault();
+  document.getElementById("profileInfoForm")?.addEventListener("submit", async function (e) {
+    e.preventDefault();
 
-      const first = document.getElementById("profFirstName").value.trim();
-      const last = document.getElementById("profLastName").value.trim();
+    const first = document.getElementById("profFirstName").value.trim();
+    const last = document.getElementById("profLastName").value.trim();
 
-      if (!first) {
-        markInvalid("profFirstName");
-        return;
-      }
-      if (!last) {
-        markInvalid("profLastName");
-        return;
-      }
+    if (!first) { markInvalid("profFirstName"); return; }
+    if (!last) { markInvalid("profLastName"); return; }
 
-      const fd = new FormData(this);
-      fd.append("action", "update_info");
+    const fd = new FormData(this);
+    fd.append("action", "update_info");
 
-      showLoading("Saving...", "Updating your profile information.");
+    showLoading("Saving...", "Submitting your profile change.");
 
-      try {
-        const res = await fetch("/api/profile", { method: "POST", body: fd });
-        const data = await res.json();
+    try {
+      const res = await fetch("/api/profile", { method: "POST", body: fd });
+      const data = await res.json();
 
-        await new Promise((r) => setTimeout(r, 500));
-        hideLoading();
+      await new Promise((r) => setTimeout(r, 500));
+      hideLoading();
 
-        if (data.success) {
-          document.getElementById("successTitle").textContent =
-            "Profile Updated";
+      if (data.success) {
+        if (data.applied === false) {
+          document.getElementById("successTitle").textContent = "Submitted for Approval";
+          document.getElementById("successMessage").textContent =
+            data.message || "Your profile change is pending admin approval.";
+        } else {
+          document.getElementById("successTitle").textContent = "Profile Updated";
           document.getElementById("successMessage").textContent =
             data.message || "Your information has been saved.";
-          showModal("successModal", "successCard");
-          if (typeof initIcons === "function") initIcons();
-        } else if (data.error) {
-          showError("Could not save changes", data.error);
         }
-      } catch (err) {
-        hideLoading();
-        console.error(err);
-        showError("Connection error", "Unable to reach the server.");
+        showModal("successModal", "successCard");
+        if (typeof initIcons === "function") initIcons();
+      } else if (data.error) {
+        showError("Could not save changes", data.error);
       }
-    });
+    } catch (err) {
+      hideLoading();
+      console.error(err);
+      showError("Connection error", "Unable to reach the server.");
+    }
+  });
 
   // ---- Password form ----
-  document
-    .getElementById("profilePasswordForm")
-    ?.addEventListener("submit", async function (e) {
-      e.preventDefault();
+  document.getElementById("profilePasswordForm")?.addEventListener("submit", async function (e) {
+    e.preventDefault();
 
-      const current = document.getElementById("currentPassword").value;
-      const newPass = document.getElementById("newPassword").value;
-      const confirm = document.getElementById("confirmPassword").value;
+    const current = document.getElementById("currentPassword").value;
+    const newPass = document.getElementById("newPassword").value;
+    const confirm = document.getElementById("confirmPassword").value;
 
-      if (!current) {
-        markInvalid("currentPassword");
-        return;
+    if (!current) { markInvalid("currentPassword"); return; }
+    if (!newPass) { markInvalid("newPassword"); return; }
+    if (!confirm) { markInvalid("confirmPassword"); return; }
+
+    if (newPass !== confirm) {
+      showError("Passwords do not match", "Please make sure both new passwords are identical.");
+      return;
+    }
+
+    const score = scoreProfilePassword(newPass);
+    if (score < 4) {
+      showError("Password is too weak", "Your new password must meet at least 4 of the 5 strength requirements.");
+      return;
+    }
+
+    const fd = new FormData(this);
+    fd.append("action", "update_password");
+
+    showLoading("Updating password...", "Saving your new password.");
+
+    try {
+      const res = await fetch("/api/profile", { method: "POST", body: fd });
+      const data = await res.json();
+
+      await new Promise((r) => setTimeout(r, 500));
+      hideLoading();
+
+      if (data.success) {
+        document.getElementById("successTitle").textContent = "Password Updated";
+        document.getElementById("successMessage").textContent =
+          data.message || "Your password has been changed.";
+        showModal("successModal", "successCard");
+        if (typeof initIcons === "function") initIcons();
+        this.reset();
+
+        document.getElementById("pwStrengthWrap")?.classList.add("hidden");
+        document.getElementById("pwMatchHint")?.classList.add("hidden");
+        document.querySelectorAll("#pwRequirements .pw-req").forEach((li) => li.classList.remove("is-ok"));
+        document.querySelectorAll(".pw-strength-bar").forEach((bar) => {
+          bar.className = "pw-strength-bar h-1 flex-1 rounded-full transition-all bg-gray-200";
+        });
+      } else if (data.error) {
+        showError("Could not update password", data.error);
       }
-      if (!newPass) {
-        markInvalid("newPassword");
-        return;
-      }
-      if (!confirm) {
-        markInvalid("confirmPassword");
-        return;
-      }
-
-      if (newPass !== confirm) {
-        showError(
-          "Passwords do not match",
-          "Please make sure both new passwords are identical."
-        );
-        return;
-      }
-
-      const score = scoreProfilePassword(newPass);
-      if (score < 4) {
-        showError(
-          "Password is too weak",
-          "Your new password must meet at least 4 of the 5 strength requirements."
-        );
-        return;
-      }
-
-      const fd = new FormData(this);
-      fd.append("action", "update_password");
-
-      showLoading("Updating password...", "Saving your new password.");
-
-      try {
-        const res = await fetch("/api/profile", { method: "POST", body: fd });
-        const data = await res.json();
-
-        await new Promise((r) => setTimeout(r, 500));
-        hideLoading();
-
-        if (data.success) {
-          document.getElementById("successTitle").textContent =
-            "Password Updated";
-          document.getElementById("successMessage").textContent =
-            data.message || "Your password has been changed.";
-          showModal("successModal", "successCard");
-          if (typeof initIcons === "function") initIcons();
-          this.reset();
-
-          // Reset the strength UI
-          document.getElementById("pwStrengthWrap")?.classList.add("hidden");
-          document.getElementById("pwMatchHint")?.classList.add("hidden");
-
-          // Reset checklist
-          document.querySelectorAll("#pwRequirements .pw-req").forEach((li) => {
-            li.classList.remove("is-ok");
-          });
-
-          // Reset bars
-          document.querySelectorAll(".pw-strength-bar").forEach((bar) => {
-            bar.className =
-              "pw-strength-bar h-1 flex-1 rounded-full transition-all bg-gray-200";
-          });
-        } else if (data.error) {
-          showError("Could not update password", data.error);
-        }
-      } catch (err) {
-        hideLoading();
-        console.error(err);
-        showError("Connection error", "Unable to reach the server.");
-      }
-    });
+    } catch (err) {
+      hideLoading();
+      console.error(err);
+      showError("Connection error", "Unable to reach the server.");
+    }
+  });
 });
 
 // Close success modal and refresh
@@ -513,3 +448,29 @@ function closeSuccessModal() {
   hideModal("successModal", "successCard");
   setTimeout(() => location.reload(), 200);
 }
+
+// ============================================
+// Leave history filter (profile-only)
+// ============================================
+function filterProfileLeaves() {
+  const q = (document.getElementById("leaveSearchInput")?.value || "").toLowerCase();
+  const status = document.getElementById("leaveStatusFilter")?.value || "";
+
+  const rows = document.querySelectorAll(".profile-leave-row");
+  let visible = 0;
+
+  rows.forEach((r) => {
+    const haystack = r.dataset.search || "";
+    const s = r.dataset.status || "";
+    const match = (!q || haystack.includes(q)) && (!status || s === status);
+    r.classList.toggle("hidden", !match);
+    if (match) visible++;
+  });
+
+  document.getElementById("profileLeavesEmpty")?.classList.toggle("hidden", visible > 0);
+}
+
+// Re-init icons on load
+document.addEventListener("DOMContentLoaded", () => {
+  if (typeof initIcons === "function") initIcons();
+});

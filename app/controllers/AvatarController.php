@@ -1,31 +1,13 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once __DIR__ . '/../../config/database.php';
-
-// ============================================
-// Make sure PHP warnings/notices never corrupt JSON
-// ============================================
-ini_set('display_errors', '0');
-error_reporting(E_ALL);
-
-register_shutdown_function(function () {
-    $err = error_get_last();
-    if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
-        if (!headers_sent()) {
-            header('Content-Type: application/json');
-            http_response_code(500);
-        }
-        echo json_encode([
-            'error' => 'Server error while processing the upload.',
-            'details' => $err['message'] . ' in ' . $err['file'] . ':' . $err['line'],
-        ]);
-    }
-});
+require_once __DIR__ . '/../helpers/ActivityLogger.php';
 
 header('Content-Type: application/json');
 
-// ============================================
-// Auth guard
-// ============================================
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Not authenticated']);
@@ -39,84 +21,96 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $userId = (int) $_SESSION['user_id'];
+$role   = $_SESSION['role'] ?? '';
 $action = $_POST['action'] ?? '';
 
-// ============================================
-// Upload paths — declared ONCE at file scope
-// ============================================
-$uploadDir = __DIR__ . '/../../public_html/uploads/avatars/';
+$uploadDir = __DIR__ . '/../../public/uploads/avatars/';
 $uploadUrl = '/uploads/avatars/';
 
-// ============================================
-// Helper: delete an old avatar file from disk
-// ============================================
-if (!function_exists('deleteAvatarFile')) {
-    function deleteAvatarFile(?string $filename, string $dir): void
-    {
-        if (!$filename)
-            return;
-        $path = $dir . $filename;
-        if (is_file($path))
-            @unlink($path);
-    }
+$isPrivileged = ($role === 'admin');
+
+function deleteAvatarFile(?string $filename, string $dir): void {
+    if (!$filename) return;
+    $path = $dir . $filename;
+    if (is_file($path)) @unlink($path);
 }
 
 // ============================================
-// Action: remove
+// REMOVE
 // ============================================
 if ($action === 'remove') {
-    $stmt = $pdo->prepare("SELECT avatar FROM users WHERE id = ? LIMIT 1");
-    $stmt->execute([$userId]);
-    $old = $stmt->fetchColumn();
+    if (!$isPrivileged) {
+        $stmt = $pdo->prepare("SELECT profile_edit_requested FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        if ((int) $stmt->fetchColumn() === 1) {
+            echo json_encode([
+                'error' => 'You already have a pending profile change. Please wait for admin approval.'
+            ]);
+            exit;
+        }
+    }
 
-    deleteAvatarFile($old ?: null, $uploadDir);
+    if ($isPrivileged) {
+        $stmt = $pdo->prepare("SELECT avatar FROM users WHERE id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $old = $stmt->fetchColumn();
 
-    $pdo->prepare("UPDATE users SET avatar = NULL WHERE id = ?")
-        ->execute([$userId]);
+        deleteAvatarFile($old ?: null, $uploadDir);
 
-    $_SESSION['avatar'] = null;
+        $pdo->prepare("UPDATE users SET avatar = NULL WHERE id = ?")->execute([$userId]);
+        $_SESSION['avatar'] = null;
 
-    echo json_encode(['success' => true, 'message' => 'Profile picture removed.']);
+        try {
+            ActivityLogger::log($pdo, 'remove_avatar', "Removed own avatar (admin)", 'user', $userId);
+        } catch (Throwable $e) { error_log($e->getMessage()); }
+
+        echo json_encode(['success' => true, 'message' => 'Profile picture removed.']);
+        exit;
+    }
+
+    // Faculty/Staff/HR — store pending removal (sentinel = empty string)
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("
+            UPDATE users SET pending_avatar = '', profile_edit_requested = 1 WHERE id = ?
+        ")->execute([$userId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        echo json_encode(['error' => 'Could not save request: ' . $e->getMessage()]);
+        exit;
+    }
+
+    try {
+        ActivityLogger::log($pdo, 'request_remove_avatar', "Requested avatar removal (pending approval)", 'user', $userId);
+    } catch (Throwable $e) { error_log($e->getMessage()); }
+
+    echo json_encode([
+        'success' => true,
+        'pending' => true,
+        'message' => 'Avatar removal submitted for admin approval.',
+    ]);
     exit;
 }
 
 // ============================================
-// Action: upload
+// UPLOAD
 // ============================================
 if ($action === 'upload') {
-    if (!isset($_FILES['avatar'])) {
-        echo json_encode(['error' => 'No file was uploaded.']);
-        exit;
-    }
-
-    switch ($_FILES['avatar']['error']) {
-        case UPLOAD_ERR_OK:
-            break;
-        case UPLOAD_ERR_INI_SIZE:
-        case UPLOAD_ERR_FORM_SIZE:
+    if (!$isPrivileged) {
+        $stmt = $pdo->prepare("SELECT profile_edit_requested FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        if ((int) $stmt->fetchColumn() === 1) {
             echo json_encode([
-                'error' => 'The file exceeds the server\'s maximum upload size. '
-                    . 'Ask your administrator to raise upload_max_filesize and post_max_size.'
+                'error' => 'You already have a pending profile change. Please wait for admin approval.'
             ]);
             exit;
-        case UPLOAD_ERR_PARTIAL:
-            echo json_encode(['error' => 'The upload was interrupted. Please try again.']);
-            exit;
-        case UPLOAD_ERR_NO_FILE:
-            echo json_encode(['error' => 'No file was uploaded.']);
-            exit;
-        case UPLOAD_ERR_NO_TMP_DIR:
-            echo json_encode(['error' => 'Server misconfiguration: missing temp directory.']);
-            exit;
-        case UPLOAD_ERR_CANT_WRITE:
-            echo json_encode(['error' => 'Server could not write the file to disk.']);
-            exit;
-        case UPLOAD_ERR_EXTENSION:
-            echo json_encode(['error' => 'A PHP extension blocked the upload.']);
-            exit;
-        default:
-            echo json_encode(['error' => 'Upload failed (error code ' . $_FILES['avatar']['error'] . ').']);
-            exit;
+        }
+    }
+
+    if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(['error' => 'No file uploaded or upload failed.']);
+        exit;
     }
 
     $file = $_FILES['avatar'];
@@ -126,26 +120,15 @@ if ($action === 'upload') {
         exit;
     }
 
-    // Detect MIME via finfo, with a fallback if the extension is disabled
-    $mime = '';
-    if (function_exists('finfo_open')) {
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        if ($finfo) {
-            $mime = finfo_file($finfo, $file['tmp_name']);
-        }
-    }
-    if (!$mime && function_exists('mime_content_type')) {
-        $mime = mime_content_type($file['tmp_name']) ?: '';
-    }
-    if (!$mime) {
-        $mime = $file['type'] ?? '';
-    }
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime  = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
 
     $allowed = [
         'image/jpeg' => 'jpg',
-        'image/png' => 'png',
+        'image/png'  => 'png',
         'image/webp' => 'webp',
-        'image/gif' => 'gif',
+        'image/gif'  => 'gif',
     ];
 
     if (!isset($allowed[$mime])) {
@@ -153,51 +136,73 @@ if ($action === 'upload') {
         exit;
     }
 
-    $ext = $allowed[$mime];
+    $ext      = $allowed[$mime];
     $filename = 'user_' . $userId . '_' . time() . '.' . $ext;
 
-    if (!is_dir($uploadDir)) {
-        if (!mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
-            echo json_encode(['error' => 'Server could not create the upload directory.']);
-            exit;
-        }
-    }
-
-    if (!is_writable($uploadDir)) {
-        echo json_encode(['error' => 'Upload directory is not writable.']);
-        exit;
-    }
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
 
     if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
         echo json_encode(['error' => 'Could not save the uploaded file.']);
         exit;
     }
 
-    // Delete the old avatar
-    $stmt = $pdo->prepare("SELECT avatar FROM users WHERE id = ? LIMIT 1");
-    $stmt->execute([$userId]);
-    $old = $stmt->fetchColumn();
-    if ($old && $old !== $filename) {
-        deleteAvatarFile($old, $uploadDir);
+    if ($isPrivileged) {
+        // Admin — apply immediately, delete old avatar
+        $stmt = $pdo->prepare("SELECT avatar FROM users WHERE id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $old = $stmt->fetchColumn();
+        if ($old && $old !== $filename) deleteAvatarFile($old, $uploadDir);
+
+        $pdo->prepare("UPDATE users SET avatar = ? WHERE id = ?")->execute([$filename, $userId]);
+        $_SESSION['avatar'] = $filename;
+
+        try {
+            ActivityLogger::log($pdo, 'update_avatar', "Updated own avatar (admin)", 'user', $userId);
+        } catch (Throwable $e) { error_log($e->getMessage()); }
+
+        echo json_encode([
+            'success' => true,
+            'avatar'  => $uploadUrl . $filename,
+            'message' => 'Profile picture updated.',
+        ]);
+        exit;
     }
 
-    // Persist the new filename
-    $pdo->prepare("UPDATE users SET avatar = ? WHERE id = ?")
-        ->execute([$filename, $userId]);
+    // Faculty/Staff/HR — store as pending; do NOT delete current avatar
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("SELECT avatar, pending_avatar FROM users WHERE id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $existing = $stmt->fetch();
 
-    // Keep the session in sync so the topbar/sidebar update instantly
-    $_SESSION['avatar'] = $filename;
+        if (!empty($existing['pending_avatar']) && $existing['pending_avatar'] !== $existing['avatar']) {
+            deleteAvatarFile($existing['pending_avatar'], $uploadDir);
+        }
+
+        $pdo->prepare("
+            UPDATE users SET pending_avatar = ?, profile_edit_requested = 1 WHERE id = ?
+        ")->execute([$filename, $userId]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        deleteAvatarFile($filename, $uploadDir);
+        echo json_encode(['error' => 'Could not save request: ' . $e->getMessage()]);
+        exit;
+    }
+
+    try {
+        ActivityLogger::log($pdo, 'request_avatar_change', "Requested avatar change (pending approval)", 'user', $userId);
+    } catch (Throwable $e) { error_log($e->getMessage()); }
 
     echo json_encode([
-        'success' => true,
-        'message' => 'Profile picture updated.',
-        'avatar' => $uploadUrl . $filename,
+        'success'     => true,
+        'pending'     => true,
+        'pending_url' => $uploadUrl . $filename,
+        'message'     => 'Avatar change submitted for admin approval.',
     ]);
     exit;
 }
 
-// ============================================
-// Unknown action
-// ============================================
 http_response_code(400);
 echo json_encode(['error' => 'Unknown action.']);

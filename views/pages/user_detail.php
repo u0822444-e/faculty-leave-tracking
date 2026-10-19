@@ -23,7 +23,7 @@ $stmt = $pdo->prepare("
         e.id AS employee_id,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.employment_type,
-        e.basic_salary, e.leave_credits, u.created_at
+        e.leave_credits, e.leave_pay, u.created_at
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.id = ?
@@ -40,6 +40,11 @@ if (!$user) {
 $employeeId = $user['employee_id'] ?? null;
 $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: $user['username'];
 $initials = strtoupper(substr($user['first_name'] ?? $user['username'], 0, 1) . substr($user['last_name'] ?? '', 0, 1));
+
+// ── Total Leave Pay = rate × credits ──
+$leavePayRate    = (float) ($user['leave_pay'] ?? 0);
+$leaveCredits    = (float) ($user['leave_credits'] ?? 0);
+$totalLeavePay   = $leavePayRate * $leaveCredits;
 
 // Leave stats
 $stmt = $pdo->prepare("
@@ -68,7 +73,8 @@ $stmt = $pdo->prepare("
 $stmt->execute([$employeeId]);
 $leaves = $stmt->fetchAll();
 
-// Payroll adjustments (last 50)
+// Leave Pay entries — read-only, used only for the Total Deduction sum
+// and to build the With Pay / Deduction badges on each leave row.
 $stmt = $pdo->prepare("
     SELECT pa.*, 
            lr.leave_type, lr.start_date AS leave_start, lr.end_date AS leave_end
@@ -81,12 +87,28 @@ $stmt = $pdo->prepare("
 $stmt->execute([$employeeId]);
 $payrolls = $stmt->fetchAll();
 
-// Payroll totals
-$totalDeductions = 0;
-$totalCredits = 0;
+// Total Deduction from existing entries
+$totalLeaveDeduct = 0;
 foreach ($payrolls as $p) {
-    if ($p['adjustment_type'] === 'deduction') $totalDeductions += (float) $p['amount'];
-    if ($p['adjustment_type'] === 'credit')    $totalCredits    += (float) $p['amount'];
+    if ($p['adjustment_type'] === 'deduction') {
+        $totalLeaveDeduct += (float) $p['amount'];
+    }
+}
+
+// Index leave-pay entries by leave_request_id for badges on leave rows
+$payByLeave = [];
+foreach ($payrolls as $p) {
+    if (empty($p['leave_request_id'])) continue;
+    $lid = (int) $p['leave_request_id'];
+    $type = $p['adjustment_type'];
+    if (!isset($payByLeave[$lid])) {
+        $payByLeave[$lid] = ['type' => $type, 'amount' => 0.0, 'count' => 0];
+    }
+    if ($type === 'credit' || ($type === 'adjustment' && $payByLeave[$lid]['type'] === 'deduction')) {
+        $payByLeave[$lid]['type'] = $type;
+    }
+    $payByLeave[$lid]['amount'] += (float) $p['amount'];
+    $payByLeave[$lid]['count']++;
 }
 
 // Badge styles
@@ -103,11 +125,6 @@ $statusStyles = [
     'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
     'rejected'  => 'text-red-600 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
-];
-$payrollStyles = [
-    'deduction'  => 'text-rose-600 bg-rose-50',
-    'credit'     => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'adjustment' => 'text-blue-600 bg-blue-50',
 ];
 
 $roleLabels = [
@@ -200,18 +217,25 @@ function timeAgoShort($ts) {
                     </div>
 
                     <!-- Quick facts -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-[#E0E0E0]">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-[#E0E0E0]">
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Employment</p>
                             <p class="text-sm font-semibold text-[#2C3E50] capitalize"><?= htmlspecialchars($user['employment_type'] ?? '—') ?></p>
                         </div>
                         <div>
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Basic Salary</p>
-                            <p class="text-sm font-semibold text-[#2C3E50]">₱<?= number_format($user['basic_salary'] ?? 0, 2) ?></p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Credits</p>
+                            <p class="text-sm font-semibold text-[#0F5E3D]"><?= number_format($leaveCredits) ?> days</p>
                         </div>
                         <div>
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Credits</p>
-                            <p class="text-sm font-semibold text-[#0F5E3D]"><?= number_format($user['leave_credits'] ?? 0, 2) ?> days</p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Total Leave Pay</p>
+                            <p class="text-sm font-semibold text-[#0F5E3D]">₱<?= number_format($totalLeavePay, 2) ?></p>
+                            <p class="text-[9px] text-[#2C3E50]/30 mt-0.5">
+                                ₱<?= number_format($leavePayRate, 2) ?> × <?= number_format($leaveCredits) ?>
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Total Deduction</p>
+                            <p class="text-sm font-semibold text-rose-600">₱<?= number_format($totalLeaveDeduct, 2) ?></p>
                         </div>
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Member Since</p>
@@ -240,143 +264,106 @@ function timeAgoShort($ts) {
                     </div>
                 </div>
 
-                <!-- Tabs -->
+                <!-- Leave History -->
                 <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <div class="border-b border-[#E0E0E0] flex overflow-x-auto">
-                        <button onclick="switchUserTab('leaves')" id="tabLeaves"
-                            class="user-tab whitespace-nowrap px-5 py-3 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D] transition">
+                        <div class="whitespace-nowrap px-5 py-3 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D]">
                             Leave History
                             <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1FDF6] text-[#0F5E3D]">
                                 <?= count($leaves) ?>
                             </span>
-                        </button>
-                        <button onclick="switchUserTab('payroll')" id="tabPayroll"
-                            class="user-tab whitespace-nowrap px-5 py-3 text-sm font-medium text-[#2C3E50]/60 border-b-2 border-transparent hover:text-[#2C3E50] transition">
-                            Payroll Adjustments
-                            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">
-                                <?= count($payrolls) ?>
-                            </span>
-                        </button>
+                        </div>
                     </div>
 
-                    <!-- Tab: Leaves -->
-                    <div id="panelLeaves" class="user-panel">
-                        <?php if (empty($leaves)): ?>
-                            <div class="p-12 text-center">
-                                <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
-                                    <i data-lucide="calendar-x" class="w-5 h-5"></i>
-                                </div>
-                                <p class="text-sm font-medium text-[#2C3E50]">No leave requests yet</p>
-                                <p class="text-xs text-[#2C3E50]/50 mt-1">This employee hasn't filed any leaves.</p>
+                    <?php if (empty($leaves)): ?>
+                        <div class="p-12 text-center">
+                            <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                                <i data-lucide="calendar-x" class="w-5 h-5"></i>
                             </div>
-                        <?php else: ?>
-                            <div class="divide-y divide-[#E0E0E0]">
-                                <?php foreach ($leaves as $l):
-                                    $leaveStyle = $leaveStyles[$l['leave_type']] ?? 'text-slate-600 bg-slate-100';
-                                    $statusStyle = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
-                                    ?>
-                                    <div class="px-4 py-3 hover:bg-[#F1FDF6]/40 transition">
-                                        <div class="flex items-center justify-between gap-3 flex-wrap">
-                                            <div class="flex items-center gap-2 flex-wrap min-w-0">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $leaveStyle ?>">
-                                                    <?= htmlspecialchars($l['leave_type']) ?>
-                                                </span>
-                                                <span class="text-sm font-medium text-[#2C3E50]">
-                                                    <?= date('M j', strtotime($l['start_date'])) ?>
-                                                    <?= $l['start_date'] !== $l['end_date'] ? ' – ' . date('M j, Y', strtotime($l['end_date'])) : ', ' . date('Y', strtotime($l['start_date'])) ?>
-                                                </span>
-                                                <span class="text-xs text-[#2C3E50]/50">
-                                                    (<?= number_format((float) $l['days_count'], 1) ?> day<?= $l['days_count'] == 1 ? '' : 's' ?>)
-                                                </span>
-                                            </div>
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $statusStyle ?>">
-                                                <?= htmlspecialchars($l['status']) ?>
+                            <p class="text-sm font-medium text-[#2C3E50]">No leave requests yet</p>
+                            <p class="text-xs text-[#2C3E50]/50 mt-1">This employee hasn't filed any leaves.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="divide-y divide-[#E0E0E0]">
+                            <?php foreach ($leaves as $l):
+                                $leaveStyle = $leaveStyles[$l['leave_type']] ?? 'text-slate-600 bg-slate-100';
+                                $statusStyle = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
+
+                                $linkedPay = $payByLeave[(int) $l['id']] ?? null;
+                                $payBadge = null;
+                                if ($linkedPay) {
+                                    if ($linkedPay['type'] === 'credit' || $linkedPay['type'] === 'adjustment') {
+                                        $payBadge = [
+                                            'label' => 'With Pay',
+                                            'class' => 'text-[#0F5E3D] bg-[#F1FDF6]',
+                                            'amount' => $linkedPay['amount'],
+                                            'sign' => '+',
+                                        ];
+                                    } else {
+                                        $payBadge = [
+                                            'label' => 'Deduction',
+                                            'class' => 'text-rose-600 bg-rose-50',
+                                            'amount' => $linkedPay['amount'],
+                                            'sign' => '−',
+                                        ];
+                                    }
+                                }
+                                ?>
+                                <div class="px-4 py-3 hover:bg-[#F1FDF6]/40 transition">
+                                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                                        <div class="flex items-center gap-2 flex-wrap min-w-0">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $leaveStyle ?>">
+                                                <?= htmlspecialchars($l['leave_type']) ?>
                                             </span>
-                                        </div>
-                                        <?php if (!empty($l['reason'])): ?>
-                                            <p class="text-xs text-[#2C3E50]/60 mt-1 truncate">
-                                                <?= htmlspecialchars($l['reason']) ?>
-                                            </p>
-                                        <?php endif; ?>
-                                        <div class="flex items-center gap-3 text-[10px] text-[#2C3E50]/40 mt-1.5">
-                                            <span class="flex items-center gap-1">
-                                                <i data-lucide="clock" class="w-3 h-3"></i>
-                                                Filed <?= timeAgoShort($l['created_at']) ?>
+                                            <span class="text-sm font-medium text-[#2C3E50]">
+                                                <?= date('M j', strtotime($l['start_date'])) ?>
+                                                <?= $l['start_date'] !== $l['end_date'] ? ' – ' . date('M j, Y', strtotime($l['end_date'])) : ', ' . date('Y', strtotime($l['start_date'])) ?>
                                             </span>
-                                            <?php if ($l['approved_at']): ?>
-                                                <span class="flex items-center gap-1">
-                                                    <i data-lucide="check" class="w-3 h-3"></i>
-                                                    <?= htmlspecialchars($l['approver_username'] ?? 'Admin') ?> · <?= timeAgoShort($l['approved_at']) ?>
+                                            <span class="text-xs text-[#2C3E50]/50">
+                                                (<?= number_format((float) $l['days_count'], 1) ?> day<?= $l['days_count'] == 1 ? '' : 's' ?>)
+                                            </span>
+
+                                            <?php if ($payBadge): ?>
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold <?= $payBadge['class'] ?>"
+                                                    title="Linked leave-pay amount">
+                                                    <i data-lucide="<?= $payBadge['sign'] === '+' ? 'plus' : 'minus' ?>" class="w-2.5 h-2.5"></i>
+                                                    <?= $payBadge['label'] ?>
+                                                    <span class="opacity-70">· <?= $payBadge['sign'] ?>₱<?= number_format($payBadge['amount'], 2) ?></span>
+                                                </span>
+                                            <?php elseif ($l['status'] === 'approved'): ?>
+                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100"
+                                                    title="No leave-pay entry linked">
+                                                    <i data-lucide="circle-dashed" class="w-2.5 h-2.5"></i>
+                                                    Unpaid
                                                 </span>
                                             <?php endif; ?>
                                         </div>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $statusStyle ?>">
+                                            <?= htmlspecialchars($l['status']) ?>
+                                        </span>
                                     </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Tab: Payroll -->
-                    <div id="panelPayroll" class="user-panel hidden">
-
-                        <!-- Payroll summary -->
-                        <?php if (!empty($payrolls)): ?>
-                            <div class="px-4 py-3 bg-[#F1FDF6]/40 border-b border-[#E0E0E0] grid grid-cols-2 gap-3">
-                                <div>
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Total Deductions</p>
-                                    <p class="text-lg font-bold text-rose-600">₱<?= number_format($totalDeductions, 2) ?></p>
-                                </div>
-                                <div>
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Total Credits</p>
-                                    <p class="text-lg font-bold text-[#0F5E3D]">₱<?= number_format($totalCredits, 2) ?></p>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if (empty($payrolls)): ?>
-                            <div class="p-12 text-center">
-                                <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
-                                    <i data-lucide="wallet" class="w-5 h-5"></i>
-                                </div>
-                                <p class="text-sm font-medium text-[#2C3E50]">No payroll adjustments yet</p>
-                                <p class="text-xs text-[#2C3E50]/50 mt-1">Adjustments appear here when leaves affect payroll.</p>
-                            </div>
-                        <?php else: ?>
-                            <div class="divide-y divide-[#E0E0E0]">
-                                <?php foreach ($payrolls as $p):
-                                    $payStyle = $payrollStyles[$p['adjustment_type']] ?? 'text-slate-600 bg-slate-100';
-                                    $sign = $p['adjustment_type'] === 'deduction' ? '−' : ($p['adjustment_type'] === 'credit' ? '+' : '');
-                                    $amountColor = $p['adjustment_type'] === 'deduction' ? 'text-rose-600' : ($p['adjustment_type'] === 'credit' ? 'text-[#0F5E3D]' : 'text-blue-600');
-                                    ?>
-                                    <div class="px-4 py-3 hover:bg-[#F1FDF6]/40 transition">
-                                        <div class="flex items-center justify-between gap-3 flex-wrap">
-                                            <div class="flex items-center gap-2 flex-wrap min-w-0">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $payStyle ?>">
-                                                    <?= htmlspecialchars($p['adjustment_type']) ?>
-                                                </span>
-                                                <?php if (!empty($p['leave_type'])): ?>
-                                                    <span class="text-xs text-[#2C3E50]/60">
-                                                        Leave: <?= htmlspecialchars($p['leave_type']) ?>
-                                                        (<?= date('M j', strtotime($p['leave_start'])) ?>–<?= date('M j', strtotime($p['leave_end'])) ?>)
-                                                    </span>
-                                                <?php endif; ?>
-                                                <span class="text-xs text-[#2C3E50]/50">
-                                                    Effective <?= date('M j, Y', strtotime($p['effective_date'])) ?>
-                                                </span>
-                                            </div>
-                                            <span class="text-sm font-bold <?= $amountColor ?>">
-                                                <?= $sign ?>₱<?= number_format((float) $p['amount'], 2) ?>
+                                    <?php if (!empty($l['reason'])): ?>
+                                        <p class="text-xs text-[#2C3E50]/60 mt-1 truncate">
+                                            <?= htmlspecialchars($l['reason']) ?>
+                                        </p>
+                                    <?php endif; ?>
+                                    <div class="flex items-center gap-3 text-[10px] text-[#2C3E50]/40 mt-1.5">
+                                        <span class="flex items-center gap-1">
+                                            <i data-lucide="clock" class="w-3 h-3"></i>
+                                            Filed <?= timeAgoShort($l['created_at']) ?>
+                                        </span>
+                                        <?php if ($l['approved_at']): ?>
+                                            <span class="flex items-center gap-1">
+                                                <i data-lucide="check" class="w-3 h-3"></i>
+                                                <?= htmlspecialchars($l['approver_username'] ?? 'Admin') ?> · <?= timeAgoShort($l['approved_at']) ?>
                                             </span>
-                                        </div>
-                                        <?php if (!empty($p['remarks'])): ?>
-                                            <p class="text-xs text-[#2C3E50]/60 mt-1 truncate"><?= htmlspecialchars($p['remarks']) ?></p>
                                         <?php endif; ?>
                                     </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
 
                 </div>
 
@@ -392,23 +379,6 @@ function timeAgoShort($ts) {
     <script src="/assets/js/notifications.js"></script>
     <script src="/assets/js/profile.js"></script>
     <script>
-        // Tab switching
-        function switchUserTab(tab) {
-            document.querySelectorAll('.user-tab').forEach(btn => {
-                btn.className = 'user-tab whitespace-nowrap px-5 py-3 text-sm font-medium text-[#2C3E50]/60 border-b-2 border-transparent hover:text-[#2C3E50] transition';
-            });
-            const active = document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1));
-            if (active) {
-                active.className = 'user-tab whitespace-nowrap px-5 py-3 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D] transition';
-            }
-
-            document.querySelectorAll('.user-panel').forEach(p => p.classList.add('hidden'));
-            const panel = document.getElementById('panel' + tab.charAt(0).toUpperCase() + tab.slice(1));
-            if (panel) panel.classList.remove('hidden');
-
-            if (typeof initIcons === 'function') initIcons();
-        }
-
         document.addEventListener('DOMContentLoaded', () => {
             if (typeof initIcons === 'function') initIcons();
         });

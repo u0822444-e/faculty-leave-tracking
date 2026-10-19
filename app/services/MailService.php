@@ -11,6 +11,7 @@ class MailService
 {
     private PHPMailer $mail;
     private array $config;
+    private string $lastError = '';   // ← ADDED
 
     public function __construct()
     {
@@ -36,7 +37,8 @@ class MailService
                 $this->config['from_name']
             );
         } catch (Exception $e) {
-            error_log('Mail setup failed: ' . $e->getMessage());
+            $this->lastError = 'Mail setup failed: ' . $e->getMessage();   // ← ADDED
+            error_log($this->lastError);
         }
     }
 
@@ -66,8 +68,14 @@ class MailService
             $this->mail->send();
             return true;
         } catch (Exception $e) {
-            error_log('Mail send failed: ' . $this->mail->ErrorInfo);
+            $this->lastError = $this->mail->ErrorInfo ?: $e->getMessage();   // ← ADDED
+            error_log('Mail send failed: ' . $this->lastError);
             return false;
         }
+    }
+
+    public function getLastError(): string   // ← ADDED
+    {
+        return $this->lastError;
     }
 }

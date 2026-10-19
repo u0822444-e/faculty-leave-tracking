@@ -10,11 +10,9 @@ require_once __DIR__ . '/../helpers/ActivityLogger.php';
 
 $action = $_POST['action'] ?? '';
 
-// Detect whether this call came from the AJAX change-password page or a form POST
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH'])
     && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
-// Also treat POSTs to /change-password as JSON responses
 $requestUri = $_SERVER['REQUEST_URI'] ?? '';
 $isChangePasswordEndpoint = str_starts_with($requestUri, '/change-password');
 
@@ -36,7 +34,6 @@ try {
             exit;
         }
 
-        // Look up user by email (join employees)
         $stmt = $pdo->prepare("
             SELECT u.id, u.username, e.first_name, e.email
             FROM users u
@@ -47,9 +44,7 @@ try {
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
-        // Always show success message (don't reveal if email exists)
         if ($user) {
-            // Generate secure token
             $token = bin2hex(random_bytes(32));
             $expires = date('Y-m-d H:i:s', strtotime('+30 minutes'));
 
@@ -61,15 +56,13 @@ try {
             $stmt->execute([$token, $expires, $user['id']]);
 
             $appUrl = rtrim(Env::get('APP_URL', 'http://localhost'), '/');
-	    $resetLink = $appUrl . '/reset-password?token=' . urlencode($token);
+            $resetLink = $appUrl . '/reset-password?token=' . urlencode($token);
 
-            // Debug log
             error_log('RESET LINK: ' . $resetLink);
 
-            // Send email
             try {
                 $mailer = new MailService();
-                $mailer
+                $sent = $mailer
                     ->to($email, $user['first_name'] ?: $user['username'])
                     ->subject('Password Reset Request — DAMMC')
                     ->body(EmailTemplates::passwordReset(
@@ -77,6 +70,10 @@ try {
                         $resetLink
                     ))
                     ->send();
+
+                if (!$sent) {
+                    error_log('Reset email failed: ' . $mailer->getLastError());
+                }
             } catch (Throwable $e) {
                 error_log('Reset email failed: ' . $e->getMessage());
             }
@@ -125,7 +122,6 @@ try {
             exit;
         }
 
-        // Validate token
         $stmt = $pdo->prepare("
             SELECT id FROM users 
             WHERE reset_token = ? 
@@ -141,7 +137,6 @@ try {
             exit;
         }
 
-        // Update password + clear token
         $hashed = password_hash($password, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("
             UPDATE users 
@@ -149,6 +144,41 @@ try {
             WHERE id = ?
         ");
         $stmt->execute([$hashed, $user['id']]);
+
+        // Confirmation email (non-blocking)
+        try {
+            $stmt = $pdo->prepare("
+                SELECT u.username, e.first_name, e.last_name, e.email
+                FROM users u
+                LEFT JOIN employees e ON u.employee_id = e.id
+                WHERE u.id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$user['id']]);
+            $info = $stmt->fetch();
+
+            if ($info && !empty($info['email'])) {
+                $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''))
+                    ?: $info['username'];
+
+                $mailer = new MailService();
+                $sent = $mailer
+                    ->to($info['email'], $displayName)
+                    ->subject('Your password was changed — DAMMC')
+                    ->body(EmailTemplates::passwordChanged(
+                        $displayName,
+                        $info['username'],
+                        date('F j, Y \a\t g:i A')
+                    ))
+                    ->send();
+
+                if (!$sent) {
+                    error_log('Password-changed email failed (reset): ' . $mailer->getLastError());
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('Password-changed email failed (reset): ' . $e->getMessage());
+        }
 
         $_SESSION['success'] = 'Password reset successfully. You can now sign in.';
         header('Location: /login');
@@ -207,7 +237,54 @@ try {
             ActivityLogger::log($pdo, 'change_password', 'Changed account password', 'user', $userId);
         }
 
-        echo json_encode(['success' => true, 'message' => 'Password updated.']);
+        // Confirmation email (non-blocking)
+        $emailSent = false;
+        $emailError = null;
+
+        try {
+            $stmt = $pdo->prepare("
+                SELECT u.username, e.first_name, e.last_name, e.email
+                FROM users u
+                LEFT JOIN employees e ON u.employee_id = e.id
+                WHERE u.id = ?
+                LIMIT 1
+            ");
+            $stmt->execute([$userId]);
+            $info = $stmt->fetch();
+
+            if ($info && !empty($info['email'])) {
+                $displayName = trim(($info['first_name'] ?? '') . ' ' . ($info['last_name'] ?? ''))
+                    ?: $info['username'];
+
+                $mailer = new MailService();
+                $emailSent = $mailer
+                    ->to($info['email'], $displayName)
+                    ->subject('Your password was changed — DAMMC')
+                    ->body(EmailTemplates::passwordChanged(
+                        $displayName,
+                        $info['username'],
+                        date('F j, Y \a\t g:i A')
+                    ))
+                    ->send();
+
+                if (!$emailSent) {
+                    $emailError = $mailer->getLastError() ?: 'Email could not be sent.';
+                    error_log('Password-changed email failed (change_password): ' . $emailError);
+                }
+            } else {
+                $emailError = 'No email address on file.';
+            }
+        } catch (Throwable $e) {
+            $emailError = $e->getMessage();
+            error_log('Password-changed email failed (change_password): ' . $e->getMessage());
+        }
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Password updated.',
+            'email_sent' => $emailSent,
+            'email_error' => $emailError,
+        ]);
         exit;
     }
 

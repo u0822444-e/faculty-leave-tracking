@@ -10,7 +10,8 @@ if ($_SESSION['role'] !== 'admin') {
 
 require_once __DIR__ . '/../../config/database.php';
 
-$workingDaysPerMonth = 22;
+// Kept for reference; no longer used now that we derive from leave_pay × credits.
+// $workingDaysPerMonth = 22;
 
 // ============================================
 // Pagination setup
@@ -27,7 +28,7 @@ $stmt = $pdo->prepare("
         e.id AS employee_id,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.employment_type,
-        e.basic_salary, e.leave_credits,
+        e.leave_pay, e.leave_credits,
         u.username, u.status AS user_status,
         COALESCE(lr.credits_used, 0) AS credits_used
     FROM employees e
@@ -70,15 +71,19 @@ $categoryCountsPage = ['faculty' => 0, 'staff' => 0];
 $employmentCountsPage = ['full-time' => 0, 'part-time' => 0];
 
 foreach ($employees as $e) {
-    $monthlySalary = (float) $e['basic_salary'];
-    $dailyRate = $monthlySalary > 0 ? $monthlySalary / $workingDaysPerMonth : 0;
+    $leavePayRate = (float) $e['leave_pay'];
+    $used         = (float) $e['credits_used'];
+    $allocated    = (float) $e['leave_credits'];
+    $remaining    = max(0, $allocated - $used);
 
-    $used = (float) $e['credits_used'];
-    $allocated = (float) $e['leave_credits'];
-    $remaining = max(0, $allocated - $used);
+    // Total value of the employee's leave credits at the current rate
+    $totalLeavePay = $leavePayRate * $allocated;
 
-    $saved = $dailyRate * $used;
-    $convertible = $dailyRate * $remaining;
+    // Portion already consumed by approved leaves
+    $saved = $leavePayRate * $used;
+
+    // Portion still convertible
+    $convertible = $leavePayRate * $remaining;
 
     $cat = $e['category'] ?? 'staff';
     if (isset($categoryCountsPage[$cat])) $categoryCountsPage[$cat]++;
@@ -88,20 +93,20 @@ foreach ($employees as $e) {
 
     $rows[] = [
         'employee_id' => (int) $e['employee_id'],
-        'name' => trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['username'] ?? 'Unknown'),
-        'initials' => strtoupper(substr($e['first_name'] ?? 'U', 0, 1) . substr($e['last_name'] ?? '', 0, 1)),
-        'email' => $e['email'] ?? '—',
-        'category' => $cat,
-        'sub_category' => $e['sub_category'] ?? '',
-        'employment' => $emp,
-        'monthly' => $monthlySalary,
-        'daily_rate' => $dailyRate,
-        'allocated' => $allocated,
-        'used' => $used,
-        'remaining' => $remaining,
-        'saved' => $saved,
+        'name'        => trim(($e['first_name'] ?? '') . ' ' . ($e['last_name'] ?? '')) ?: ($e['username'] ?? 'Unknown'),
+        'initials'    => strtoupper(substr($e['first_name'] ?? 'U', 0, 1) . substr($e['last_name'] ?? '', 0, 1)),
+        'email'       => $e['email'] ?? '—',
+        'category'    => $cat,
+        'sub_category'=> $e['sub_category'] ?? '',
+        'employment'  => $emp,
+        'leave_pay'   => $leavePayRate,
+        'total_pay'   => $totalLeavePay,
+        'allocated'   => $allocated,
+        'used'        => $used,
+        'remaining'   => $remaining,
+        'saved'       => $saved,
         'convertible' => $convertible,
-        'status' => $e['user_status'] ?? 'active',
+        'status'      => $e['user_status'] ?? 'active',
     ];
 }
 
@@ -117,7 +122,7 @@ $agg = $pdo->query("
         e.category,
         e.sub_category,
         e.employment_type,
-        e.basic_salary,
+        e.leave_pay,
         e.leave_credits,
         COALESCE(lr.credits_used, 0) AS credits_used
     FROM employees e
@@ -130,30 +135,31 @@ $agg = $pdo->query("
     WHERE e.category IN ('faculty', 'staff')
 ")->fetchAll();
 
-$totalSaved = 0;
+$totalSaved       = 0;
 $totalConvertible = 0;
-$totalUsedDays = 0;
-$totalRemaining = 0;
-$savedByDept = [];
+$totalUsedDays    = 0;
+$totalRemaining   = 0;
+$totalPayValue    = 0;
+$savedByDept      = [];
 $convertibleByCat = ['faculty' => 0, 'staff' => 0];
-$categoryCounts = ['faculty' => 0, 'staff' => 0];
+$categoryCounts   = ['faculty' => 0, 'staff' => 0];
 $employmentCounts = ['full-time' => 0, 'part-time' => 0];
 
 foreach ($agg as $a) {
-    $monthlySalary = (float) $a['basic_salary'];
-    $dailyRate = $monthlySalary > 0 ? $monthlySalary / $workingDaysPerMonth : 0;
+    $leavePayRate = (float) $a['leave_pay'];
+    $used         = (float) $a['credits_used'];
+    $allocated    = (float) $a['leave_credits'];
+    $remaining    = max(0, $allocated - $used);
 
-    $used = (float) $a['credits_used'];
-    $allocated = (float) $a['leave_credits'];
-    $remaining = max(0, $allocated - $used);
+    $saved       = $leavePayRate * $used;
+    $convertible = $leavePayRate * $remaining;
+    $payValue    = $leavePayRate * $allocated;
 
-    $saved = $dailyRate * $used;
-    $convertible = $dailyRate * $remaining;
-
-    $totalSaved += $saved;
+    $totalSaved       += $saved;
     $totalConvertible += $convertible;
-    $totalUsedDays += $used;
-    $totalRemaining += $remaining;
+    $totalUsedDays    += $used;
+    $totalRemaining   += $remaining;
+    $totalPayValue    += $payValue;
 
     $cat = $a['category'] ?? 'staff';
     if (isset($categoryCounts[$cat])) $categoryCounts[$cat]++;
@@ -172,7 +178,7 @@ $totalEmployees = count($agg);
 
 // Top departments for the bar chart
 arsort($savedByDept);
-$deptChart = array_slice($savedByDept, 0, 6, true);
+$deptChart  = array_slice($savedByDept, 0, 6, true);
 $deptLabels = array_keys($deptChart);
 $deptValues = array_values($deptChart);
 
@@ -207,7 +213,7 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
 
             <?php
             $pageTitle = 'Payroll';
-            $pageSubtitle = 'Institution-wide payroll savings & convertible liabilities';
+            $pageSubtitle = 'Institution-wide leave pay usage & convertible balance';
             $pageIcon = 'wallet';
             require __DIR__ . '/../components/topbar.php';
             ?>
@@ -219,19 +225,19 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                 <!-- ============================================ -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
 
-                    <!-- Payroll saved this period -->
+                    <!-- Leave pay used this period -->
                     <div class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
                         <div class="flex items-start justify-between gap-4 mb-4">
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">
-                                    Payroll Saved This Period</p>
+                                    Leave Pay Used This Period</p>
                                 <div class="flex items-baseline gap-2">
                                     <span class="text-3xl sm:text-4xl font-bold text-[#0F5E3D]">
                                         ₱<?= number_format($totalSaved, 2) ?>
                                     </span>
                                 </div>
                                 <p class="text-xs text-[#2C3E50]/50 mt-1">
-                                    from unpaid leave days across all faculty &amp; staff
+                                    value of paid leave used across all faculty &amp; staff
                                 </p>
                             </div>
                             <div class="w-10 h-10 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
@@ -244,11 +250,11 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
                                     Approved Leave Days</p>
                                 <p class="text-lg font-bold text-[#2C3E50]"><?= number_format($totalUsedDays, 2) ?></p>
-                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">unpaid work days</p>
+                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">paid leave days</p>
                             </div>
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
-                                    Convertible Liability</p>
+                                    Convertible Balance</p>
                                 <p class="text-lg font-bold text-amber-600">₱<?= number_format($totalConvertible, 2) ?></p>
                                 <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">remaining unused credits</p>
                             </div>
@@ -293,16 +299,16 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                 <!-- ============================================ -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
 
-                    <!-- Bar: saved by department -->
+                    <!-- Bar: leave pay used by department -->
                     <div class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between mb-3">
                             <div>
-                                <h2 class="text-sm font-bold text-[#2C3E50]">Unpaid Leave Cost by Department</h2>
-                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">₱ value of unpaid leave days · top departments</p>
+                                <h2 class="text-sm font-bold text-[#2C3E50]">Leave Pay Used by Department</h2>
+                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">₱ value of paid leave · top departments</p>
                             </div>
                             <div class="flex items-center gap-1.5 text-[10px] text-[#2C3E50]/60">
                                 <span class="w-2 h-2 rounded-full bg-[#0F5E3D]"></span>
-                                <span>Saved (₱)</span>
+                                <span>Used (₱)</span>
                             </div>
                         </div>
                         <div class="relative h-56">
@@ -310,10 +316,10 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                         </div>
                     </div>
 
-                    <!-- Donut: convertible liability by category -->
+                    <!-- Donut: convertible balance by category -->
                     <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="mb-3">
-                            <h2 class="text-sm font-bold text-[#2C3E50]">Convertible Liability</h2>
+                            <h2 class="text-sm font-bold text-[#2C3E50]">Convertible Balance</h2>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Remaining credits · ₱ value</p>
                         </div>
                         <div class="relative h-40">
@@ -348,7 +354,7 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                         <p class="text-xl font-bold text-[#2C3E50]"><?= number_format($totalUsedDays, 2) ?></p>
                     </div>
                     <div class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Payroll Saved</p>
+                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Leave Pay Used</p>
                         <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($totalSaved, 2) ?></p>
                     </div>
                     <div class="animate-fade-in-up-delay-3 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
@@ -388,7 +394,7 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                             <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center shrink-0 group-hover:bg-[#0F5E3D]/10">
                                                 <i data-lucide="piggy-bank" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
                                             </div>
-                                            <span class="flex-1">Most Saved</span>
+                                            <span class="flex-1">Most Used</span>
                                             <i data-lucide="check" class="w-3.5 h-3.5 text-[#0F5E3D] opacity-0 sort-check" data-sort="saved-desc"></i>
                                         </button>
                                         <button onclick="applySort('convertible-desc')"
@@ -589,10 +595,10 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                     <tr class="h-11">
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Employee</th>
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Category</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Monthly</th>
+                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Used</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Remaining</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Payroll Saved</th>
+                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Pay Used</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Convertible</th>
                                     </tr>
                                 </thead>
@@ -634,7 +640,8 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-[#2C3E50]">₱<?= number_format($r['monthly'], 2) ?></span>
+                                                <span class="text-sm text-[#2C3E50]">₱<?= number_format($r['leave_pay'], 2) ?></span>
+                                                <p class="text-[10px] text-[#2C3E50]/40">per credit</p>
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['used'], 2) ?></span>
@@ -706,8 +713,8 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                     </div>
                                     <div class="grid grid-cols-2 gap-2 text-xs">
                                         <div>
-                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Monthly</p>
-                                            <p class="text-[#2C3E50] font-medium">₱<?= number_format($r['monthly'], 2) ?></p>
+                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Pay</p>
+                                            <p class="text-[#2C3E50] font-medium">₱<?= number_format($r['leave_pay'], 2) ?> <span class="text-[10px] text-[#2C3E50]/40">/ credit</span></p>
                                         </div>
                                         <div>
                                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Used / Remaining</p>
@@ -718,7 +725,7 @@ $avgConvertible = $totalEmployees > 0 ? $totalConvertible / $totalEmployees : 0;
                                             </p>
                                         </div>
                                         <div>
-                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Payroll Saved</p>
+                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Pay Used</p>
                                             <p class="text-[#0F5E3D] font-bold">₱<?= number_format($r['saved'], 2) ?></p>
                                         </div>
                                         <div>

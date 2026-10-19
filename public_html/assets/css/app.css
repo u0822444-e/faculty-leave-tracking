@@ -34,3 +34,63 @@ body {
 .card-in {
     animation: cardIn 0.5s ease-out both;
 }
+
+/* ============================================================
+   Grey → Black text overrides
+   Applies to all "muted" greys used across the app so labels,
+   helper text, table headers, meta rows, and subtitles render
+   in solid black instead of faded grey.
+   ============================================================ */
+
+/* 1. Opacity-based greys: text-[#2C3E50]/40, /50, /60, /70 */
+.text-\[\#2C3E50\]\/40,
+.text-\[\#2C3E50\]\/50,
+.text-\[\#2C3E50\]\/60,
+.text-\[\#2C3E50\]\/70 {
+    color: #000000 !important;
+}
+
+/* 2. Tailwind slate / gray / zinc / neutral / stone text scales */
+.text-slate-400, .text-slate-500, .text-slate-600, .text-slate-700,
+.text-gray-400,  .text-gray-500,  .text-gray-600,  .text-gray-700,
+.text-zinc-400,  .text-zinc-500,  .text-zinc-600,  .text-zinc-700,
+.text-neutral-400, .text-neutral-500, .text-neutral-600, .text-neutral-700,
+.text-stone-400, .text-stone-500, .text-stone-600, .text-stone-700 {
+    color: #000000 !important;
+}
+
+/* 3. Input placeholders — keep them distinguishable from real values
+      but darker than the default grey. */
+input::placeholder,
+textarea::placeholder,
+select::placeholder {
+    color: #4b5563 !important;   /* gray-600 — still readable, still clearly "placeholder" */
+    opacity: 1;
+}
+
+/* 4. <kbd> hints (the "/" search shortcut) */
+kbd {
+    color: #000000 !important;
+    background-color: #ffffff;
+    border-color: #d1d5db;
+}
+
+/* 5. Table headers, empty-state subtitles, modal subtitles */
+thead th {
+    color: #000000 !important;
+}
+
+/* 6. Helper text under password fields etc. */
+.text-\[\#2C3E50\]\/40,
+.text-\[\#2C3E50\]\/50 {
+    color: #000000 !important;
+}
+
+/* 7. Keep disabled inputs visually different — grey is a legitimate
+      affordance there, so don't force black on disabled fields. */
+input:disabled,
+select:disabled,
+textarea:disabled {
+    color: #6b7280 !important;
+    background-color: #f9fafb !important;
+}

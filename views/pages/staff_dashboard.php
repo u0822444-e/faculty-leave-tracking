@@ -8,20 +8,19 @@ require_once __DIR__ . '/../../config/database.php';
 
 $userId = (int) $_SESSION['user_id'];
 
-// Helper: format a number, drop trailing zeros, keep meaningful decimals (e.g. 7.5, 7)
 if (!function_exists('fmt_credits')) {
     function fmt_credits($n) {
         return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
     }
 }
 
-// Fetch this staff member's full record
+// leave_pay is the per-credit rate, NOT salary
 $stmt = $pdo->prepare("
     SELECT 
         e.id AS employee_id,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.year_level, e.position, e.employment_type,
-        e.basic_salary, e.leave_credits
+        e.leave_credits, e.leave_pay
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.id = ?
@@ -35,14 +34,14 @@ $lastName  = $me['last_name']  ?? ($_SESSION['last_name']  ?? '');
 $initials  = strtoupper(substr($firstName, 0, 1) . substr($lastName, 0, 1));
 $employeeId = (int) ($me['employee_id'] ?? 0);
 $isPartTime = (($me['employment_type'] ?? 'full-time') === 'part-time');
-$basicSalary = (float) ($me['basic_salary'] ?? 0);
 
-// Leave stats
+$leavePayRate = (float) ($me['leave_pay'] ?? 0);
+
 $pendingCount  = 0;
 $approvedCount = 0;
 $rejectedCount = 0;
 $recentLeaves  = [];
-$creditsUsed = 0;
+$creditsUsed   = 0;
 
 $typeUsed = [
     'vacation'  => 0,
@@ -53,6 +52,7 @@ $typeUsed = [
     'other'     => 0,
 ];
 
+$lwopDays = 0;
 $statusCounts = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'cancelled' => 0];
 
 if ($employeeId > 0) {
@@ -72,7 +72,15 @@ if ($employeeId > 0) {
     $rejectedCount = (int) ($stats['rejected_count'] ?? 0);
     $creditsUsed   = (float) ($stats['credits_used'] ?? 0);
 
-    // Recent 5 leaves
+    // LWOP days — approved + no-pay leaves
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(days_count), 0)
+        FROM leave_requests
+        WHERE employee_id = ? AND status = 'approved' AND leave_type = 'other'
+    ");
+    $stmt->execute([$employeeId]);
+    $lwopDays = (float) $stmt->fetchColumn();
+
     $stmt = $pdo->prepare("
         SELECT id, leave_type, start_date, end_date, days_count, status, created_at
         FROM leave_requests
@@ -83,7 +91,6 @@ if ($employeeId > 0) {
     $stmt->execute([$employeeId]);
     $recentLeaves = $stmt->fetchAll();
 
-    // Per-type usage (approved)
     $stmt = $pdo->prepare("
         SELECT leave_type, COALESCE(SUM(days_count), 0) AS total
         FROM leave_requests
@@ -97,7 +104,6 @@ if ($employeeId > 0) {
         }
     }
 
-    // Status counts (all leaves)
     $stmt = $pdo->prepare("
         SELECT status, COUNT(*) AS c
         FROM leave_requests
@@ -112,14 +118,11 @@ if ($employeeId > 0) {
     }
 }
 
-$totalCredits = (float)($me['leave_credits'] ?? 0);
+$totalCredits     = (float)($me['leave_credits'] ?? 0);
 $leaveCreditsLeft = max(0, $totalCredits - $creditsUsed);
-$otherUsed = $typeUsed['maternity'] + $typeUsed['paternity'] + $typeUsed['terminal'] + $typeUsed['other'];
-$usedPct = $totalCredits > 0 ? min(100, round(($creditsUsed / $totalCredits) * 100, 1)) : 0;
+$otherUsed        = $typeUsed['maternity'] + $typeUsed['paternity'] + $typeUsed['terminal'] + $typeUsed['other'];
+$usedPct          = $totalCredits > 0 ? min(100, round(($creditsUsed / $totalCredits) * 100, 1)) : 0;
 
-// ============================================
-// Per-type credit caps + remaining
-// ============================================
 $typeCaps = [
     'vacation' => 7.5,
     'sick'     => 7.5,
@@ -129,16 +132,11 @@ foreach ($typeCaps as $t => $cap) {
     $typeRemaining[$t] = max(0, $cap - ($typeUsed[$t] ?? 0));
 }
 
-// Estimated payroll deduction
-$workingDaysPerMonth = 22;
-$dailyRate = $basicSalary > 0 ? $basicSalary / $workingDaysPerMonth : 0;
-$estimatedDeduction = $dailyRate * $creditsUsed;
+// Leave Pay math
+$totalLeavePay     = $leavePayRate * $totalCredits;
+$remainingLeavePay = $leavePayRate * $leaveCreditsLeft;
+$leaveDeduction    = $leavePayRate * $lwopDays;
 
-// Estimated convertible credits to payroll
-$convertibleCredits = $leaveCreditsLeft;
-$convertiblePayroll = $dailyRate * $convertibleCredits;
-
-// Monthly trend — approved days per month (last 6 months)
 $trendLabels = [];
 $trendValues = [];
 for ($i = 5; $i >= 0; $i--) {
@@ -205,11 +203,9 @@ $statusLabels = [
                 <!-- HERO ROW -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
 
-                    <!-- Leave credits overview -->
                     <div class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col">
                         <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
 
-                            <!-- Left: credits + identity -->
                             <div class="min-w-0">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Leave Credits</p>
                                 <div class="flex items-baseline gap-2">
@@ -221,7 +217,6 @@ $statusLabels = [
                                     </span>
                                 </div>
 
-                                <!-- Compact identity chips -->
                                 <div class="flex items-center gap-1.5 flex-wrap mt-2">
                                     <?php if (!empty($me['category'])): ?>
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#0F5E3D] bg-[#F1FDF6] border border-[#0F5E3D]/10">
@@ -256,7 +251,6 @@ $statusLabels = [
                                 </div>
                             </div>
 
-                            <!-- Right: CTA + icon -->
                             <div class="flex items-center gap-2 shrink-0">
                                 <?php if (!$isPartTime): ?>
                                     <a href="/staff/leaves"
@@ -277,7 +271,6 @@ $statusLabels = [
                             </div>
                         </div>
 
-                        <!-- Mobile-only CTA -->
                         <?php if (!$isPartTime): ?>
                             <a href="/staff/leaves"
                                 class="sm:hidden w-full flex items-center justify-center gap-2 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm shadow-sm mb-4">
@@ -297,7 +290,6 @@ $statusLabels = [
                             </div>
                         </div>
 
-                        <!-- Totals -->
                         <div class="grid grid-cols-3 gap-3 pt-4 border-t border-[#E0E0E0]">
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Allocated</p>
@@ -313,10 +305,8 @@ $statusLabels = [
                             </div>
                         </div>
 
-                        <!-- Per-type credits (capped types) -->
                         <div class="grid grid-cols-2 gap-3 pt-4 mt-1 border-t border-[#E0E0E0] flex-1 content-start">
 
-                            <!-- Vacation -->
                             <?php
                                 $vUsed  = (float) ($typeUsed['vacation'] ?? 0);
                                 $vCap   = (float) ($typeCaps['vacation'] ?? 0);
@@ -340,7 +330,6 @@ $statusLabels = [
                                 </div>
                             </div>
 
-                            <!-- Sick -->
                             <?php
                                 $sUsed  = (float) ($typeUsed['sick'] ?? 0);
                                 $sCap   = (float) ($typeCaps['sick'] ?? 0);
@@ -367,43 +356,47 @@ $statusLabels = [
                         </div>
                     </div>
 
-                    <!-- Right column: two stacked cards (stretch to match left card height) -->
                     <div class="flex flex-col gap-3 sm:gap-4 h-full">
 
                         <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Est. Payroll Deduction</p>
-                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                                    <i data-lucide="receipt" class="w-4 h-4"></i>
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total Leave Pay</p>
+                                <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                    <i data-lucide="banknote" class="w-4 h-4"></i>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-[#2C3E50]">
-                                ₱<?= number_format($estimatedDeduction, 2) ?>
+                            <span class="text-2xl sm:text-3xl font-bold text-[#0F5E3D]">
+                                ₱<?= number_format($totalLeavePay, 2) ?>
                             </span>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
-                                <?php if ($basicSalary > 0): ?>
-                                    ₱<?= number_format($basicSalary, 2) ?>/mo ÷ 22 × <?= number_format($creditsUsed, 0) ?> day(s)
+                                <?php if ($leavePayRate > 0): ?>
+                                    ₱<?= number_format($leavePayRate, 2) ?>/credit × <?= fmt_credits($totalCredits) ?> credits
+                                    <span class="block mt-0.5 text-[#0F5E3D] font-medium">
+                                        ₱<?= number_format($remainingLeavePay, 2) ?> still convertible
+                                    </span>
                                 <?php else: ?>
-                                    no salary on file
+                                    no leave pay rate on file
                                 <?php endif; ?>
                             </p>
                         </div>
 
                         <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Est. Convertible Credits</p>
-                                <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                                    <i data-lucide="banknote" class="w-4 h-4"></i>
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Leave Deduction (LWOP)</p>
+                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
+                                    <i data-lucide="receipt" class="w-4 h-4"></i>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-[#0F5E3D]">
-                                ₱<?= number_format($convertiblePayroll, 2) ?>
+                            <span class="text-2xl sm:text-3xl font-bold text-[#2C3E50]">
+                                ₱<?= number_format($leaveDeduction, 2) ?>
                             </span>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
-                                <?php if ($basicSalary > 0): ?>
-                                    <?= fmt_credits($convertibleCredits) ?> day(s) × ₱<?= number_format($dailyRate, 2) ?>/day
+                                <?php if ($leavePayRate > 0 && $lwopDays > 0): ?>
+                                    <?= fmt_credits($lwopDays) ?> day(s) × ₱<?= number_format($leavePayRate, 2) ?>/credit
+                                <?php elseif ($lwopDays <= 0): ?>
+                                    no leave-without-pay days
                                 <?php else: ?>
-                                    no salary on file
+                                    no leave pay rate on file
                                 <?php endif; ?>
                             </p>
                         </div>
@@ -577,8 +570,8 @@ $statusLabels = [
                                 <dd class="text-[#2C3E50] capitalize"><?= htmlspecialchars($me['employment_type'] ?? '—') ?></dd>
                             </div>
                             <div>
-                                <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Monthly Salary</dt>
-                                <dd class="text-[#2C3E50]">₱<?= number_format($basicSalary, 2) ?></dd>
+                                <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Leave Pay Rate</dt>
+                                <dd class="text-[#2C3E50]">₱<?= number_format($leavePayRate, 2) ?> / credit</dd>
                             </div>
                         </dl>
 

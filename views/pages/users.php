@@ -24,9 +24,7 @@ if ($statusFilter === 'active') {
 } elseif ($statusFilter === 'inactive') {
     $whereStatus = " WHERE u.status = 'inactive' ";
 }
-// 'all' → no filter
 
-// Preserve the status in pagination URLs (unless it's the default)
 $baseQs = $statusFilter !== 'active' ? '&status=' . urlencode($statusFilter) : '';
 
 // ============================================
@@ -50,10 +48,10 @@ if ($page > $totalPages) {
 // ============================================
 $sql = "
     SELECT 
-        u.id AS user_id, u.username, u.role, u.status, u.avatar,
+        u.id AS user_id, u.username, u.role, u.status, u.avatar, u.profile_edit_requested,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.year_level, e.position,
-        e.employment_type, e.basic_salary, e.leave_credits,
+        e.employment_type, e.leave_credits, e.leave_pay,
         u.created_at
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
@@ -80,7 +78,6 @@ $roleLabels = [
     'staff' => 'Staff',
 ];
 
-// Default new-user password from settings
 $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'default_new_user_password' LIMIT 1");
 $stmt->execute();
 $defaultNewUserPassword = $stmt->fetchColumn() ?: 'Welcome@2026';
@@ -150,7 +147,6 @@ $statusLabelText = $statusFilter === 'inactive'
 
                         <div class="flex flex-wrap items-center gap-2">
 
-                            <!-- View toggle -->
                             <div class="flex items-center bg-[#F1FDF6] rounded-lg p-0.5">
                                 <button id="viewGridBtn" onclick="setView('grid')"
                                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] transition">
@@ -164,7 +160,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                 </button>
                             </div>
 
-                            <!-- Sort dropdown -->
                             <div class="relative" id="sortWrap">
                                 <button onclick="toggleSortMenu()"
                                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
@@ -213,7 +208,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                 </div>
                             </div>
 
-                            <!-- Filter dropdown -->
                             <div class="relative" id="filterWrap">
                                 <button onclick="toggleFilterMenu()"
                                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
@@ -260,7 +254,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                 </div>
                             </div>
 
-                            <!-- Status dropdown (SERVER-SIDE) -->
                             <div class="relative" id="statusWrap">
                                 <button onclick="toggleStatusMenu()"
                                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition">
@@ -336,7 +329,14 @@ $statusLabelText = $statusFilter === 'inactive'
                             data-year="<?= htmlspecialchars(strtolower($u['year_level'] ?? '')) ?>"
                             data-status="<?= $u['status'] ?? 'active' ?>" data-created="<?= strtotime($u['created_at']) ?>">
 
-                            <div class="flex items-center justify-end mb-3">
+                            <div class="flex items-center justify-between mb-3">
+                                <?php if (!empty($u['profile_edit_requested'])): ?>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-amber-600 bg-amber-50" title="Profile edit requested">
+                                        <i data-lucide="info" class="w-3 h-3 mr-1"></i> Edit Req
+                                    </span>
+                                <?php else: ?>
+                                    <div></div>
+                                <?php endif; ?>
                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $roleClass ?>">
                                     <?= $roleLabel ?>
                                 </span>
@@ -364,7 +364,19 @@ $statusLabelText = $statusFilter === 'inactive'
                                 <span class="capitalize"><?= $u['status'] === 'active' ? 'Active' : 'Archived' ?></span>
                             </div>
 
-                            <div class="flex items-center justify-center gap-1">
+                            <div class="flex items-center justify-center gap-1 flex-wrap">
+                                <?php if (!empty($u['profile_edit_requested'])): ?>
+                                    <button onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'approve')"
+                                        class="px-2 py-1 bg-[#F1FDF6] text-[#0F5E3D] hover:bg-[#0F5E3D] hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
+                                        title="Approve Profile Update">
+                                        <i data-lucide="check" class="w-3 h-3"></i> Approve
+                                    </button>
+                                    <button onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'reject')"
+                                        class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
+                                        title="Reject Profile Update">
+                                        <i data-lucide="x" class="w-3 h-3"></i> Reject
+                                    </button>
+                                <?php endif; ?>
                                 <a href="/faculty/<?= $u['user_id'] ?>"
                                     class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                     title="View profile">
@@ -383,7 +395,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                     "year_level" => $u["year_level"] ?? "",
                                     "position" => $u["position"] ?? "",
                                     "emp" => $u["employment_type"] ?? "full-time",
-                                    "salary" => $u["basic_salary"] ?? 0,
+                                    "leave_pay" => $u["leave_pay"] ?? 0,
                                     "credits" => $u["leave_credits"] ?? 0,
                                     "status" => $u["status"],
                                 ]) ?>)'
@@ -415,9 +427,8 @@ $statusLabelText = $statusFilter === 'inactive'
                 </div>
 
                 <!-- Users table -->
-                <div class="relative z-10 animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
+                <div id="usersListView" class="relative z-10 animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
-                    <!-- Desktop table -->
                     <div class="hidden md:block overflow-x-auto">
                         <table class="w-full">
                             <thead class="border-b border-[#E0E0E0]">
@@ -426,13 +437,14 @@ $statusLabelText = $statusFilter === 'inactive'
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Email</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Role</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Category</th>
+                                    <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Credits</th>
-                                    <th class="w-32 px-4 py-0 text-right text-xs font-medium text-[#2C3E50]/50">Actions</th>
+                                    <th class="w-40 px-4 py-0 text-right text-xs font-medium text-[#2C3E50]/50">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="usersTableBody" class="divide-y divide-[#E0E0E0]">
                                 <?php if (empty($users)): ?>
-                                    <tr><td colspan="6" class="text-center text-sm text-[#2C3E50]/50 py-8">No users found.</td></tr>
+                                    <tr><td colspan="7" class="text-center text-sm text-[#2C3E50]/50 py-8">No users found.</td></tr>
                                 <?php else: ?>
                                     <?php foreach ($users as $u):
                                         $fullName = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
@@ -442,6 +454,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                         $roleLabel = $roleLabels[$u['role']] ?? ucfirst($u['role']);
                                         $avatarUrl = !empty($u['avatar']) ? '/uploads/avatars/' . htmlspecialchars($u['avatar']) : null;
                                         $creditsInt = number_format((float)($u['leave_credits'] ?? 0), 0);
+                                        $leavePayFormatted = '₱' . number_format((float)($u['leave_pay'] ?? 0), 2);
                                     ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12" data-id="<?= $u['user_id'] ?>"
                                             data-name="<?= strtolower($fullName) ?>"
@@ -460,9 +473,16 @@ $statusLabelText = $statusFilter === 'inactive'
                                                             <?= $initials ?>
                                                         <?php endif; ?>
                                                     </div>
-                                                    <span class="text-sm text-[#2C3E50] font-medium truncate">
-                                                        <?= htmlspecialchars($fullName) ?>
-                                                    </span>
+                                                    <div class="flex flex-col">
+                                                        <span class="text-sm text-[#2C3E50] font-medium truncate">
+                                                            <?= htmlspecialchars($fullName) ?>
+                                                        </span>
+                                                        <?php if (!empty($u['profile_edit_requested'])): ?>
+                                                            <span class="text-[10px] font-medium text-amber-600 flex items-center gap-1 mt-0.5">
+                                                                <i data-lucide="info" class="w-3 h-3"></i> Edit Requested
+                                                            </span>
+                                                        <?php endif; ?>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td class="px-4 py-0">
@@ -475,10 +495,26 @@ $statusLabelText = $statusFilter === 'inactive'
                                                 <span class="text-sm text-[#2C3E50]/70"><?= htmlspecialchars(ucfirst($u['category'] ?? 'staff')) ?></span>
                                             </td>
                                             <td class="px-4 py-0">
+                                                <span class="text-sm font-semibold text-[#0F5E3D]"><?= $leavePayFormatted ?></span>
+                                            </td>
+                                            <td class="px-4 py-0">
                                                 <span class="text-sm text-[#2C3E50]/70"><?= $creditsInt ?></span>
                                             </td>
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
+                                                    <?php if (!empty($u['profile_edit_requested'])): ?>
+                                                        <button onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'approve')"
+                                                            class="px-2 py-1 bg-[#F1FDF6] text-[#0F5E3D] hover:bg-[#0F5E3D] hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
+                                                            title="Approve Profile Update">
+                                                            <i data-lucide="check" class="w-3 h-3"></i> Approve
+                                                        </button>
+                                                        <button onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'reject')"
+                                                            class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1 mr-2"
+                                                            title="Reject Profile Update">
+                                                            <i data-lucide="x" class="w-3 h-3"></i> Reject
+                                                        </button>
+                                                    <?php endif; ?>
+
                                                     <a href="/faculty/<?= $u['user_id'] ?>"
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View profile">
@@ -497,7 +533,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                                         "year_level" => $u["year_level"] ?? "",
                                                         "position" => $u["position"] ?? "",
                                                         "emp" => $u["employment_type"] ?? "full-time",
-                                                        "salary" => $u["basic_salary"] ?? 0,
+                                                        "leave_pay" => $u["leave_pay"] ?? 0,
                                                         "credits" => $u["leave_credits"] ?? 0,
                                                         "status" => $u["status"],
                                                     ]) ?>)'
@@ -532,7 +568,6 @@ $statusLabelText = $statusFilter === 'inactive'
                         </table>
                     </div>
 
-                    <!-- Mobile cards -->
                     <div id="mobileCards" class="md:hidden divide-y divide-[#E0E0E0]">
                         <?php foreach ($users as $u):
                             $fullName = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
@@ -559,17 +594,36 @@ $statusLabelText = $statusFilter === 'inactive'
                                     </div>
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center justify-between gap-2 mb-1">
-                                            <span class="text-sm font-medium text-[#2C3E50] truncate">
-                                                <?= htmlspecialchars($fullName) ?>
-                                            </span>
+                                            <div class="flex flex-col">
+                                                <span class="text-sm font-medium text-[#2C3E50] truncate">
+                                                    <?= htmlspecialchars($fullName) ?>
+                                                </span>
+                                                <?php if (!empty($u['profile_edit_requested'])): ?>
+                                                    <span class="text-[10px] font-medium text-amber-600 flex items-center gap-1 mt-0.5">
+                                                        <i data-lucide="info" class="w-3 h-3"></i> Edit Requested
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $roleClass ?> shrink-0">
                                                 <?= $roleLabel ?>
                                             </span>
                                         </div>
                                         <p class="text-xs text-[#2C3E50]/50 truncate"><?= htmlspecialchars($u['email'] ?? '—') ?></p>
-                                        <div class="flex items-center justify-between mt-3">
+                                        <div class="flex items-center justify-between mt-3 flex-wrap gap-2">
                                             <span class="text-xs text-[#2C3E50]/40 capitalize"><?= htmlspecialchars($u['category'] ?? 'staff') ?></span>
-                                            <div class="flex items-center gap-1">
+                                            <div class="flex items-center gap-1 flex-wrap justify-end">
+                                                <?php if (!empty($u['profile_edit_requested'])): ?>
+                                                    <button onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'approve')"
+                                                        class="px-2 py-1 bg-[#F1FDF6] text-[#0F5E3D] hover:bg-[#0F5E3D] hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
+                                                        title="Approve Profile Update">
+                                                        <i data-lucide="check" class="w-3 h-3"></i> Approve
+                                                    </button>
+                                                    <button onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'reject')"
+                                                        class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
+                                                        title="Reject Profile Update">
+                                                        <i data-lucide="x" class="w-3 h-3"></i> Reject
+                                                    </button>
+                                                <?php endif; ?>
                                                 <a href="/faculty/<?= $u['user_id'] ?>"
                                                     class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
                                                     <i data-lucide="eye" class="w-3.5 h-3.5"></i>
@@ -587,7 +641,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                                     "year_level" => $u["year_level"] ?? "",
                                                     "position" => $u["position"] ?? "",
                                                     "emp" => $u["employment_type"] ?? "full-time",
-                                                    "salary" => $u["basic_salary"] ?? 0,
+                                                    "leave_pay" => $u["leave_pay"] ?? 0,
                                                     "credits" => $u["leave_credits"] ?? 0,
                                                     "status" => $u["status"],
                                                 ]) ?>)'
@@ -617,7 +671,6 @@ $statusLabelText = $statusFilter === 'inactive'
                         <?php endforeach; ?>
                     </div>
 
-                    <!-- Empty state -->
                     <div id="emptyState" class="hidden p-12 text-center">
                         <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
@@ -626,7 +679,6 @@ $statusLabelText = $statusFilter === 'inactive'
                         <p class="text-xs text-[#2C3E50]/50 mt-1">Try adjusting your search or filters.</p>
                     </div>
 
-                    <!-- Pagination -->
                     <div class="px-4 sm:px-6 py-3 border-t border-[#E0E0E0] flex flex-col sm:flex-row items-center justify-between gap-3">
                         <p class="text-xs text-[#2C3E50]/50">
                             Showing
@@ -752,7 +804,7 @@ $statusLabelText = $statusFilter === 'inactive'
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Role *</label>
-                            <select name="role" id="addRole" onchange="updateSubCategories()"
+                            <select name="role" id="addRole"
                                 class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="">Select role</option>
                                 <option value="admin">Admin</option>
@@ -763,12 +815,14 @@ $statusLabelText = $statusFilter === 'inactive'
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Category *</label>
-                            <select name="category" id="addCategory" onchange="updateSubCategories()"
+                            <select name="category" id="addCategory"
                                 class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="">Select category</option>
                                 <option value="faculty">Faculty</option>
                                 <option value="staff">Staff</option>
                             </select>
+                            <!-- Hidden mirror — submitted even when #addCategory is disabled -->
+                            <input type="hidden" name="category" id="addCategoryHidden" value="">
                         </div>
                     </div>
                     <div>
@@ -796,15 +850,15 @@ $statusLabelText = $statusFilter === 'inactive'
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Employment *</label>
-                            <select name="employment_type" id="addEmployment" onchange="handleEmploymentChange()"
+                            <select name="employment_type" id="addEmployment" onchange="handleEmploymentChange('add')"
                                 class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="full-time">Full-time</option>
                                 <option value="part-time">Part-time</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary</label>
-                            <input type="number" step="0.01" name="basic_salary"
+                            <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay (₱)</label>
+                            <input type="number" step="0.01" min="0" name="leave_pay" id="addLeavePay" value="0"
                                 class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="0.00">
                         </div>
                         <div>
@@ -814,23 +868,23 @@ $statusLabelText = $statusFilter === 'inactive'
                         </div>
                     </div>
                     <div>
-    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">
-        Password <span class="text-[#2C3E50]/40">(editable — user can change on first login)</span>
-    </label>
-    <div class="relative">
-        <input type="text" id="addTempPassword"
-            value="<?= htmlspecialchars($defaultNewUserPassword) ?>"
-            class="w-full px-3 py-2.5 pr-12 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] font-mono focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
-        <button type="button" onclick="regeneratePassword()"
-            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-[#0F5E3D]/60 hover:text-[#0F5E3D] hover:bg-white transition"
-            title="Generate a random password">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-        </button>
-    </div>
-    <p class="text-[11px] text-[#2C3E50]/40 mt-1">
-        Type any password or click <i data-lucide="refresh-cw" class="w-3 h-3 inline align-text-bottom"></i> to generate one.
-    </p>
-</div>
+                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">
+                            Password <span class="text-[#2C3E50]/40">(editable — user can change on first login)</span>
+                        </label>
+                        <div class="relative">
+                            <input type="text" id="addTempPassword"
+                                value="<?= htmlspecialchars($defaultNewUserPassword) ?>"
+                                class="w-full px-3 py-2.5 pr-12 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] font-mono focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
+                            <button type="button" onclick="regeneratePassword()"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-[#0F5E3D]/60 hover:text-[#0F5E3D] hover:bg-white transition"
+                                title="Generate a random password">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-[#2C3E50]/40 mt-1">
+                            Type any password or click <i data-lucide="refresh-cw" class="w-3 h-3 inline align-text-bottom"></i> to generate one.
+                        </p>
+                    </div>
                 </div>
             </form>
             <div class="flex gap-3 px-6 py-4 border-t border-[#E0E0E0]">
@@ -886,8 +940,8 @@ $statusLabelText = $statusFilter === 'inactive'
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Username</label>
-                        <input type="text" name="username" id="editUsername"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition font-mono">
+                        <input type="text" name="username" id="editUsername" readonly
+                            class="w-full px-3 py-2.5 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">New Password <span class="text-[#2C3E50]/40">(blank = keep)</span></label>
@@ -908,11 +962,13 @@ $statusLabelText = $statusFilter === 'inactive'
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Category</label>
-                        <select name="category" id="editCategory" onchange="updateEditSubCategories()"
+                        <select name="category" id="editCategory"
                             class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                             <option value="faculty">Faculty</option>
                             <option value="staff">Staff</option>
                         </select>
+                        <!-- Hidden mirror — submitted even when #editCategory is disabled -->
+                        <input type="hidden" name="category" id="editCategoryHidden" value="">
                     </div>
                 </div>
                 <div>
@@ -940,16 +996,16 @@ $statusLabelText = $statusFilter === 'inactive'
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Employment</label>
-                        <select name="employment_type" id="editEmpType" onchange="handleEditEmploymentChange()"
+                        <select name="employment_type" id="editEmpType" onchange="handleEmploymentChange('edit')"
                             class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                             <option value="full-time">Full-time</option>
                             <option value="part-time">Part-time</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Salary</label>
-                        <input type="number" step="0.01" name="basic_salary" id="editSalary"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
+                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay (₱)</label>
+                        <input type="number" step="0.01" min="0" name="leave_pay" id="editLeavePay"
+                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="0.00">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Credits</label>
@@ -971,6 +1027,23 @@ $statusLabelText = $statusFilter === 'inactive'
                     class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
                 <button type="submit" form="editUserForm"
                     class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Edit Request Modal (Approve / Reject) -->
+    <div id="editRequestModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all duration-200 scale-95" id="editRequestCard">
+            <div id="editReqIconWrap" class="flex items-center justify-center w-12 h-12 rounded-full bg-[#F1FDF6] mx-auto mb-4">
+                <i id="editReqIcon" data-lucide="check-circle" class="w-6 h-6 text-[#0F5E3D]"></i>
+            </div>
+            <h3 class="text-lg font-bold text-[#2C3E50] text-center mb-2" id="editReqTitle">Approve Profile Edit</h3>
+            <p class="text-sm text-[#2C3E50]/70 text-center mb-6" id="editReqDesc">—</p>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="button" onclick="closeProfileEditModal()"
+                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
+                <button type="button" id="editReqConfirmBtn" onclick="confirmProfileEditAction()"
+                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Confirm</button>
             </div>
         </div>
     </div>
@@ -1012,22 +1085,6 @@ $statusLabelText = $statusFilter === 'inactive'
                 <button type="button" onclick="confirmRestoreUser()"
                     class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Restore</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Restore success modal -->
-    <div id="restoreSuccessModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95" id="restoreSuccessCard">
-            <div class="relative mx-auto mb-5 w-16 h-16">
-                <div class="absolute inset-0 rounded-full bg-[#F1FDF6] animate-ping opacity-40"></div>
-                <div class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
-                    <i data-lucide="check-circle" class="w-8 h-8"></i>
-                </div>
-            </div>
-            <h3 class="text-lg font-bold text-[#2C3E50] mb-2">User Restored</h3>
-            <p class="text-sm text-[#2C3E50]/60 mb-6">The account has been reactivated and can log in again.</p>
-            <button type="button" onclick="closeRestoreSuccessModal()"
-                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">Done</button>
         </div>
     </div>
 
@@ -1091,6 +1148,22 @@ $statusLabelText = $statusFilter === 'inactive'
             <h3 class="text-lg font-bold text-[#2C3E50] mb-2">Changes Saved</h3>
             <p class="text-sm text-[#2C3E50]/60 mb-6">The user's information has been updated successfully.</p>
             <button type="button" onclick="closeEditSuccessModal()"
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">Done</button>
+        </div>
+    </div>
+
+    <!-- Restore success modal -->
+    <div id="restoreSuccessModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95" id="restoreSuccessCard">
+            <div class="relative mx-auto mb-5 w-16 h-16">
+                <div class="absolute inset-0 rounded-full bg-[#F1FDF6] animate-ping opacity-40"></div>
+                <div class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
+                    <i data-lucide="check-circle" class="w-8 h-8"></i>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-[#2C3E50] mb-2">User Restored</h3>
+            <p class="text-sm text-[#2C3E50]/60 mb-6">The account has been reactivated and can log in again.</p>
+            <button type="button" onclick="closeRestoreSuccessModal()"
                 class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">Done</button>
         </div>
     </div>

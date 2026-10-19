@@ -3,6 +3,16 @@
 // ============================================
 
 // ============================================
+// Helpers
+// ============================================
+function getTypeClasses(typeStr) {
+    const t = (typeStr || "").toLowerCase();
+    if (t.includes('sick')) return 'text-rose-700 bg-rose-50';
+    if (t.includes('vacation')) return 'text-blue-700 bg-blue-50';
+    return 'text-slate-700 bg-slate-100';
+}
+
+// ============================================
 // Filter
 // ============================================
 function filterFacultyLeaves() {
@@ -59,23 +69,14 @@ function openViewFacultyLeave(data) {
     $("flvEmail").textContent = data.email || "—";
 
     // ── Leave type (header + sidebar) ──
-    const typeKey = (data.type || "").toLowerCase();
-    const typeClasses = {
-        vacation: "text-blue-700 bg-blue-50",
-        sick: "text-rose-700 bg-rose-50",
-        maternity: "text-purple-700 bg-purple-50",
-        paternity: "text-indigo-700 bg-indigo-50",
-        terminal: "text-amber-700 bg-amber-50",
-        other: "text-slate-700 bg-slate-100",
-    };
-    const typeClassStr = typeClasses[typeKey] || typeClasses.other;
+    const typeClasses = getTypeClasses(data.type);
     const typeLabel = data.type || "—";
 
     // Header pill
     const headerType = $("flvHeaderType");
     headerType.textContent = typeLabel;
     headerType.className =
-        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium " + typeClassStr;
+        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium " + typeClasses;
 
     // Sidebar badge
     const sidebarType = $("flvSidebarType");
@@ -84,7 +85,7 @@ function openViewFacultyLeave(data) {
         if (span) span.textContent = typeLabel;
         sidebarType.className =
             "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-[#E0E0E0] " +
-            typeClassStr;
+            typeClasses;
     }
 
     // ── Sidebar: credits ──

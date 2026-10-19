@@ -123,13 +123,26 @@ $statusLabels = [
     'rejected'  => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
-$leaveTypes = [
-    'vacation'  => 'Vacation',
-    'sick'      => 'Sick',
-    'maternity' => 'Maternity',
-    'paternity' => 'Paternity',
-    'terminal'  => 'Terminal',
-    'other'     => 'Other',
+
+// Group the DB type into the 3 presentation categories
+function groupTypeKey($dbType) {
+    $t = strtolower($dbType ?? '');
+    if ($t === 'sick') return 'sick';
+    if ($t === 'vacation') return 'vacation';
+    return 'others';
+}
+
+function groupTypeLabel($dbType) {
+    $g = groupTypeKey($dbType);
+    if ($g === 'sick') return 'Sick';
+    if ($g === 'vacation') return 'Mandatory / Vacation';
+    return 'Others';
+}
+
+$typeStyles = [
+    'sick' => 'text-rose-700 bg-rose-50',
+    'vacation' => 'text-blue-700 bg-blue-50',
+    'others' => 'text-slate-700 bg-slate-100',
 ];
 
 switch ($myPosition) {
@@ -250,11 +263,15 @@ switch ($myPosition) {
                                     $empName = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? ''));
                                     $sClass  = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
                                     $sLabel  = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                                    $tLabel  = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                    
+                                    $groupKey   = groupTypeKey($l['leave_type']);
+                                    $groupLabel = groupTypeLabel($l['leave_type']);
+                                    $tClass     = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
+                                    
                                     $credit  = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
                                     ?>
                                     <tr class="hover:bg-[#F1FDF6]/40 transition h-12 faculty-leave-row"
-                                        data-search="<?= strtolower($empName . ' ' . $tLabel . ' ' . $sLabel) ?>"
+                                        data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
                                         data-status="<?= htmlspecialchars($l['status']) ?>">
                                         <td class="px-4">
                                             <div class="flex flex-col">
@@ -265,7 +282,11 @@ switch ($myPosition) {
                                                 </span>
                                             </div>
                                         </td>
-                                        <td class="px-4 text-sm text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></td>
+                                        <td class="px-4 py-0">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $tClass ?>">
+                                                <?= htmlspecialchars($groupLabel) ?>
+                                            </span>
+                                        </td>
                                         <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
                                         <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
                                         <td class="px-4 text-sm text-[#2C3E50]/70">
@@ -287,7 +308,7 @@ switch ($myPosition) {
                                                     "year_level" => $l["year_level"] ?? "—",
                                                     "position"   => $l["position"] ?? "—",
                                                     "employment" => ucfirst($l["employment_type"] ?? "—"),
-                                                    "type"       => $tLabel,
+                                                    "type"       => $groupLabel,
                                                     "start"      => $l["start_date"],
                                                     "end"        => $l["end_date"],
                                                     "days"       => $l["days_count"],
@@ -319,11 +340,15 @@ switch ($myPosition) {
                             $empName = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? ''));
                             $sClass  = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
                             $sLabel  = $statusLabels[$l['status']] ?? ucfirst($l['status']);
-                            $tLabel  = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                            
+                            $groupKey   = groupTypeKey($l['leave_type']);
+                            $groupLabel = groupTypeLabel($l['leave_type']);
+                            $tClass     = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
+                            
                             $credit  = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
                             ?>
                             <div class="p-4 faculty-leave-row"
-                                data-search="<?= strtolower($empName . ' ' . $tLabel . ' ' . $sLabel) ?>"
+                                data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
                                 data-status="<?= htmlspecialchars($l['status']) ?>">
                                 <div class="flex items-start justify-between gap-2 mb-1">
                                     <div class="min-w-0">
@@ -336,13 +361,17 @@ switch ($myPosition) {
                                         <?= $sLabel ?>
                                     </span>
                                 </div>
-                                <p class="text-xs text-[#2C3E50]/60">
-                                    <?= htmlspecialchars($tLabel) ?> ·
-                                    <?= date('M j', strtotime($l['start_date'])) ?>
-                                    <?php if ($l['start_date'] !== $l['end_date']): ?>
-                                        → <?= date('M j, Y', strtotime($l['end_date'])) ?>
-                                    <?php endif; ?>
-                                </p>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $tClass ?>">
+                                        <?= htmlspecialchars($groupLabel) ?>
+                                    </span>
+                                    <span class="text-xs text-[#2C3E50]/60">
+                                        <?= date('M j', strtotime($l['start_date'])) ?>
+                                        <?php if ($l['start_date'] !== $l['end_date']): ?>
+                                            → <?= date('M j, Y', strtotime($l['end_date'])) ?>
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
                                 <button onclick='openViewFacultyLeave(<?= json_encode([
                                     "id"         => (int) $l["id"],
                                     "name"       => $empName,
@@ -352,7 +381,7 @@ switch ($myPosition) {
                                     "year_level" => $l["year_level"] ?? "—",
                                     "position"   => $l["position"] ?? "—",
                                     "employment" => ucfirst($l["employment_type"] ?? "—"),
-                                    "type"       => $tLabel,
+                                    "type"       => $groupLabel,
                                     "start"      => $l["start_date"],
                                     "end"        => $l["end_date"],
                                     "days"       => $l["days_count"],

@@ -663,6 +663,9 @@ try {
         // ============================================
         // Approve Profile Edit
         // ============================================
+                // ============================================
+        // Approve Profile Edit — applies ALL pending values
+        // ============================================
         case 'approve_profile_edit':
             $id = intval($_POST['id'] ?? 0);
 
@@ -672,8 +675,84 @@ try {
                 break;
             }
 
-            $stmt = $pdo->prepare("UPDATE users SET profile_edit_requested = 0 WHERE id = ?");
+            $stmt = $pdo->prepare("
+                SELECT 
+                    u.id, u.avatar, u.pending_avatar,
+                    u.employee_id,
+                    e.id AS emp_id,
+                    e.first_name, e.middle_name, e.last_name, e.email,
+                    e.pending_first_name, e.pending_middle_name, e.pending_last_name, e.pending_email
+                FROM users u
+                LEFT JOIN employees e ON u.employee_id = e.id
+                WHERE u.id = ?
+                LIMIT 1
+            ");
             $stmt->execute([$id]);
+            $row = $stmt->fetch();
+
+            if (!$row) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'User not found.']);
+                break;
+            }
+
+            $hasPendingName   = $row['pending_first_name'] !== null || $row['pending_last_name'] !== null;
+            $hasPendingEmail  = $row['pending_email'] !== null;
+            $hasPendingAvatar = $row['pending_avatar'] !== null;
+
+            $pdo->beginTransaction();
+            try {
+                if ($row['emp_id'] !== null && ($hasPendingName || $hasPendingEmail)) {
+                    $newFirst  = $row['pending_first_name']  ?? $row['first_name'];
+                    $newMiddle = $row['pending_middle_name'] ?? $row['middle_name'];
+                    $newLast   = $row['pending_last_name']   ?? $row['last_name'];
+                    $newEmail  = $row['pending_email']       ?? $row['email'];
+
+                    $stmt = $pdo->prepare("
+                        UPDATE employees
+                        SET first_name = ?, middle_name = ?, last_name = ?, email = ?,
+                            pending_first_name  = NULL,
+                            pending_middle_name = NULL,
+                            pending_last_name   = NULL,
+                            pending_email       = NULL
+                        WHERE id = ?
+                    ");
+                    $stmt->execute([$newFirst, $newMiddle, $newLast, $newEmail, $row['emp_id']]);
+                }
+
+                if ($hasPendingAvatar) {
+                    $pendingAvatar = $row['pending_avatar'];
+                    $old = $row['avatar'];
+
+                    if ($pendingAvatar === '') {
+                        // Sentinel = pending removal
+                        $pdo->prepare("UPDATE users SET avatar = NULL, pending_avatar = NULL WHERE id = ?")
+                            ->execute([$id]);
+                        if (!empty($old)) {
+                            $path = __DIR__ . '/../../public_html/uploads/avatars/' . $old;
+                            if (is_file($path)) @unlink($path);
+                        }
+                    } else {
+                        // New avatar: swap and delete the previous live file
+                        $pdo->prepare("UPDATE users SET avatar = ?, pending_avatar = NULL WHERE id = ?")
+                            ->execute([$pendingAvatar, $id]);
+                        if (!empty($old) && $old !== $pendingAvatar) {
+                            $path = __DIR__ . '/../../public_html/uploads/avatars/' . $old;
+                            if (is_file($path)) @unlink($path);
+                        }
+                    }
+                }
+
+                $pdo->prepare("UPDATE users SET profile_edit_requested = 0 WHERE id = ?")
+                    ->execute([$id]);
+
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Approval failed: ' . $e->getMessage()]);
+                break;
+            }
 
             try {
                 ActivityLogger::log($pdo, 'approve_profile_edit', "Approved profile edit request", 'user', $id);
@@ -687,7 +766,7 @@ try {
                     $id,
                     'profile_edit_approved',
                     'Profile Update Approved',
-                    'Your profile update has been approved by an administrator. You can now edit your details again if needed.',
+                    'Your profile update has been approved and applied.',
                     '/profile'
                 );
             } catch (Throwable $e) {
@@ -695,11 +774,11 @@ try {
             }
 
             header('Content-Type: application/json');
-            echo json_encode(['success' => true, 'message' => 'Profile edit approved.']);
+            echo json_encode(['success' => true, 'message' => 'Profile edit approved and applied.']);
             break;
 
         // ============================================
-        // Reject Profile Edit
+        // Reject Profile Edit — discards ALL pending values
         // ============================================
         case 'reject_profile_edit':
             $id = intval($_POST['id'] ?? 0);
@@ -710,8 +789,50 @@ try {
                 break;
             }
 
-            $stmt = $pdo->prepare("UPDATE users SET profile_edit_requested = 0 WHERE id = ?");
+            $stmt = $pdo->prepare("
+                SELECT u.pending_avatar, u.avatar, e.id AS emp_id
+                FROM users u
+                LEFT JOIN employees e ON u.employee_id = e.id
+                WHERE u.id = ?
+                LIMIT 1
+            ");
             $stmt->execute([$id]);
+            $row = $stmt->fetch();
+
+            if (!$row) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'User not found.']);
+                break;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                if (!empty($row['pending_avatar']) && $row['pending_avatar'] !== $row['avatar']) {
+                    $path = __DIR__ . '/../../public_html/uploads/avatars/' . $row['pending_avatar'];
+                    if (is_file($path)) @unlink($path);
+                }
+
+                $pdo->prepare("UPDATE users SET pending_avatar = NULL, profile_edit_requested = 0 WHERE id = ?")
+                    ->execute([$id]);
+
+                if ($row['emp_id'] !== null) {
+                    $pdo->prepare("
+                        UPDATE employees
+                        SET pending_first_name  = NULL,
+                            pending_middle_name = NULL,
+                            pending_last_name   = NULL,
+                            pending_email       = NULL
+                        WHERE id = ?
+                    ")->execute([$row['emp_id']]);
+                }
+
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Rejection failed: ' . $e->getMessage()]);
+                break;
+            }
 
             try {
                 ActivityLogger::log($pdo, 'reject_profile_edit', "Rejected profile edit request", 'user', $id);
@@ -735,7 +856,6 @@ try {
             header('Content-Type: application/json');
             echo json_encode(['success' => true, 'message' => 'Profile edit rejected.']);
             break;
-
         // ============================================
         // Archive user (soft delete)
         // ============================================

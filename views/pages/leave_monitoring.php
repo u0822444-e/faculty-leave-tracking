@@ -67,6 +67,7 @@ $whereSql = implode(' AND ', $where);
 $sql = "
     SELECT
         lr.*,
+        emp.id AS employee_id,
         emp.first_name, emp.middle_name, emp.last_name, emp.email,
         emp.category, emp.sub_category, emp.year_level, emp.position,
         emp.employment_type,
@@ -83,7 +84,30 @@ $stmt->execute($params);
 $leaves = $stmt->fetchAll();
 
 // ============================================
-// Small summary numbers
+// Precompute credits per employee for the view modal
+// ============================================
+$employeeCredits = [];
+$stmt = $pdo->query("
+    SELECT 
+        e.id,
+        e.leave_credits,
+        COALESCE(SUM(CASE WHEN lr.status = 'approved' THEN lr.days_count ELSE 0 END), 0) AS used_days
+    FROM employees e
+    LEFT JOIN leave_requests lr ON lr.employee_id = e.id
+    GROUP BY e.id
+");
+foreach ($stmt->fetchAll() as $row) {
+    $cap = (float) $row['leave_credits'];
+    $used = (float) $row['used_days'];
+    $employeeCredits[(int) $row['id']] = [
+        'total' => $cap,
+        'used' => $used,
+        'remaining' => max(0, $cap - $used),
+    ];
+}
+
+// ============================================
+// Summary numbers
 // ============================================
 $summary = [
     'total'    => count($leaves),
@@ -115,7 +139,7 @@ $leaveTypes = [
     'other'     => 'Other',
 ];
 
-// Friendly scope label for the page subtitle
+// Friendly scope label
 switch ($myPosition) {
     case 'College Dean':
         $scopeLabel = $myYearLevel ?: 'Your College';
@@ -244,6 +268,7 @@ switch ($myPosition) {
                                     $sClass  = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
                                     $sLabel  = $statusLabels[$l['status']] ?? ucfirst($l['status']);
                                     $tLabel  = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                    $credit  = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
                                     ?>
                                     <tr class="hover:bg-[#F1FDF6]/40 transition h-12 faculty-leave-row"
                                         data-search="<?= strtolower($empName . ' ' . $tLabel . ' ' . $sLabel) ?>"
@@ -289,6 +314,7 @@ switch ($myPosition) {
                                                     "created"    => $l["created_at"],
                                                     "approver"   => $l["approver_username"] ?? "",
                                                     "approved"   => $l["approved_at"] ?? "",
+                                                    "credits"    => $credit,
                                                 ]) ?>)'
                                                     class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                     title="View details">
@@ -311,6 +337,7 @@ switch ($myPosition) {
                             $sClass  = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
                             $sLabel  = $statusLabels[$l['status']] ?? ucfirst($l['status']);
                             $tLabel  = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                            $credit  = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
                             ?>
                             <div class="p-4 faculty-leave-row"
                                 data-search="<?= strtolower($empName . ' ' . $tLabel . ' ' . $sLabel) ?>"
@@ -333,6 +360,30 @@ switch ($myPosition) {
                                         → <?= date('M j, Y', strtotime($l['end_date'])) ?>
                                     <?php endif; ?>
                                 </p>
+                                <button onclick='openViewFacultyLeave(<?= json_encode([
+                                    "id"         => (int) $l["id"],
+                                    "name"       => $empName,
+                                    "email"      => $l["email"] ?? "—",
+                                    "category"   => ucfirst($l["category"] ?? "—"),
+                                    "subcat"     => $l["sub_category"] ?? "—",
+                                    "year_level" => $l["year_level"] ?? "—",
+                                    "position"   => $l["position"] ?? "—",
+                                    "employment" => ucfirst($l["employment_type"] ?? "—"),
+                                    "type"       => $tLabel,
+                                    "start"      => $l["start_date"],
+                                    "end"        => $l["end_date"],
+                                    "days"       => $l["days_count"],
+                                    "reason"     => $l["reason"] ?? "",
+                                    "status"     => $l["status"],
+                                    "remarks"    => $l["remarks"] ?? "",
+                                    "created"    => $l["created_at"],
+                                    "approver"   => $l["approver_username"] ?? "",
+                                    "approved"   => $l["approved_at"] ?? "",
+                                    "credits"    => $credit,
+                                ]) ?>)'
+                                    class="mt-3 w-full text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
+                                    View Details
+                                </button>
                             </div>
                         <?php endforeach; endif; ?>
                     </div>
@@ -351,139 +402,118 @@ switch ($myPosition) {
     </div>
 
     <!-- ============================================ -->
-    <!-- View leave modal — rich details                -->
+    <!-- View leave modal — split-pane (view-only)       -->
     <!-- ============================================ -->
-    <div id="flViewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div id="flViewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm p-4">
         <div id="flViewCard"
-            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-200 scale-95 overflow-hidden max-h-[90vh] flex flex-col">
+            class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] transform transition-all duration-200 scale-95 overflow-hidden flex flex-col">
 
-            <div class="flex items-start justify-between px-6 py-4 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 shrink-0">
-                <div class="min-w-0">
-                    <div class="flex items-center gap-2 mb-0.5">
-                        <i data-lucide="file-text" class="w-4 h-4 text-[#0F5E3D]"></i>
-                        <h3 class="text-base font-bold text-[#2C3E50]">Leave Request Details</h3>
-                    </div>
-                    <p class="text-xs text-[#2C3E50]/50" id="flvRequestId">—</p>
+            <!-- Top bar -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0] shrink-0 bg-white">
+                <div>
+                    <h3 class="text-base font-semibold text-[#2C3E50]">Leave Request Details</h3>
+                    <p class="text-sm text-[#2C3E50]/50" id="flvRequestId">—</p>
                 </div>
-                <button onclick="closeViewFacultyLeave()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition shrink-0 ml-3">
+                <button onclick="closeViewFacultyLeave()" class="w-9 h-9 rounded-lg flex items-center justify-center text-[#2C3E50]/50 hover:bg-[#F1FDF6] hover:text-[#2C3E50] transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
-            <div class="p-6 space-y-5 overflow-y-auto">
+            <!-- Content -->
+            <div class="flex-1 flex min-h-0">
 
-                <div id="flvStatusRibbon" class="flex items-center gap-3 p-3 rounded-xl border bg-[#F1FDF6] border-[#0F5E3D]/15">
-                    <div id="flvStatusIcon" class="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-[#0F5E3D] shrink-0">
-                        <i data-lucide="clock" class="w-4 h-4"></i>
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Status</p>
-                        <p id="flvStatus" class="text-sm font-semibold text-[#2C3E50]">—</p>
-                    </div>
-                    <span id="flvStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-600 bg-slate-100">
-                        —
-                    </span>
-                </div>
+                <!-- SIDEBAR -->
+                <aside class="w-72 border-r border-[#E0E0E0] bg-[#F9FAFB] flex flex-col shrink-0 overflow-y-auto">
 
-                <div>
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Employee</p>
-                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
-                        <div class="flex items-start gap-3">
-                            <div id="flvInitials" class="w-11 h-11 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-sm shrink-0">—</div>
-                            <div class="min-w-0 flex-1">
-                                <p id="flvName" class="text-sm font-semibold text-[#2C3E50] truncate">—</p>
-                                <p id="flvEmail" class="text-xs text-[#2C3E50]/50 truncate mt-0.5">—</p>
-                                <div class="flex flex-wrap gap-1.5 mt-2">
-                                    <span id="flvCategoryChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="layers" class="w-2.5 h-2.5"></i><span id="flvCategory">—</span>
-                                    </span>
-                                    <span id="flvSubCatChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="building-2" class="w-2.5 h-2.5"></i><span id="flvSubCat">—</span>
-                                    </span>
-                                    <span id="flvYearChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="graduation-cap" class="w-2.5 h-2.5"></i><span id="flvYear">—</span>
-                                    </span>
-                                    <span id="flvPositionChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="badge-check" class="w-2.5 h-2.5"></i><span id="flvPosition">—</span>
-                                    </span>
-                                    <span id="flvEmploymentChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="clock" class="w-2.5 h-2.5"></i><span id="flvEmployment">—</span>
-                                    </span>
+                    <div class="p-6">
+                        <div id="flvInitials" class="w-16 h-16 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xl mb-4">—</div>
+                        <p id="flvName" class="text-base font-semibold text-[#2C3E50] leading-tight">—</p>
+                        <p id="flvPosition" class="text-sm text-[#2C3E50]/60 mt-1 leading-snug">—</p>
+                        <p id="flvDepartment" class="text-sm text-[#2C3E50]/60 leading-snug">—</p>
+                        <p id="flvEmail" class="text-xs text-[#2C3E50]/40 mt-2 truncate">—</p>
+                    </div>
+
+                    <div class="border-t border-[#E0E0E0]"></div>
+
+                    <div class="p-6">
+                        <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Credits</p>
+                        <p class="text-base font-semibold text-[#2C3E50] mb-4">
+                            <span id="flvCreditTotal">—</span>
+                        </p>
+
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex items-baseline justify-between gap-2">
+                                    <span class="text-sm text-[#2C3E50]">Used</span>
+                                    <span class="text-sm text-[#2C3E50]" id="flvCreditUsed">—</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex items-baseline justify-between gap-2">
+                                    <span class="text-sm text-[#2C3E50]">Remaining</span>
+                                    <span class="text-sm font-semibold text-[#0F5E3D]" id="flvCreditRemaining">—</span>
+                                </div>
+                                <div class="mt-1.5 h-1 bg-[#E0E0E0] rounded-full overflow-hidden">
+                                    <div id="flvCreditBar" class="bg-[#0F5E3D] h-full" style="width: 0%"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div>
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Request</p>
-                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
-                        <div class="grid grid-cols-2 divide-x divide-y divide-[#E0E0E0]">
-                            <div class="p-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Leave Type</p>
-                                <div class="flex items-center gap-2">
-                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0"><i data-lucide="tag" class="w-3 h-3"></i></div>
-                                    <span id="flvType" class="text-sm font-medium text-[#2C3E50]">—</span>
-                                </div>
+                </aside>
+
+                <!-- MAIN -->
+                <section class="flex-1 flex flex-col min-h-0 bg-white">
+
+                    <!-- Scrollable body -->
+                    <div class="flex-1 overflow-y-auto px-8 py-6">
+
+                        <!-- Header: type + status + dates -->
+                        <div class="pb-5 border-b border-[#F0F0F0]">
+                            <div class="flex items-center gap-2 flex-wrap mb-3">
+                                <span id="flvType" class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-700 bg-slate-100">—</span>
+                                <span id="flvStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-700 bg-slate-100">—</span>
                             </div>
-                            <div class="p-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total Days</p>
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <div class="w-6 h-6 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0"><i data-lucide="calendar-check" class="w-3 h-3"></i></div>
-                                    <span id="flvDays" class="text-sm font-medium text-[#2C3E50]">—</span>
-                                    <span id="flvHalfDayTag" class="hidden inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200">HALF DAY</span>
-                                </div>
-                            </div>
-                            <div class="p-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Start Date</p>
-                                <p id="flvStart" class="text-sm text-[#2C3E50]">—</p>
-                            </div>
-                            <div class="p-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">End Date</p>
-                                <p id="flvEnd" class="text-sm text-[#2C3E50]">—</p>
-                            </div>
-                            <div class="p-3 col-span-2">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Filed On</p>
-                                <p id="flvCreated" class="text-sm text-[#2C3E50]">—</p>
+                            <p class="text-base text-[#2C3E50]">
+                                <span id="flvDates" class="font-medium">—</span>
+                                <span class="text-[#2C3E50]/30 mx-2">·</span>
+                                <span id="flvDays" class="text-[#2C3E50]/70">—</span>
+                                <span id="flvHalfDayTag" class="hidden ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold text-amber-700 bg-amber-50">Half Day</span>
+                            </p>
+                            <p class="text-sm text-[#2C3E50]/50 mt-1">
+                                Filed <span id="flvCreated">—</span>
+                            </p>
+                        </div>
+
+                        <!-- Reason -->
+                        <div class="py-5 border-b border-[#F0F0F0]">
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-2">Reason</p>
+                            <p id="flvReason" class="text-sm text-[#2C3E50] leading-relaxed whitespace-pre-wrap">—</p>
+                        </div>
+
+                        <!-- Decision -->
+                        <div id="flvDecisionWrap" class="hidden py-5">
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">Decision</p>
+                            <p class="text-sm text-[#2C3E50]">
+                                <span id="flvDecisionSummary" class="font-medium">—</span>
+                            </p>
+                            <div id="flvRemarksBlock" class="hidden mt-3 pl-4 border-l-2 border-[#E0E0E0]">
+                                <p id="flvRemarks" class="text-sm text-[#2C3E50]/70 italic leading-relaxed">—</p>
                             </div>
                         </div>
+
                     </div>
-                </div>
 
-                <div>
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Reason</p>
-                    <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
-                        <p id="flvReason" class="text-sm text-[#2C3E50] leading-relaxed whitespace-pre-wrap">—</p>
+                    <!-- Footer -->
+                    <div class="border-t border-[#E0E0E0] bg-white px-8 py-3 shrink-0">
+                        <button onclick="closeViewFacultyLeave()"
+                            class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-md transition text-sm">
+                            Close
+                        </button>
                     </div>
-                </div>
 
-                <div id="flvDecisionWrap" class="hidden">
-                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-2">Decision</p>
-                    <div class="bg-white border border-[#E0E0E0] rounded-xl overflow-hidden">
-                        <div class="grid grid-cols-2 divide-x divide-[#E0E0E0]">
-                            <div class="p-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided By</p>
-                                <p id="flvApprover" class="text-sm text-[#2C3E50] truncate">—</p>
-                            </div>
-                            <div class="p-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Decided On</p>
-                                <p id="flvApprovedAt" class="text-sm text-[#2C3E50]">—</p>
-                            </div>
-                        </div>
-                        <div id="flvRemarksBlock" class="hidden border-t border-[#E0E0E0] p-3">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Remarks</p>
-                            <p id="flvRemarks" class="text-sm text-[#2C3E50] whitespace-pre-wrap leading-relaxed">—</p>
-                        </div>
-                    </div>
-                </div>
+                </section>
 
-            </div>
-
-            <div class="px-6 py-4 border-t border-[#E0E0E0] bg-white shrink-0">
-                <button onclick="closeViewFacultyLeave()"
-                    class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
-                    Close
-                </button>
             </div>
         </div>
     </div>

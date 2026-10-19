@@ -24,7 +24,7 @@ require_once __DIR__ . '/../../config/database.php';
 
 $userId = (int) $_SESSION['user_id'];
 
-// Fetch own employee record for the header
+// Fetch own employee record
 $stmt = $pdo->prepare("
     SELECT e.id AS employee_id, e.first_name, e.last_name,
            e.category, e.sub_category, e.year_level, e.position
@@ -38,16 +38,14 @@ $me = $stmt->fetch();
 $myEmployeeId = (int) ($me['employee_id'] ?? 0);
 
 // ============================================
-// Build the scope filter based on the position
+// Scope filter based on position
 // ============================================
 $where  = ["lr.status IN ('pending','approved')"];
 $params = [];
 
-// Exclude the dean/principal themselves
-$where[] = "lr.employee_id <> ?";
+$where[]  = "lr.employee_id <> ?";
 $params[] = $myEmployeeId;
 
-// Faculty only — no staff, no admins
 $where[] = "emp.category = 'faculty'";
 
 if ($myPosition === 'College Dean') {
@@ -60,7 +58,6 @@ if ($myPosition === 'College Dean') {
 } elseif ($myPosition === 'High School Principal') {
     $where[]  = "emp.sub_category = 'High School'";
 }
-// Academic Dean sees ALL faculty — no extra filter
 
 $whereSql = implode(' AND ', $where);
 
@@ -107,13 +104,9 @@ foreach ($stmt->fetchAll() as $row) {
 }
 
 // ============================================
-// Summary numbers
+// Summary
 // ============================================
-$summary = [
-    'total'    => count($leaves),
-    'pending'  => 0,
-    'approved' => 0,
-];
+$summary = ['total' => count($leaves), 'pending' => 0, 'approved' => 0];
 foreach ($leaves as $l) {
     if (isset($summary[$l['status']])) $summary[$l['status']]++;
 }
@@ -139,22 +132,12 @@ $leaveTypes = [
     'other'     => 'Other',
 ];
 
-// Friendly scope label
 switch ($myPosition) {
-    case 'College Dean':
-        $scopeLabel = $myYearLevel ?: 'Your College';
-        break;
-    case 'Elementary Principal':
-        $scopeLabel = 'Elementary';
-        break;
-    case 'High School Principal':
-        $scopeLabel = 'High School';
-        break;
-    case 'Academic Dean':
-        $scopeLabel = 'All Faculty';
-        break;
-    default:
-        $scopeLabel = 'Faculty';
+    case 'College Dean':         $scopeLabel = $myYearLevel ?: 'Your College'; break;
+    case 'Elementary Principal': $scopeLabel = 'Elementary'; break;
+    case 'High School Principal':$scopeLabel = 'High School'; break;
+    case 'Academic Dean':        $scopeLabel = 'All Faculty'; break;
+    default:                     $scopeLabel = 'Faculty';
 }
 ?>
 <!DOCTYPE html>
@@ -207,7 +190,7 @@ switch ($myPosition) {
                     </div>
                 </div>
 
-                <!-- Summary strip -->
+                <!-- Summary -->
                 <div class="grid grid-cols-3 gap-3">
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total</p>
@@ -238,7 +221,7 @@ switch ($myPosition) {
                     </select>
                 </div>
 
-                <!-- Leaves table -->
+                <!-- Table -->
                 <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <!-- Desktop -->
@@ -408,11 +391,19 @@ switch ($myPosition) {
         <div id="flViewCard"
             class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] transform transition-all duration-200 scale-95 overflow-hidden flex flex-col">
 
-            <!-- Top bar -->
+            <!-- Top bar with leave type -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0] shrink-0 bg-white">
-                <div>
-                    <h3 class="text-base font-semibold text-[#2C3E50]">Leave Request Details</h3>
-                    <p class="text-sm text-[#2C3E50]/50" id="flvRequestId">—</p>
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] border border-[#0F5E3D]/15 flex items-center justify-center text-[#0F5E3D] shrink-0">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h3 class="text-base font-semibold text-[#2C3E50]">Leave Request</h3>
+                            <span id="flvHeaderType" class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-slate-700 bg-slate-100">—</span>
+                        </div>
+                        <p class="text-sm text-[#2C3E50]/50" id="flvRequestId">—</p>
+                    </div>
                 </div>
                 <button onclick="closeViewFacultyLeave()" class="w-9 h-9 rounded-lg flex items-center justify-center text-[#2C3E50]/50 hover:bg-[#F1FDF6] hover:text-[#2C3E50] transition">
                     <i data-lucide="x" class="w-5 h-5"></i>
@@ -431,6 +422,13 @@ switch ($myPosition) {
                         <p id="flvPosition" class="text-sm text-[#2C3E50]/60 mt-1 leading-snug">—</p>
                         <p id="flvDepartment" class="text-sm text-[#2C3E50]/60 leading-snug">—</p>
                         <p id="flvEmail" class="text-xs text-[#2C3E50]/40 mt-2 truncate">—</p>
+
+                        <div class="flex flex-wrap gap-1.5 mt-3">
+                            <span id="flvSidebarType" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-slate-700 bg-white border border-[#E0E0E0]">
+                                <i data-lucide="tag" class="w-3 h-3"></i>
+                                <span>—</span>
+                            </span>
+                        </div>
                     </div>
 
                     <div class="border-t border-[#E0E0E0]"></div>
@@ -465,13 +463,11 @@ switch ($myPosition) {
                 <!-- MAIN -->
                 <section class="flex-1 flex flex-col min-h-0 bg-white">
 
-                    <!-- Scrollable body -->
                     <div class="flex-1 overflow-y-auto px-8 py-6">
 
-                        <!-- Header: type + status + dates -->
+                        <!-- Status + dates -->
                         <div class="pb-5 border-b border-[#F0F0F0]">
                             <div class="flex items-center gap-2 flex-wrap mb-3">
-                                <span id="flvType" class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-700 bg-slate-100">—</span>
                                 <span id="flvStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-700 bg-slate-100">—</span>
                             </div>
                             <p class="text-base text-[#2C3E50]">
@@ -504,7 +500,6 @@ switch ($myPosition) {
 
                     </div>
 
-                    <!-- Footer -->
                     <div class="border-t border-[#E0E0E0] bg-white px-8 py-3 shrink-0">
                         <button onclick="closeViewFacultyLeave()"
                             class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-md transition text-sm">

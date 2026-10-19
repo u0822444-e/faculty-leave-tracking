@@ -58,6 +58,35 @@ function openViewFacultyLeave(data) {
     $("flvDepartment").textContent = dept || "—";
     $("flvEmail").textContent = data.email || "—";
 
+    // ── Leave type (header + sidebar) ──
+    const typeKey = (data.type || "").toLowerCase();
+    const typeClasses = {
+        vacation: "text-blue-700 bg-blue-50",
+        sick: "text-rose-700 bg-rose-50",
+        maternity: "text-purple-700 bg-purple-50",
+        paternity: "text-indigo-700 bg-indigo-50",
+        terminal: "text-amber-700 bg-amber-50",
+        other: "text-slate-700 bg-slate-100",
+    };
+    const typeClassStr = typeClasses[typeKey] || typeClasses.other;
+    const typeLabel = data.type || "—";
+
+    // Header pill
+    const headerType = $("flvHeaderType");
+    headerType.textContent = typeLabel;
+    headerType.className =
+        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium " + typeClassStr;
+
+    // Sidebar badge
+    const sidebarType = $("flvSidebarType");
+    if (sidebarType) {
+        const span = sidebarType.querySelector("span:last-child");
+        if (span) span.textContent = typeLabel;
+        sidebarType.className =
+            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-[#E0E0E0] " +
+            typeClassStr;
+    }
+
     // ── Sidebar: credits ──
     const credits = data.credits || { total: 0, used: 0, remaining: 0 };
     const fmtShort = (n) => {
@@ -76,23 +105,7 @@ function openViewFacultyLeave(data) {
         (pct > 50 ? "bg-[#0F5E3D]" : pct > 20 ? "bg-amber-500" : "bg-red-500") +
         " h-full";
 
-    // ── Main: type pill ──
-    const typeKey = (data.type || "").toLowerCase();
-    const typeClasses = {
-        vacation: "text-blue-700 bg-blue-50",
-        sick: "text-rose-700 bg-rose-50",
-        maternity: "text-purple-700 bg-purple-50",
-        paternity: "text-indigo-700 bg-indigo-50",
-        terminal: "text-amber-700 bg-amber-50",
-        other: "text-slate-700 bg-slate-100",
-    };
-    const typeEl = $("flvType");
-    typeEl.textContent = data.type || "—";
-    typeEl.className =
-        "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium " +
-        (typeClasses[typeKey] || typeClasses.other);
-
-    // ── Main: status pill ──
+    // ── Status pill ──
     const statusKey = (data.status || "").toLowerCase();
     const statusClasses = {
         pending: "text-amber-700 bg-amber-50",
@@ -116,34 +129,21 @@ function openViewFacultyLeave(data) {
     const fmtDate = (iso) => {
         if (!iso) return "—";
         const d = new Date(iso + "T00:00:00");
-        return d.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-        });
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     };
     const fmtDateTime = (iso) => {
         if (!iso) return "—";
         const d = new Date(iso.replace(" ", "T"));
         return (
-            d.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-            }) +
+            d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
             " · " +
-            d.toLocaleTimeString("en-US", {
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true,
-            })
+            d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
         );
     };
 
     const startStr = fmtDate(data.start);
     const endStr = fmtDate(data.end);
-    $("flvDates").textContent =
-        startStr === endStr ? startStr : `${startStr} – ${endStr}`;
+    $("flvDates").textContent = startStr === endStr ? startStr : `${startStr} – ${endStr}`;
 
     const days = parseFloat(data.days) || 0;
     $("flvDays").textContent = Number.isInteger(days)

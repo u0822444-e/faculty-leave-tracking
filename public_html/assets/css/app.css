@@ -94,3 +94,48 @@ textarea:disabled {
     color: #6b7280 !important;
     background-color: #f9fafb !important;
 }
+
+/* Leave review — pay selector */
+.rv-pay-btn {
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid #E0E0E0;
+    background: #ffffff;
+    color: rgba(44, 62, 80, 0.7);
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+    cursor: pointer;
+}
+
+/* With Pay — hover light green, selected green */
+.rv-pay-with:hover {
+    background: #F1FDF6;
+    border-color: #0F5E3D;
+    color: #0F5E3D;
+}
+.rv-pay-with.is-selected {
+    background: #0F5E3D;
+    border-color: #0F5E3D;
+    color: #ffffff;
+}
+.rv-pay-with.is-selected:hover {
+    background: #0a4a2f;
+    border-color: #0a4a2f;
+}
+
+/* Without Pay — hover light yellow, selected yellow */
+.rv-pay-without:hover {
+    background: #FFFBEB;         /* amber-50 */
+    border-color: #F59E0B;       /* amber-400 */
+    color: #B45309;              /* amber-700 */
+}
+.rv-pay-without.is-selected {
+    background: #F59E0B;         /* amber-500 */
+    border-color: #F59E0B;
+    color: #ffffff;
+}
+.rv-pay-without.is-selected:hover {
+    background: #D97706;         /* amber-600 */
+    border-color: #D97706;
+}

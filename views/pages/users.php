@@ -11,21 +11,47 @@ if ($_SESSION['role'] !== 'admin') {
 require_once __DIR__ . '/../../config/database.php';
 
 // ============================================
-// Status filter (server-side)
+// Status filter
 // ============================================
 $statusFilter = $_GET['status'] ?? 'active';
 if (!in_array($statusFilter, ['active', 'inactive', 'all'], true)) {
     $statusFilter = 'active';
 }
 
-$whereStatus = '';
+// ============================================
+// Search (server-side)
+// ============================================
+$searchQuery = trim($_GET['q'] ?? '');
+$searchQuery = substr($searchQuery, 0, 100);
+
+$whereClauses = [];
+$bindings = [];
+
 if ($statusFilter === 'active') {
-    $whereStatus = " WHERE u.status = 'active' ";
+    $whereClauses[] = "u.status = 'active'";
 } elseif ($statusFilter === 'inactive') {
-    $whereStatus = " WHERE u.status = 'inactive' ";
+    $whereClauses[] = "u.status = 'inactive'";
 }
 
-$baseQs = $statusFilter !== 'active' ? '&status=' . urlencode($statusFilter) : '';
+if ($searchQuery !== '') {
+    $whereClauses[] = "(
+        u.username LIKE ?
+        OR e.first_name  LIKE ?
+        OR e.middle_name LIKE ?
+        OR e.last_name   LIKE ?
+        OR e.email       LIKE ?
+        OR CONCAT_WS(' ', e.first_name, e.last_name) LIKE ?
+    )";
+    $like = '%' . $searchQuery . '%';
+    $bindings = array_merge($bindings, [$like, $like, $like, $like, $like, $like]);
+}
+
+$whereSql = empty($whereClauses) ? '' : ' WHERE ' . implode(' AND ', $whereClauses);
+
+// Preserve filters + search across pagination
+$baseQs = '';
+if ($statusFilter !== 'active') $baseQs .= '&status=' . urlencode($statusFilter);
+if ($searchQuery !== '')        $baseQs .= '&q=' . urlencode($searchQuery);
 
 // ============================================
 // Pagination
@@ -34,8 +60,10 @@ $perPage = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $perPage;
 
-$countSql = "SELECT COUNT(*) FROM users u {$whereStatus}";
-$totalUsers = (int) $pdo->query($countSql)->fetchColumn();
+$countSql = "SELECT COUNT(*) FROM users u LEFT JOIN employees e ON u.employee_id = e.id {$whereSql}";
+$stmt = $pdo->prepare($countSql);
+$stmt->execute($bindings);
+$totalUsers = (int) $stmt->fetchColumn();
 $totalPages = max(1, (int) ceil($totalUsers / $perPage));
 
 if ($page > $totalPages) {
@@ -47,35 +75,40 @@ if ($page > $totalPages) {
 // Fetch current page
 // ============================================
 $sql = "
-    SELECT 
-        u.id AS user_id, u.username, u.role, u.status, u.avatar, u.profile_edit_requested,
+    SELECT
+        u.id AS user_id, u.username, u.role, u.status, u.avatar, u.pending_avatar,
+        u.profile_edit_requested,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.year_level, e.position,
         e.employment_type, e.leave_credits, e.leave_pay,
         u.created_at
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
-    {$whereStatus}
+    {$whereSql}
     ORDER BY u.id DESC
     LIMIT ? OFFSET ?
 ";
 $stmt = $pdo->prepare($sql);
-$stmt->bindValue(1, $perPage, PDO::PARAM_INT);
-$stmt->bindValue(2, $offset, PDO::PARAM_INT);
+$i = 1;
+foreach ($bindings as $b) {
+    $stmt->bindValue($i++, $b, PDO::PARAM_STR);
+}
+$stmt->bindValue($i++, $perPage, PDO::PARAM_INT);
+$stmt->bindValue($i++, $offset, PDO::PARAM_INT);
 $stmt->execute();
 $users = $stmt->fetchAll();
 
 $roleStyles = [
-    'admin' => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'hr' => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'admin'   => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'hr'      => 'text-[#0F5E3D] bg-[#F1FDF6]',
     'faculty' => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'staff' => 'text-slate-600 bg-slate-100',
+    'staff'   => 'text-slate-600 bg-slate-100',
 ];
 $roleLabels = [
-    'admin' => 'Admin',
-    'hr' => 'HR',
+    'admin'   => 'Admin',
+    'hr'      => 'HR',
     'faculty' => 'Faculty',
-    'staff' => 'Staff',
+    'staff'   => 'Staff',
 ];
 
 $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = 'default_new_user_password' LIMIT 1");
@@ -126,14 +159,14 @@ $statusLabelText = $statusFilter === 'inactive'
             class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
         <?php
-        $activePage = 'users';
+        $activePage = 'faculty';
         require __DIR__ . '/../components/sidebar.php';
         ?>
 
         <div class="flex-1 md:ml-64 w-full min-w-0">
 
             <?php
-            $pageTitle = 'Users';
+            $pageTitle = 'Faculty';
             $pageSubtitle = 'Welcome back, ' . ($_SESSION['first_name'] ?? 'Admin');
             $pageIcon = 'users';
             require __DIR__ . '/../components/topbar.php';
@@ -267,27 +300,24 @@ $statusLabelText = $statusFilter === 'inactive'
                                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Status</p>
                                     </div>
                                     <div class="py-1">
-                                        <a href="?status=active"
-                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left <?= $statusFilter === 'active' ? 'bg-[#F1FDF6] font-medium' : '' ?>">
-                                            <span class="flex-1">Active</span>
-                                            <?php if ($statusFilter === 'active'): ?>
-                                                <i data-lucide="check" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
-                                            <?php endif; ?>
-                                        </a>
-                                        <a href="?status=inactive"
-                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left <?= $statusFilter === 'inactive' ? 'bg-[#F1FDF6] font-medium' : '' ?>">
-                                            <span class="flex-1">Archived</span>
-                                            <?php if ($statusFilter === 'inactive'): ?>
-                                                <i data-lucide="check" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
-                                            <?php endif; ?>
-                                        </a>
-                                        <a href="?status=all"
-                                            class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left <?= $statusFilter === 'all' ? 'bg-[#F1FDF6] font-medium' : '' ?>">
-                                            <span class="flex-1">All Statuses</span>
-                                            <?php if ($statusFilter === 'all'): ?>
-                                                <i data-lucide="check" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
-                                            <?php endif; ?>
-                                        </a>
+                                        <?php
+                                        $statusOpts = [
+                                            'active'   => 'Active',
+                                            'inactive' => 'Archived',
+                                            'all'      => 'All Statuses',
+                                        ];
+                                        foreach ($statusOpts as $val => $label):
+                                            $href = '?status=' . urlencode($val);
+                                            if ($searchQuery !== '') $href .= '&q=' . urlencode($searchQuery);
+                                        ?>
+                                            <a href="<?= $href ?>"
+                                                class="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[#2C3E50] hover:bg-[#F1FDF6] transition text-left <?= $statusFilter === $val ? 'bg-[#F1FDF6] font-medium' : '' ?>">
+                                                <span class="flex-1"><?= $label ?></span>
+                                                <?php if ($statusFilter === $val): ?>
+                                                    <i data-lucide="check" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                                <?php endif; ?>
+                                            </a>
+                                        <?php endforeach; ?>
                                     </div>
                                 </div>
                             </div>
@@ -295,12 +325,18 @@ $statusLabelText = $statusFilter === 'inactive'
                         </div>
 
                         <div class="flex items-center gap-2">
-                            <div class="relative flex-1 sm:w-72">
+                            <form method="get" action="/users" id="searchForm" onsubmit="event.preventDefault(); submitGlobalSearch();" class="relative flex-1 sm:w-72">
+                                <?php if ($statusFilter !== 'active'): ?>
+                                    <input type="hidden" name="status" value="<?= htmlspecialchars($statusFilter) ?>">
+                                <?php endif; ?>
                                 <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
-                                <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search"
+                                <input type="text" id="searchInput" name="q"
+                                    value="<?= htmlspecialchars($searchQuery) ?>"
+                                    oninput="scheduleGlobalSearch()"
+                                    placeholder="Search name, email, username"
                                     class="w-full pl-10 pr-10 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                                 <kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[#2C3E50]/40 bg-white px-1.5 py-0.5 rounded border border-[#E0E0E0]">/</kbd>
-                            </div>
+                            </form>
                             <button onclick="openAddUserModal()"
                                 class="flex items-center gap-1.5 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 px-4 rounded-lg transition text-xs shadow-sm hover:shadow-md whitespace-nowrap">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
@@ -426,8 +462,8 @@ $statusLabelText = $statusFilter === 'inactive'
                     <?php endforeach; ?>
                 </div>
 
-                <!-- Users table -->
-                <div id="usersListView" class="relative z-10 animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
+                <!-- Users table (list view) — pagination hoisted below so it shows in both views -->
+                <div id="usersListView" class="relative z-10 animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-t-xl shadow-sm overflow-hidden">
 
                     <div class="hidden md:block overflow-x-auto">
                         <table class="w-full">
@@ -670,22 +706,30 @@ $statusLabelText = $statusFilter === 'inactive'
                             </div>
                         <?php endforeach; ?>
                     </div>
+                </div>
 
+                <!-- Shared: empty state + pagination (visible in BOTH grid and list view) -->
+                <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-b-xl shadow-sm overflow-hidden -mt-px">
                     <div id="emptyState" class="hidden p-12 text-center">
                         <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
                         <p class="text-sm font-medium text-[#2C3E50]">No users found</p>
-                        <p class="text-xs text-[#2C3E50]/50 mt-1">Try adjusting your search or filters.</p>
+                        <p class="text-xs text-[#2C3E50]/50 mt-1">
+                            <?= $searchQuery !== '' ? 'Try a different search term.' : 'Try adjusting your filters.' ?>
+                        </p>
                     </div>
 
-                    <div class="px-4 sm:px-6 py-3 border-t border-[#E0E0E0] flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div class="px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-[#E0E0E0]">
                         <p class="text-xs text-[#2C3E50]/50">
                             Showing
                             <span class="font-medium text-[#2C3E50]"><?= count($users) ?></span>
                             of
                             <span class="font-medium text-[#2C3E50]"><?= $totalUsers ?></span>
                             users
+                            <?php if ($searchQuery !== ''): ?>
+                                · matching "<span class="font-medium text-[#2C3E50]"><?= htmlspecialchars($searchQuery) ?></span>"
+                            <?php endif; ?>
                             <?php if ($totalPages > 1): ?>
                                 · Page <span class="font-medium text-[#2C3E50]"><?= $page ?></span> of <span class="font-medium text-[#2C3E50]"><?= $totalPages ?></span>
                             <?php endif; ?>
@@ -821,7 +865,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                 <option value="faculty">Faculty</option>
                                 <option value="staff">Staff</option>
                             </select>
-                            <!-- Hidden mirror — submitted even when #addCategory is disabled -->
                             <input type="hidden" name="category" id="addCategoryHidden" value="">
                         </div>
                     </div>
@@ -967,7 +1010,6 @@ $statusLabelText = $statusFilter === 'inactive'
                             <option value="faculty">Faculty</option>
                             <option value="staff">Staff</option>
                         </select>
-                        <!-- Hidden mirror — submitted even when #editCategory is disabled -->
                         <input type="hidden" name="category" id="editCategoryHidden" value="">
                     </div>
                 </div>
@@ -1031,7 +1073,7 @@ $statusLabelText = $statusFilter === 'inactive'
         </div>
     </div>
 
-    <!-- Profile Edit Request Modal (Approve / Reject) -->
+    <!-- Profile Edit Request Modal -->
     <div id="editRequestModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all duration-200 scale-95" id="editRequestCard">
             <div id="editReqIconWrap" class="flex items-center justify-center w-12 h-12 rounded-full bg-[#F1FDF6] mx-auto mb-4">

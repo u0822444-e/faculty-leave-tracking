@@ -145,19 +145,31 @@ async function openReview(leaveId) {
   rvFilteredHistory = [];
   rvHistoryPage = 1;
 
-  document.querySelectorAll(".rv-pay-btn").forEach((btn) => {
+    document.querySelectorAll(".rv-pay-btn").forEach((btn) => {
+    const isWithPay = btn.dataset.pay === "with_pay";
+
     btn.classList.remove(
-      "bg-[#0F5E3D]",
-      "text-white",
-      "border-[#0F5E3D]",
-      "hover:bg-[#0a4a2f]"
+      "bg-[#0F5E3D]", "text-white", "border-[#0F5E3D]", "hover:bg-[#0a4a2f]",
+      "bg-amber-500", "text-white", "border-amber-500", "hover:bg-amber-600",
+      "hover:bg-[#F1FDF6]", "hover:border-[#0F5E3D]", "hover:text-[#0F5E3D]",
+      "hover:bg-amber-50", "hover:border-amber-400", "hover:text-amber-700",
+      "bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]"
     );
-    btn.classList.add(
-      "bg-white",
-      "text-[#2C3E50]/70",
-      "border-[#E0E0E0]",
-      "hover:bg-[#F1FDF6]"
-    );
+
+    btn.classList.add("bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]");
+    if (isWithPay) {
+      btn.classList.add(
+        "hover:bg-[#F1FDF6]",
+        "hover:border-[#0F5E3D]",
+        "hover:text-[#0F5E3D]"
+      );
+    } else {
+      btn.classList.add(
+        "hover:bg-amber-50",
+        "hover:border-amber-400",
+        "hover:text-amber-700"
+      );
+    }
   });
   document.getElementById("rvRemarksInput").value = "";
 
@@ -476,20 +488,58 @@ function rvHistoryNext() {
 // ============================================
 function rvSelectPay(pay) {
   rvSelectedPay = pay;
+
   document.querySelectorAll(".rv-pay-btn").forEach((btn) => {
-    const sel = btn.dataset.pay === pay;
+    const isSelected = btn.dataset.pay === pay;
+    const isWithPay = btn.dataset.pay === "with_pay";
 
-    // Selected state
-    btn.classList.toggle("bg-[#0F5E3D]", sel);
-    btn.classList.toggle("text-white", sel);
-    btn.classList.toggle("border-[#0F5E3D]", sel);
-    btn.classList.toggle("hover:bg-[#0a4a2f]", sel); // darker green on hover
+    // Clear all state classes first
+    btn.classList.remove(
+      // Selected — green (with pay)
+      "bg-[#0F5E3D]", "text-white", "border-[#0F5E3D]", "hover:bg-[#0a4a2f]",
+      // Selected — amber (without pay)
+      "bg-amber-500", "text-white", "border-amber-500", "hover:bg-amber-600",
+      // Hover — light green
+      "hover:bg-[#F1FDF6]", "hover:border-[#0F5E3D]", "hover:text-[#0F5E3D]",
+      // Hover — light amber
+      "hover:bg-amber-50", "hover:border-amber-400", "hover:text-amber-700",
+      // Unselected base
+      "bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]"
+    );
 
-    // Unselected state
-    btn.classList.toggle("bg-white", !sel);
-    btn.classList.toggle("text-[#2C3E50]/70", !sel);
-    btn.classList.toggle("border-[#E0E0E0]", !sel);
-    btn.classList.toggle("hover:bg-[#F1FDF6]", !sel); // light green on hover
+    if (isSelected) {
+      if (isWithPay) {
+        btn.classList.add(
+          "bg-[#0F5E3D]",
+          "text-white",
+          "border-[#0F5E3D]",
+          "hover:bg-[#0a4a2f]"
+        );
+      } else {
+        btn.classList.add(
+          "bg-amber-500",
+          "text-white",
+          "border-amber-500",
+          "hover:bg-amber-600"
+        );
+      }
+    } else {
+      // Unselected — hover color depends on which button it is
+      btn.classList.add("bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]");
+      if (isWithPay) {
+        btn.classList.add(
+          "hover:bg-[#F1FDF6]",
+          "hover:border-[#0F5E3D]",
+          "hover:text-[#0F5E3D]"
+        );
+      } else {
+        btn.classList.add(
+          "hover:bg-amber-50",
+          "hover:border-amber-400",
+          "hover:text-amber-700"
+        );
+      }
+    }
   });
 }
 

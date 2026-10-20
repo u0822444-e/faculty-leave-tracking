@@ -88,7 +88,8 @@ $leaveLabels = [
             class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
         <?php
-        $activePage = 'hr_leaves';
+        $role = $_SESSION['role'] ?? 'admin';
+        $activePage = ($role === 'admin') ? 'leaves' : 'hr_leaves'; 
         require __DIR__ . '/../components/sidebar.php';
         ?>
 
@@ -534,11 +535,11 @@ $leaveLabels = [
 
                             <div class="flex items-center gap-2 shrink-0">
                                 <button type="button" data-pay="with_pay" onclick="rvSelectPay('with_pay')"
-                                    class="rv-pay-btn px-3 py-1.5 rounded-md text-sm font-medium border border-[#E0E0E0] bg-white text-[#2C3E50]/70 transition">
+                                    class="rv-pay-btn rv-pay-with" data-pay="with_pay">
                                     With Pay
                                 </button>
                                 <button type="button" data-pay="without_pay" onclick="rvSelectPay('without_pay')"
-                                    class="rv-pay-btn px-3 py-1.5 rounded-md text-sm font-medium border border-[#E0E0E0] bg-white text-[#2C3E50]/70 transition">
+                                    class="rv-pay-btn rv-pay-without" data-pay="without_pay">
                                     Without Pay
                                 </button>
                             </div>

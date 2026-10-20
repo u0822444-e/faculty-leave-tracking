@@ -495,12 +495,12 @@ function timeAgo($timestamp)
                         <h2 class="text-base font-bold text-[#2C3E50] mb-5">Quick Actions</h2>
 
                         <div class="space-y-3">
-                            <a href="/users"
+                            <a href="/faculty"
                                 class="w-full flex items-center justify-center gap-2 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm shadow-sm hover:shadow-md">
                                 <i data-lucide="users" class="w-4 h-4"></i>
                                 Manage Users
                             </a>
-                            <a href="/leaves"
+                            <a href="/leaves"       
                                 class="w-full flex items-center justify-center gap-2 border border-[#0F5E3D] text-[#0F5E3D] hover:bg-[#F1FDF6] active:scale-[0.99] font-medium py-2.5 rounded-lg transition text-sm">
                                 <i data-lucide="calendar-days" class="w-4 h-4"></i>
                                 Review Leaves

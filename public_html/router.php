@@ -223,7 +223,7 @@ if ($uri === '/staff/dashboard') {
 }
 
 if ($uri === '/staff/leaves') {
-    require __DIR__ . '/../views/pages/staff_leaves.php';
+    require __DIR__ . '/../views/pages/staff_leaves.php';   
     exit;
 }
 

@@ -59,14 +59,10 @@ const DEFAULT_POSITIONS = [
   "N/A", "Admin Staff", "Teacher I", "Teacher II", "Instructor I"
 ];
 
-// ============================================
-// Role ↔ Category coupling
-// ============================================
 const ROLE_TO_CATEGORY = {
   faculty: "faculty",
   staff: "staff",
   hr: "staff",
-  // admin is special — can be either faculty or staff
 };
 
 const CATEGORY_TO_ROLE = {
@@ -85,9 +81,32 @@ let pendingProfileEditId = null;
 let pendingProfileEditAction = null;
 
 // ============================================
-// Role ↔ Category coupling enforcement
-// Keeps the disabled <select>'s value mirrored into a hidden input
-// so it's still included in FormData.
+// Server-side search
+// ============================================
+let searchDebounceTimer = null;
+
+function scheduleGlobalSearch() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(submitGlobalSearch, 350);
+}
+
+function submitGlobalSearch() {
+  const input = document.getElementById("searchInput");
+  const form = document.getElementById("searchForm");
+  if (!input || !form) return;
+
+  const q = input.value.trim();
+  const status = form.querySelector('input[name="status"]')?.value || "";
+
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (q) params.set("q", q);
+
+  window.location.href = "/faculty" + (params.toString() ? "?" + params.toString() : "");
+}
+
+// ============================================
+// Role ↔ Category coupling
 // ============================================
 function enforceRoleCategoryCoupling(prefix = "add", source = "") {
   const roleEl = document.getElementById(`${prefix}Role`);
@@ -100,9 +119,7 @@ function enforceRoleCategoryCoupling(prefix = "add", source = "") {
 
   if (source === "role" && role) {
     if (role === "admin") {
-      if (cat !== "faculty" && cat !== "staff") {
-        catEl.value = "";
-      }
+      if (cat !== "faculty" && cat !== "staff") catEl.value = "";
       catEl.disabled = false;
       if (hiddenCatEl) hiddenCatEl.value = "";
       return;
@@ -186,7 +203,7 @@ function goToStep(step) {
 }
 
 // ============================================
-// Employment change — handles BOTH 'add' and 'edit'
+// Employment change
 // ============================================
 function handleEmploymentChange(prefix = "add") {
   const employment =
@@ -280,7 +297,7 @@ function regeneratePassword() {
 }
 
 // ============================================
-// Cascading dropdowns — unified for add/edit
+// Cascading dropdowns
 // ============================================
 function updateSubCategories(prefix = "add") {
   const catEl = document.getElementById(`${prefix}Category`);
@@ -374,7 +391,7 @@ function populatePositionDropdown(selectId, selectedValue = null, subCategory = 
 }
 
 // ============================================
-// Filter dropdowns
+// Filter dropdowns (client-side)
 // ============================================
 function updateFilterSubCategories(selectedValue = null) {
   const catEl = document.getElementById("filterCategory");
@@ -518,14 +535,10 @@ function openEditUserModal(data) {
   const editLeavePayEl = document.getElementById("editLeavePay");
   if (editLeavePayEl) {
     editLeavePayEl.value =
-      data.leave_pay !== undefined && data.leave_pay !== null
-        ? data.leave_pay
-        : 0;
+      data.leave_pay !== undefined && data.leave_pay !== null ? data.leave_pay : 0;
   }
 
-  document.getElementById("editCredits").value =
-    Math.round(Number(data.credits) || 0);
-
+  document.getElementById("editCredits").value = Math.round(Number(data.credits) || 0);
   document.getElementById("editStatus").value = data.status || "active";
 
   handleEmploymentChange("edit");
@@ -552,7 +565,7 @@ function openProfileEditModal(userId, fullName, action) {
 
   if (action === "approve") {
     title.textContent = "Approve Profile Edit";
-    desc.innerHTML = `Approve the profile update request for <span class="font-semibold text-[#2C3E50]">${fullName}</span>? They will be able to edit their details again.`;
+    desc.innerHTML = `Approve the profile update request for <span class="font-semibold text-[#2C3E50]">${fullName}</span>?`;
     btn.textContent = "Approve";
     btn.className = "flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm";
     iconWrap.className = "flex items-center justify-center w-12 h-12 rounded-full bg-[#F1FDF6] mx-auto mb-4";
@@ -560,7 +573,7 @@ function openProfileEditModal(userId, fullName, action) {
     icon.className = "w-6 h-6 text-[#0F5E3D]";
   } else {
     title.textContent = "Reject Profile Edit";
-    desc.innerHTML = `Reject the profile update request for <span class="font-semibold text-[#2C3E50]">${fullName}</span>? They will be notified that their changes were not accepted.`;
+    desc.innerHTML = `Reject the profile update request for <span class="font-semibold text-[#2C3E50]">${fullName}</span>?`;
     btn.textContent = "Reject";
     btn.className = "flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition text-sm";
     iconWrap.className = "flex items-center justify-center w-12 h-12 rounded-full bg-red-50 mx-auto mb-4";
@@ -581,7 +594,8 @@ function closeProfileEditModal() {
 async function confirmProfileEditAction() {
   if (!pendingProfileEditId || !pendingProfileEditAction) return;
 
-  const action = pendingProfileEditAction === "approve" ? "approve_profile_edit" : "reject_profile_edit";
+  const action =
+    pendingProfileEditAction === "approve" ? "approve_profile_edit" : "reject_profile_edit";
   const fd = new FormData();
   fd.append("action", action);
   fd.append("id", pendingProfileEditId);
@@ -725,7 +739,8 @@ function closeResetSentModal() {
 }
 
 // ============================================
-// View toggle
+// View toggle — pagination is now OUTSIDE both views
+// so it always shows
 // ============================================
 function setView(view) {
   currentView = view;
@@ -795,7 +810,8 @@ function closeSuccessModal() {
 // Edit
 // ============================================
 async function submitEditUser(formData) {
-  const isPasswordChange = !!formData.get("password") && String(formData.get("password")).trim() !== "";
+  const isPasswordChange =
+    !!formData.get("password") && String(formData.get("password")).trim() !== "";
 
   showLoading(
     isPasswordChange ? "Updating user & sending email..." : "Saving changes...",
@@ -911,7 +927,7 @@ function sortRows() {
 }
 
 // ============================================
-// Filter menu
+// Filter menu (client-side only — status/search are server-side)
 // ============================================
 function toggleFilterMenu() {
   const menu = document.getElementById("filterMenu");
@@ -975,35 +991,31 @@ function closeStatusOnOutside(e) {
 }
 
 // ============================================
-// Filters (client-side within current page)
+// Filters — client-side only (role/category/sub/year)
+// Search & status are server-side via URL
 // ============================================
 function applyFilters() {
-  const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
-  const role = document.getElementById("filterRole")?.value || "";
+  const role     = document.getElementById("filterRole")?.value || "";
   const category = document.getElementById("filterCategory")?.value || "";
-  const sub = (document.getElementById("filterSubCategory")?.value || "").toLowerCase();
-  const year = (document.getElementById("filterYearLevel")?.value || "").toLowerCase();
+  const sub      = (document.getElementById("filterSubCategory")?.value || "").toLowerCase();
+  const year     = (document.getElementById("filterYearLevel")?.value || "").toLowerCase();
 
-  const rows = document.querySelectorAll("#usersTableBody tr[data-name]");
+  const rows  = document.querySelectorAll("#usersTableBody tr[data-name]");
   const cards = document.querySelectorAll("#mobileCards > div[data-name]");
   const grids = document.querySelectorAll("#usersGrid > div[data-name]");
   let visible = 0;
 
   [...rows, ...cards, ...grids].forEach((row) => {
-    const name = row.dataset.name || "";
-    const username = row.dataset.username || "";
     const rRole = row.dataset.role || "";
-    const rCat = row.dataset.category || "";
-    const rSub = (row.dataset.sub || "").toLowerCase();
+    const rCat  = row.dataset.category || "";
+    const rSub  = (row.dataset.sub || "").toLowerCase();
     const rYear = (row.dataset.year || "").toLowerCase();
 
-    const matchesSearch = !search || name.includes(search) || username.includes(search);
-    const matchesRole = !role || rRole === role;
-    const matchesCategory = !category || rCat === category;
-    const matchesSub = !sub || rSub === sub;
-    const matchesYear = !year || rYear === year;
+    const matches = (!role || rRole === role)
+                 && (!category || rCat === category)
+                 && (!sub || rSub === sub)
+                 && (!year || rYear === year);
 
-    const matches = matchesSearch && matchesRole && matchesCategory && matchesSub && matchesYear;
     row.classList.toggle("hidden", !matches);
     if (matches) visible++;
   });
@@ -1021,7 +1033,7 @@ function applyFilters() {
 }
 
 function clearAllFilters() {
-  ["filterRole", "filterCategory", "filterSubCategory", "filterYearLevel", "searchInput"].forEach((id) => {
+  ["filterRole", "filterCategory", "filterSubCategory", "filterYearLevel"].forEach((id) => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -1052,6 +1064,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (editRoleEl) editRoleEl.addEventListener("change", () => enforceRoleCategoryCoupling("edit", "role"));
   if (editCategoryEl) editCategoryEl.addEventListener("change", () => enforceRoleCategoryCoupling("edit", "category"));
 
+  // Info form (add user)
   document.getElementById("addUserForm")?.addEventListener("submit", async function (e) {
     e.preventDefault();
     if (!validateStep2()) return;
@@ -1068,6 +1081,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await submitCreateUser(formData);
   });
 
+  // Edit form
   document.getElementById("editUserForm")?.addEventListener("submit", async function (e) {
     e.preventDefault();
     const first = document.getElementById("editFirstName").value.trim();
@@ -1081,6 +1095,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await submitEditUser(new FormData(this));
   });
 
+  // `/` shortcut → focus search box
   document.addEventListener("keydown", function (e) {
     if (
       e.key === "/" &&

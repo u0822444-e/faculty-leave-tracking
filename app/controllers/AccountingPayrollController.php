@@ -6,87 +6,94 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../helpers/ActivityLogger.php';
 
+header('Content-Type: application/json');
+
+// Ensure user is logged in and is an Accounting Staff
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'staff') {
     http_response_code(403);
-    echo json_encode(['error' => 'Unauthorized']);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
     exit;
 }
 
-header('Content-Type: application/json');
 $userId = (int) $_SESSION['user_id'];
+$action = $_POST['action'] ?? '';
 
-// Verify accounting staff
+// Verify Accounting Section
 $stmt = $pdo->prepare("
-    SELECT e.sub_category
-    FROM users u
+    SELECT e.sub_category FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
-    WHERE u.id = ?
-    LIMIT 1
+    WHERE u.id = ? LIMIT 1
 ");
 $stmt->execute([$userId]);
 if (($stmt->fetchColumn() ?: '') !== 'Accounting Section') {
     http_response_code(403);
-    echo json_encode(['error' => 'Not authorized. Accounting staff only.']);
+    echo json_encode(['success' => false, 'error' => 'Unauthorized department']);
     exit;
 }
 
-$action = $_POST['action'] ?? '';
-
 try {
+    // ============================================
+    // UPDATE SALARY
+    // ============================================
+    if ($action === 'update_salary') {
+        $employeeId = (int) ($_POST['employee_id'] ?? 0);
+        $salary = (float) ($_POST['basic_salary'] ?? 0);
+
+        if ($employeeId <= 0 || $salary < 0) {
+            echo json_encode(['success' => false, 'error' => 'Invalid input.']);
+            exit;
+        }
+
+        $stmt = $pdo->prepare("UPDATE employees SET basic_salary = ? WHERE id = ?");
+        $stmt->execute([$salary, $employeeId]);
+
+        if (class_exists('ActivityLogger')) {
+            ActivityLogger::log($pdo, 'update_salary', "Updated monthly salary to ₱" . number_format($salary, 2), 'employee', $employeeId);
+        }
+
+        echo json_encode(['success' => true, 'message' => 'Salary updated.']);
+        exit;
+    }
+
+    // ============================================
+    // SETTLE PAYROLL
+    // ============================================
     if ($action === 'settle_payroll') {
         $employeeId = (int) ($_POST['employee_id'] ?? 0);
         $status = $_POST['status'] ?? '';
         $amount = (float) ($_POST['amount'] ?? 0);
         $remarks = trim($_POST['remarks'] ?? '');
 
-        if ($employeeId <= 0 || !in_array($status, ['settled', 'outstanding'], true) || $amount < 0) {
+        if ($employeeId <= 0 || !in_array($status, ['settled', 'outstanding'])) {
             echo json_encode(['success' => false, 'error' => 'Invalid input.']);
             exit;
         }
 
-        // Verify employee is faculty or staff
-        $stmt = $pdo->prepare("SELECT id FROM employees WHERE id = ? AND category IN ('faculty', 'staff') LIMIT 1");
+        // Check if a record already exists
+        $stmt = $pdo->prepare("SELECT id FROM payroll_settlements WHERE employee_id = ? LIMIT 1");
         $stmt->execute([$employeeId]);
-        if (!$stmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Employee not found.']);
-            exit;
+        $settlementId = $stmt->fetchColumn();
+
+        if ($settlementId) {
+            $stmt = $pdo->prepare("
+                UPDATE payroll_settlements 
+                SET status = ?, amount = ?, remarks = ?, settled_at = IF(? = 'settled', NOW(), NULL)
+                WHERE id = ?
+            ");
+            $stmt->execute([$status, $amount, $remarks, $status, $settlementId]);
+        } else {
+            $stmt = $pdo->prepare("
+                INSERT INTO payroll_settlements (employee_id, status, amount, remarks, settled_at)
+                VALUES (?, ?, ?, ?, IF(? = 'settled', NOW(), NULL))
+            ");
+            $stmt->execute([$employeeId, $status, $amount, $remarks, $status]);
         }
 
-        // One row per employee — upsert
-        $stmt = $pdo->prepare("
-            INSERT INTO payroll_settlements 
-                (employee_id, status, amount, remarks, settled_at, updated_by, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE
-                status = VALUES(status),
-                amount = VALUES(amount),
-                remarks = VALUES(remarks),
-                settled_at = VALUES(settled_at),
-                updated_by = VALUES(updated_by),
-                updated_at = NOW()
-        ");
-        $stmt->execute([
-            $employeeId,
-            $status,
-            $amount,
-            $remarks,
-            $status === 'settled' ? date('Y-m-d H:i:s') : null,
-            $userId,
-        ]);
-
-        try {
-            ActivityLogger::log(
-                $pdo,
-                'settle_payroll',
-                "Marked payroll as {$status} for employee #{$employeeId} (₱" . number_format($amount, 2) . ")",
-                'payroll',
-                $employeeId
-            );
-        } catch (Throwable $e) {
-            error_log($e->getMessage());
+        if (class_exists('ActivityLogger')) {
+            ActivityLogger::log($pdo, 'settle_payroll', "Marked payroll as {$status} (₱" . number_format($amount, 2) . ")", 'employee', $employeeId);
         }
 
-        echo json_encode(['success' => true, 'message' => 'Settlement saved.']);
+        echo json_encode(['success' => true, 'message' => 'Payroll updated.']);
         exit;
     }
 

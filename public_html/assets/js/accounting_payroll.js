@@ -5,6 +5,7 @@ let settleEmployeeId = null;
 let settleStatus = null;
 let settleDefaultAmount = 0;
 let pvCurrentEmployeeId = null;
+let editSalaryEmployeeId = null;
 
 // ============================================
 // Helpers
@@ -20,7 +21,6 @@ function fmtPeso(v) {
   });
 }
 
-// Metrics (days) — 0 decimals
 function fmtNum(v) {
   return (parseFloat(v) || 0).toLocaleString("en-PH", {
     minimumFractionDigits: 0,
@@ -55,12 +55,11 @@ function filterPayroll() {
 }
 
 // ============================================
-// Payroll View Modal (Profile Style)
+// Payroll View Modal
 // ============================================
 function openPayrollView(row) {
   if (!row) return;
   const d = row.dataset;
-
   const num = (v) => parseFloat(v) || 0;
 
   // --- SIDEBAR (Profile) ---
@@ -69,13 +68,11 @@ function openPayrollView(row) {
   document.getElementById("pvProfileSubtitle").textContent = `Employee ID #${d.id || "—"}`;
   document.getElementById("pvPosition").textContent = d.position || "N/A";
   
-  // Department string
   let deptStr = "";
   if (d.category && d.sub) deptStr = `${ucfirst(d.category)} · ${d.sub}`;
   else if (d.category) deptStr = ucfirst(d.category);
   else if (d.sub) deptStr = d.sub;
   document.getElementById("pvDepartment").textContent = deptStr || "—";
-
   document.getElementById("pvEmail").textContent = d.email || "—";
 
   // --- STATUS BLOCK ---
@@ -98,7 +95,6 @@ function openPayrollView(row) {
     settleDetails.classList.add("hidden");
   }
 
-  // Settlement details
   document.getElementById("pvSettledAmount").textContent = num(d.settlementAmount) > 0 ? fmtPeso(d.settlementAmount) : "—";
   document.getElementById("pvSettledAt").textContent = d.settledAt 
     ? new Date(d.settledAt.replace(" ", "T")).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) 
@@ -114,12 +110,9 @@ function openPayrollView(row) {
   // --- MAIN AREA (Numbers) ---
   const salary = num(d.salary);
   document.getElementById("pvSalary").textContent = salary > 0 ? fmtPeso(salary) : "—";
-//   document.getElementById("pvDailyRate").textContent = salary > 0 ? `${fmtPeso(salary / 22)} / day (÷ 22 working days)` : "No salary on file";
 
   document.getElementById("pvLeavePayValue").textContent = fmtPeso(d.leavePayValue);
-//   document.getElementById("pvLeavePayDetail").textContent = `${fmtPeso(d.leavePayRate)} / credit × ${fmtNum(d.remaining)} remaining`;
 
-  // Metrics — now 0 decimals
   document.getElementById("pvAllocated").textContent = fmtNum(d.allocated) + " day(s)";
   document.getElementById("pvApproved").textContent = fmtNum(d.approved) + " day(s)";
   document.getElementById("pvRemaining").textContent = fmtNum(d.remaining) + " day(s)";
@@ -129,12 +122,23 @@ function openPayrollView(row) {
 
   // --- DECISION BAR (Actions) ---
   const actionBar = document.getElementById("pvActionBar");
-  actionBar.innerHTML = ""; // clear old buttons
+  actionBar.innerHTML = "";
 
   const employeeName = d.fullName || "";
   const employeeAmount = num(d.leavePayValue);
   const employeeId = parseInt(d.id) || null;
+  const employeeSalary = num(d.salary);
   pvCurrentEmployeeId = employeeId;
+
+  // NEW: Edit Salary Button
+  const btnEditSalary = document.createElement("button");
+  btnEditSalary.type = "button";
+  btnEditSalary.className = "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5 mr-auto";
+  btnEditSalary.innerHTML = '<i data-lucide="pencil" class="w-4 h-4"></i><span>Edit Salary</span>';
+  btnEditSalary.onclick = () => {
+    openEditSalaryModal({ id: employeeId, name: employeeName, salary: employeeSalary });
+  };
+  actionBar.appendChild(btnEditSalary);
 
   if (status !== "settled") {
     const btnSettle = document.createElement("button");
@@ -167,6 +171,72 @@ function openPayrollView(row) {
 function closePayrollView() {
   hideModal("payrollViewModal", "payrollViewCard");
   pvCurrentEmployeeId = null;
+}
+
+// ============================================
+// Edit Salary Modal
+// ============================================
+function openEditSalaryModal(employee) {
+  editSalaryEmployeeId = employee.id;
+  
+  document.getElementById("editSalaryName").textContent = employee.name;
+  document.getElementById("editSalaryEmployeeId").value = employee.id;
+  document.getElementById("editSalaryInput").value = employee.salary > 0 ? employee.salary.toFixed(2) : "0.00";
+
+  showModal("editSalaryModal", "editSalaryCard");
+  if (typeof initIcons === "function") initIcons();
+}
+
+function closeEditSalaryModal() {
+  hideModal("editSalaryModal", "editSalaryCard");
+  editSalaryEmployeeId = null;
+}
+
+async function confirmEditSalary() {
+  if (!editSalaryEmployeeId) return;
+
+  const amount = parseFloat(document.getElementById("editSalaryInput").value) || 0;
+  if (amount < 0) {
+    showError("Invalid amount", "Salary cannot be negative.");
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append("action", "update_salary");
+  fd.append("employee_id", editSalaryEmployeeId);
+  fd.append("basic_salary", amount);
+
+  closeEditSalaryModal();
+  showLoading("Saving salary...", "Updating the employee's monthly salary.");
+
+  try {
+    const res = await fetch("/api/accounting/payroll", { method: "POST", body: fd });
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      hideLoading();
+      showError("Server error", "The server returned a non-JSON response.");
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 400));
+    hideLoading();
+
+    if (data.success) {
+      document.getElementById("successTitle").textContent = "Salary Updated";
+      document.getElementById("successMessage").textContent = "The employee's monthly salary has been successfully updated.";
+      showModal("successModal", "successCard");
+      if (typeof initIcons === "function") initIcons();
+    } else {
+      showError("Could not save", data.error || "Unknown error");
+    }
+  } catch (err) {
+    hideLoading();
+    console.error(err);
+    showError("Connection error", "Unable to reach the server.");
+  }
 }
 
 // ============================================
@@ -240,7 +310,6 @@ async function confirmSettle() {
   try {
     const res = await fetch("/api/accounting/payroll", { method: "POST", body: fd });
 
-    // Guard against HTML responses
     const text = await res.text();
     let data;
     try {

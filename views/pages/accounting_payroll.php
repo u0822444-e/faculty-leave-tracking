@@ -755,6 +755,42 @@ $pageIcon   = 'receipt';
         </div>
     </div>
 
+        <!-- ============================================ -->
+    <!-- EDIT SALARY MODAL                              -->
+    <!-- ============================================ -->
+    <div id="editSalaryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm transform transition-all duration-200 scale-95" id="editSalaryCard">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-[#2C3E50]">Edit Salary</h3>
+                        <p class="text-xs text-[#2C3E50]/50" id="editSalaryName">—</p>
+                    </div>
+                </div>
+                <button onclick="closeEditSalaryModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="editSalaryForm" class="p-6 space-y-4">
+                <input type="hidden" name="employee_id" id="editSalaryEmployeeId">
+                <div>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱) *</label>
+                    <input type="number" step="0.01" min="0" name="basic_salary" id="editSalaryInput" required
+                        class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
+                </div>
+            </form>
+            <div class="flex gap-3 px-6 py-4 border-t border-[#E0E0E0]">
+                <button type="button" onclick="closeEditSalaryModal()"
+                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
+                <button type="button" onclick="confirmEditSalary()" id="editSalaryConfirmBtn"
+                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Save Salary</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading, Error, Success -->
     <div id="loadingOverlay" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-xs p-8 text-center">

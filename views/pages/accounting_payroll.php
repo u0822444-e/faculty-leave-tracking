@@ -641,7 +641,6 @@ $pageIcon   = 'receipt';
                                     <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Monthly Salary</p>
                                 </div>
                                 <p id="pvSalary" class="text-xl font-bold text-[#2C3E50]">—</p>
-                                <p id="pvDailyRate" class="text-[11px] text-[#2C3E50]/50 mt-1">—</p>
                             </div>
 
                             <!-- Leave Pay Value Card -->
@@ -653,7 +652,6 @@ $pageIcon   = 'receipt';
                                     <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Leave Pay Value</p>
                                 </div>
                                 <p id="pvLeavePayValue" class="text-xl font-bold text-[#0F5E3D]">—</p>
-                                <p id="pvLeavePayDetail" class="text-[11px] text-[#2C3E50]/50 mt-1">—</p>
                             </div>
                         </div>
 

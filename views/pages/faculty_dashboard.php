@@ -391,10 +391,6 @@ $statusLabels = [
                             <span class="text-2xl sm:text-3xl font-bold text-[#0F5E3D]">
                                 ₱<?= number_format($totalLeavePay, 2) ?>
                             </span>
-                            <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
-                                Convertible (sick only): <span class="font-semibold text-amber-600">₱<?= number_format($remainingLeavePay, 2) ?></span>
-                                · <?= fmt_credits($sickRemaining) ?> day(s) remaining
-                            </p>
                         </div>
 
                         <!-- Leave Deduction (LWOP) -->

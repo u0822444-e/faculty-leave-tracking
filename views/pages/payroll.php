@@ -79,9 +79,7 @@ foreach ($employees as $e) {
     $saved         = $leavePayRate * $used;
     $convertible   = $leavePayRate * $remaining;
 
-    // Salary-based deduction: monthly_salary ÷ 22 × used_days
-    $dailyRate = $basicSalary > 0 ? $basicSalary / $workingDaysPerMonth : 0;
-    $monthlyDeduction = $dailyRate * $used;
+    $monthlyDeduction = $leavePayRate * $used;
 
     $cat = $e['category'] ?? 'staff';
     if (isset($categoryCountsPage[$cat])) $categoryCountsPage[$cat]++;
@@ -98,7 +96,7 @@ foreach ($employees as $e) {
         'sub_category'     => $e['sub_category'] ?? '',
         'employment'       => $emp,
         'basic_salary'     => $basicSalary,
-        'daily_rate'       => $dailyRate,
+        'daily_rate'       => 0,
         'monthly_deduction'=> $monthlyDeduction,
         'leave_pay'        => $leavePayRate,
         'total_pay'        => $totalLeavePay,
@@ -160,8 +158,7 @@ foreach ($agg as $a) {
     $convertible = $leavePayRate * $remaining;
     $payValue    = $leavePayRate * $allocated;
 
-    $dailyRate        = $basicSalary > 0 ? $basicSalary / $workingDaysPerMonth : 0;
-    $monthlyDeduction = $dailyRate * $used;
+    $monthlyDeduction = $leavePayRate * $used;
 
     $totalSaved            += $saved;
     $totalConvertible      += $convertible;

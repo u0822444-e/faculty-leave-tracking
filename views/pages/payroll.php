@@ -663,26 +663,21 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize text-slate-600 bg-slate-100">
                                                     <?= htmlspecialchars($r['category']) ?>
                                                 </span>
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ml-1 <?= $empClass ?>">
-                                                    <?= htmlspecialchars($r['employment']) ?>
-                                                </span>
+                                                
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm text-[#2C3E50]"><?= $r['basic_salary'] > 0 ? '₱' . number_format($r['basic_salary'], 2) : '—' ?></span>
                                                 <?php if ($r['daily_rate'] > 0): ?>
-                                                    <p class="text-[10px] text-[#2C3E50]/40">₱<?= number_format($r['daily_rate'], 2) ?>/day</p>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm text-[#2C3E50]">₱<?= number_format($r['leave_pay'], 2) ?></span>
-                                                <p class="text-[10px] text-[#2C3E50]/40">per credit</p>
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['used'], 2) ?></span>
-                                                <p class="text-[10px] text-[#2C3E50]/40">of <?= number_format($r['allocated'], 2) ?></p>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['remaining'], 2) ?></span>
+                                                <span class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['remaining']) ?></span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm font-bold text-[#0F5E3D]">₱<?= number_format($r['saved'], 2) ?></span>

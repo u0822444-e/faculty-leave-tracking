@@ -114,10 +114,10 @@ function openPayrollView(row) {
   // --- MAIN AREA (Numbers) ---
   const salary = num(d.salary);
   document.getElementById("pvSalary").textContent = salary > 0 ? fmtPeso(salary) : "—";
-  document.getElementById("pvDailyRate").textContent = salary > 0 ? `${fmtPeso(salary / 22)} / day (÷ 22 working days)` : "No salary on file";
+//   document.getElementById("pvDailyRate").textContent = salary > 0 ? `${fmtPeso(salary / 22)} / day (÷ 22 working days)` : "No salary on file";
 
   document.getElementById("pvLeavePayValue").textContent = fmtPeso(d.leavePayValue);
-  document.getElementById("pvLeavePayDetail").textContent = `${fmtPeso(d.leavePayRate)} / credit × ${fmtNum(d.remaining)} remaining`;
+//   document.getElementById("pvLeavePayDetail").textContent = `${fmtPeso(d.leavePayRate)} / credit × ${fmtNum(d.remaining)} remaining`;
 
   // Metrics — now 0 decimals
   document.getElementById("pvAllocated").textContent = fmtNum(d.allocated) + " day(s)";

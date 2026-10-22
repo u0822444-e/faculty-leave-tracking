@@ -30,14 +30,16 @@ $stmt = $pdo->prepare("
         e.basic_salary, e.leave_pay, e.leave_credits,
         u.username, u.status AS user_status,
         COALESCE(lr.credits_used, 0) AS credits_used,
-        COALESCE(lr.sick_used, 0)    AS sick_used
+        COALESCE(lr.sick_used, 0)    AS sick_used,
+        COALESCE(lr.lwop_days, 0)    AS lwop_days
     FROM employees e
     LEFT JOIN users u ON u.employee_id = e.id
     LEFT JOIN (
         SELECT
             employee_id,
             SUM(days_count) AS credits_used,
-            SUM(CASE WHEN leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used
+            SUM(CASE WHEN leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used,
+            SUM(CASE WHEN leave_type = 'other' THEN days_count ELSE 0 END) AS lwop_days
         FROM leave_requests
         WHERE status = 'approved'
         GROUP BY employee_id
@@ -78,6 +80,7 @@ foreach ($employees as $e) {
     $used         = (float) $e['credits_used'];
     $allocated    = (float) $e['leave_credits'];
     $remaining    = max(0, $allocated - $used);
+    $lwopDays     = (float) ($e['lwop_days'] ?? 0);
 
     $totalLeavePay = $leavePayRate * $allocated;
     $saved         = $leavePayRate * $used;
@@ -89,7 +92,8 @@ foreach ($employees as $e) {
     $sickRemaining = max(0, $sickCap - $sickUsed);
     $convertible   = $leavePayRate * $sickRemaining;
 
-    $monthlyDeduction = $leavePayRate * $used;
+    // Deduction = Leave Without Pay (LWOP) days × rate
+    $monthlyDeduction = $leavePayRate * $lwopDays;
 
     $cat = $e['category'] ?? 'staff';
     if (isset($categoryCountsPage[$cat])) $categoryCountsPage[$cat]++;
@@ -135,13 +139,15 @@ $agg = $pdo->query("
         e.leave_pay,
         e.leave_credits,
         COALESCE(lr.credits_used, 0) AS credits_used,
-        COALESCE(lr.sick_used, 0)    AS sick_used
+        COALESCE(lr.sick_used, 0)    AS sick_used,
+        COALESCE(lr.lwop_days, 0)    AS lwop_days
     FROM employees e
     LEFT JOIN (
         SELECT
             employee_id,
             SUM(days_count) AS credits_used,
-            SUM(CASE WHEN leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used
+            SUM(CASE WHEN leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used,
+            SUM(CASE WHEN leave_type = 'other' THEN days_count ELSE 0 END) AS lwop_days
         FROM leave_requests
         WHERE status = 'approved'
         GROUP BY employee_id
@@ -167,6 +173,7 @@ foreach ($agg as $a) {
     $used         = (float) $a['credits_used'];
     $allocated    = (float) $a['leave_credits'];
     $remaining    = max(0, $allocated - $used);
+    $lwopDays     = (float) ($a['lwop_days'] ?? 0);
 
     $saved    = $leavePayRate * $used;
     $payValue = $leavePayRate * $allocated;
@@ -177,7 +184,8 @@ foreach ($agg as $a) {
     $sickRemaining = max(0, $sickCap - $sickUsed);
     $convertible   = $leavePayRate * $sickRemaining;
 
-    $monthlyDeduction = $leavePayRate * $used;
+    // Deduction = Leave Without Pay (LWOP) days × rate
+    $monthlyDeduction = $leavePayRate * $lwopDays;
 
     $totalSaved            += $saved;
     $totalConvertible      += $convertible;
@@ -288,7 +296,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
                                     Monthly Deduction</p>
                                 <p class="text-lg font-bold text-red-600">₱<?= number_format($totalMonthlyDeduction, 2) ?></p>
-                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">leave-pay value of used days</p>
+                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">leave-pay value of LWOP days</p>
                             </div>
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">

@@ -364,25 +364,14 @@ $statusLabels = [
 
                         <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total Leave Pay</p>
-                                <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Convertible Leave Pay</p>
+                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
                                     <i data-lucide="banknote" class="w-4 h-4"></i>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-[#0F5E3D]">
-                                ₱<?= number_format($totalLeavePay, 2) ?>
+                            <span class="text-2xl sm:text-3xl font-bold text-amber-600">
+                                ₱<?= number_format($remainingLeavePay, 2) ?>
                             </span>
-                            <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
-                                <?php if ($leavePayRate > 0): ?>
-                                    ₱<?= number_format($leavePayRate, 2) ?>/credit × <?= fmt_credits($totalCredits) ?> credits
-                                    <span class="block mt-0.5 text-amber-600 font-medium">
-                                        Convertible (sick only): ₱<?= number_format($remainingLeavePay, 2) ?>
-                                        · <?= fmt_credits($sickRemaining) ?> day(s) left
-                                    </span>
-                                <?php else: ?>
-                                    no leave pay rate on file
-                                <?php endif; ?>
-                            </p>
                         </div>
 
                         <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">

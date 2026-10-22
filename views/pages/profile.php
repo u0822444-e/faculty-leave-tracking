@@ -433,21 +433,10 @@ $activePage = 'profile';
                                         </div>
 
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay (allocated)</label>
-                                            <input type="text" value="₱<?= number_format($totalLeavePay, 2) ?>" readonly
-                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
-                                            <p class="text-[10px] text-[#2C3E50]/40 mt-1">
-                                                ₱<?= number_format($leavePayRate, 2) ?> × <?= number_format($leaveCredits) ?> credits
-                                            </p>
-                                        </div>
-
-                                        <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Convertible Leave Pay (sick only)</label>
                                             <input type="text" value="₱<?= number_format($convertibleLeavePay, 2) ?>" readonly
                                                 class="w-full px-3 py-2 bg-amber-50/60 border border-amber-200 rounded-lg text-sm text-amber-700 font-mono cursor-not-allowed">
-                                            <p class="text-[10px] text-[#2C3E50]/40 mt-1">
-                                                <?= rtrim(rtrim(number_format($sickRemaining, 2, '.', ''), '0'), '.') ?> sick day(s) remaining × ₱<?= number_format($leavePayRate, 2) ?>
-                                            </p>
+                                            
                                         </div>
                                     <?php endif; ?>
 

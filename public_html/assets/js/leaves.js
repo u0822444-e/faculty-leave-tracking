@@ -365,7 +365,7 @@ function rvRenderHistory(page) {
     const typeGroup = document.getElementById("rvHistoryType")?.value || "";
 
     rvFilteredHistory = (rvEmployeeData.history || [])
-      .filter((h) => h.id !== rvCurrentId) // exclude current
+      // .filter((h) => h.id !== rvCurrentId) // exclude current -> REMOVED to show current request
       .filter((h) => {
         if (status && h.status !== status) return false;
         if (typeGroup && groupType(h.type) !== typeGroup) return false;
@@ -457,10 +457,10 @@ async function rvSubmitDecision(decision) {
   const remarks = document.getElementById("rvRemarksInput").value.trim();
 
   // Automatically assign Pay Status based on Leave Type
-  let payStatus = 'without_pay';
-  const leave = rvAllLeaves.find(l => l.id === rvCurrentId);
-  if (leave && leave.type === 'sick') {
-    payStatus = 'with_pay';
+  let payStatus = "without_pay";
+  const leave = rvAllLeaves.find((l) => l.id === rvCurrentId);
+  if (leave && leave.type === "sick") {
+    payStatus = "with_pay";
   }
 
   const fd = new FormData();
@@ -468,9 +468,9 @@ async function rvSubmitDecision(decision) {
   fd.append("id", rvCurrentId);
   fd.append("decision", decision);
   fd.append("remarks", remarks);
-  
+
   if (decision === "approved") {
-      fd.append("pay_status", payStatus);
+    fd.append("pay_status", payStatus);
   }
 
   showLoading(

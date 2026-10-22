@@ -572,10 +572,10 @@ function openEditUserModal(data) {
 
   document.getElementById("editEmpType").value = data.emp || "full-time";
 
-    const editBasicSalaryEl = document.getElementById("editBasicSalary");
+  const editBasicSalaryEl = document.getElementById("editBasicSalary");
   if (editBasicSalaryEl) {
     editBasicSalaryEl.value =
-      data.salary !== undefined && data.salary !== null ? data.salary : 0;
+      data.basic_salary !== undefined && data.basic_salary !== null ? data.basic_salary : 0;
   }
 
   const editLeavePayEl = document.getElementById("editLeavePay");

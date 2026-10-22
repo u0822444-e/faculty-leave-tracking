@@ -8,6 +8,10 @@ require_once __DIR__ . '/../helpers/ActivityLogger.php';
 
 header('Content-Type: application/json');
 
+// Prevent PHP warnings from breaking the JSON response
+ini_set('display_errors', 0); 
+error_reporting(E_ALL);
+
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Not authenticated']);
@@ -24,7 +28,7 @@ $userId = (int) $_SESSION['user_id'];
 $role   = $_SESSION['role'] ?? '';
 $action = $_POST['action'] ?? '';
 
-$uploadDir = __DIR__ . '/../../public/uploads/avatars/';
+$uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/uploads/avatars/';
 $uploadUrl = '/uploads/avatars/';
 
 $isPrivileged = ($role === 'hr');
@@ -57,7 +61,7 @@ if ($action === 'remove') {
 
         deleteAvatarFile($old ?: null, $uploadDir);
 
-        $pdo->prepare("UPDATE users SET avatar = NULL WHERE id = ?")->execute([$userId]);
+        $pdo->prepare("UPDATE users SET avatar = NULL, pending_avatar = NULL WHERE id = ?")->execute([$userId]);
         $_SESSION['avatar'] = null;
 
         try {
@@ -139,10 +143,22 @@ if ($action === 'upload') {
     $ext      = $allowed[$mime];
     $filename = 'user_' . $userId . '_' . time() . '.' . $ext;
 
-    if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+    // Ensure directory exists, and throw a clean JSON error if it fails
+    if (!is_dir($uploadDir)) {
+        if (!mkdir($uploadDir, 0755, true)) {
+            echo json_encode(['error' => 'Server Error: Upload directory could not be created.']);
+            exit;
+        }
+    }
+
+    // Ensure directory is writable
+    if (!is_writable($uploadDir)) {
+        echo json_encode(['error' => 'Server Error: Upload directory is not writable.']);
+        exit;
+    }
 
     if (!move_uploaded_file($file['tmp_name'], $uploadDir . $filename)) {
-        echo json_encode(['error' => 'Could not save the uploaded file.']);
+        echo json_encode(['error' => 'Could not save the uploaded file to the server.']);
         exit;
     }
 
@@ -153,7 +169,7 @@ if ($action === 'upload') {
         $old = $stmt->fetchColumn();
         if ($old && $old !== $filename) deleteAvatarFile($old, $uploadDir);
 
-        $pdo->prepare("UPDATE users SET avatar = ? WHERE id = ?")->execute([$filename, $userId]);
+        $pdo->prepare("UPDATE users SET avatar = ?, pending_avatar = NULL WHERE id = ?")->execute([$filename, $userId]);
         $_SESSION['avatar'] = $filename;
 
         try {
@@ -162,6 +178,7 @@ if ($action === 'upload') {
 
         echo json_encode([
             'success' => true,
+            'status'  => 'applied',
             'avatar'  => $uploadUrl . $filename,
             'message' => 'Profile picture updated.',
         ]);
@@ -197,7 +214,7 @@ if ($action === 'upload') {
 
     echo json_encode([
         'success'     => true,
-        'pending'     => true,
+        'status'      => 'pending',
         'pending_url' => $uploadUrl . $filename,
         'message'     => 'Avatar change submitted for admin approval.',
     ]);

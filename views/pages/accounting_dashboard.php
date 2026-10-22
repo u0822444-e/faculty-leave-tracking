@@ -42,7 +42,7 @@ $isPartTime = (($me['employment_type'] ?? 'full-time') === 'part-time');
 $leavePayRate = (float) ($me['leave_pay'] ?? 0);
 
 // ============================================
-// Leave stats (same as staff_dashboard)
+// Leave stats
 // ============================================
 $creditsUsed = 0;
 $typeUsed = [
@@ -103,7 +103,7 @@ if ($employeeId > 0) {
         }
     }
 
-    // LWOP days — approved 'other' leaves (adjust if you have a flag)
+    // LWOP days
     $stmt = $pdo->prepare("
         SELECT COALESCE(SUM(days_count), 0)
         FROM leave_requests
@@ -124,27 +124,27 @@ foreach ($typeCaps as $t => $cap) {
     $typeRemaining[$t] = max(0, $cap - ($typeUsed[$t] ?? 0));
 }
 
-// Own leave pay — sick-only convertible
+// ============================================
+// Sick-only convertible calculation
+// ============================================
 $sickCap       = 7.5;
 $sickUsed      = (float) ($typeUsed['sick'] ?? 0);
 $sickRemaining = max(0, $sickCap - $sickUsed);
 
-$totalLeavePay     = $leavePayRate * $totalCredits;         // full allocated value
-$remainingLeavePay = $leavePayRate * $sickRemaining;        // sick-only convertible
-$leaveDeduction    = $leavePayRate * $lwopDays;             // LWOP × rate
+// This is the exact amount you requested: (Remaining Sick Leave) * Leave Pay
+$convertibleLeavePay = $leavePayRate * $sickRemaining; 
+$leaveDeduction      = $leavePayRate * $lwopDays;
 
 // ============================================
 // PAYROLL SUMMARY (accountant-only)
-//   Aggregated across all faculty & staff
 // ============================================
-$payrollTotalLiability    = 0;   // sum of (leave_pay × sick remaining) for everyone
+$payrollTotalLiability    = 0;
 $payrollTotalSettled      = 0;
 $payrollTotalPending      = 0;
 $payrollPendingCount      = 0;
 $payrollSettledCount      = 0;
 $payrollSettledThisMonth  = 0;
 
-// Individual leave-pay liabilities per employee — sick-only convertible
 $stmt = $pdo->query("
     SELECT 
         e.id,
@@ -166,7 +166,6 @@ foreach ($perEmployee as $row) {
     $payrollTotalLiability += (float)$row['leave_pay'] * $sickRemainingEmp;
 }
 
-// Settlement totals from payroll_settlements
 $stmt = $pdo->query("
     SELECT 
         COALESCE(SUM(CASE WHEN status = 'settled' THEN amount ELSE 0 END), 0) AS settled_total,
@@ -184,7 +183,7 @@ $payrollPendingCount     = (int) ($settlementStats['pending_count'] ?? 0);
 $payrollSettledThisMonth = (float) ($settlementStats['settled_this_month'] ?? 0);
 
 // ============================================
-// Monthly trend — approved days per month (last 6 months)
+// Monthly trend
 // ============================================
 $trendLabels = [];
 $trendValues = [];
@@ -248,9 +247,7 @@ $statusLabels = [
 
             <main class="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
-                <!-- ============================================ -->
-                <!-- PAYROLL SUMMARY (accountant-only)              -->
-                <!-- ============================================ -->
+                <!-- PAYROLL SUMMARY -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3 mb-2">
@@ -286,9 +283,7 @@ $statusLabels = [
                     </div>
                 </div>
 
-                <!-- ============================================ -->
-                <!-- HERO ROW (leave credits, same as staff)        -->
-                <!-- ============================================ -->
+                <!-- HERO ROW -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
 
                     <div class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col">
@@ -411,23 +406,13 @@ $statusLabels = [
                     <div class="flex flex-col gap-3 sm:gap-4 h-full">
                         <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
-                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">My Total Leave Pay</p>
-                                <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Convertible Leave Pay</p>
+                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
                                     <i data-lucide="banknote" class="w-4 h-4"></i>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-[#0F5E3D]">₱<?= number_format($totalLeavePay, 2) ?></span>
-                            <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
-                                <?php if ($leavePayRate > 0): ?>
-                                    ₱<?= number_format($leavePayRate, 2) ?>/credit × <?= fmt_credits($totalCredits) ?> credits
-                                    <span class="block mt-0.5 text-amber-600 font-medium">
-                                        Convertible (sick only): ₱<?= number_format($remainingLeavePay, 2) ?>
-                                        · <?= fmt_credits($sickRemaining) ?> day(s) left
-                                    </span>
-                                <?php else: ?>
-                                    no leave pay rate on file
-                                <?php endif; ?>
-                            </p>
+                            <span class="text-2xl sm:text-3xl font-bold text-amber-600">₱<?= number_format($convertibleLeavePay, 2) ?></span>
+                            
                         </div>
 
                         <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
@@ -451,9 +436,7 @@ $statusLabels = [
                     </div>
                 </div>
 
-                <!-- ============================================ -->
-                <!-- PAYROLL CHARTS                                 -->
-                <!-- ============================================ -->
+                <!-- PAYROLL CHARTS -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
                     <div class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between mb-3">
@@ -482,9 +465,7 @@ $statusLabels = [
                     </div>
                 </div>
 
-                <!-- ============================================ -->
-                <!-- Leave Breakdown + Trend                        -->
-                <!-- ============================================ -->
+                <!-- Leave Breakdown + Trend -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
                     <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="mb-3">
@@ -530,9 +511,7 @@ $statusLabels = [
                     </div>
                 </div>
 
-                <!-- ============================================ -->
-                <!-- Recent Leaves + My Info                        -->
-                <!-- ============================================ -->
+                <!-- Recent Leaves + My Info -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                     <div class="animate-fade-in-up-delay-3 lg:col-span-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
                         <div class="flex items-center justify-between mb-4">

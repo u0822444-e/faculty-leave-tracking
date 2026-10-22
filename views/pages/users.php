@@ -481,6 +481,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                     "year_level" => $u["year_level"] ?? "",
                                     "position" => $u["position"] ?? "",
                                     "emp" => $u["employment_type"] ?? "full-time",
+                                    "basic_salary" => $u["basic_salary"] ?? 0,
                                     "leave_pay" => $u["leave_pay"] ?? 0,
                                     "credits" => $u["leave_credits"] ?? 0,
                                     "status" => $u["status"],
@@ -641,6 +642,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                                         "year_level" => $u["year_level"] ?? "",
                                                         "position" => $u["position"] ?? "",
                                                         "emp" => $u["employment_type"] ?? "full-time",
+                                                        "basic_salary" => $u["basic_salary"] ?? 0,
                                                         "leave_pay" => $u["leave_pay"] ?? 0,
                                                         "credits" => $u["leave_credits"] ?? 0,
                                                         "status" => $u["status"],
@@ -687,7 +689,9 @@ $statusLabelText = $statusFilter === 'inactive'
                             $initials = strtoupper(substr($u['first_name'] ?? $u['username'], 0, 1) . substr($u['last_name'] ?? '', 0, 1));
                             $roleClass = $roleStyles[$u['role']] ?? 'text-slate-600 bg-slate-100';
                             $roleLabel = $roleLabels[$u['role']] ?? ucfirst($u['role']);
-                            $avatarUrl = !empty($u['avatar']) ? '/uploads/avatars/' . htmlspecialchars($u['avatar']) : null;
+                            $avatarUrl = !empty($me['avatar'])
+                                ? '/uploads/avatars/' . htmlspecialchars($me['avatar'])
+                                : null;
                             ?>
                             <div class="p-4 hover:bg-[#F1FDF6]/40 transition" data-id="<?= $u['user_id'] ?>"
                                 data-name="<?= strtolower($fullName) ?>" data-username="<?= strtolower($u['username']) ?>"
@@ -761,6 +765,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                                     "year_level" => $u["year_level"] ?? "",
                                                     "position" => $u["position"] ?? "",
                                                     "emp" => $u["employment_type"] ?? "full-time",
+                                                    "basic_salary" => $u["basic_salary"] ?? 0,
                                                     "leave_pay" => $u["leave_pay"] ?? 0,
                                                     "credits" => $u["leave_credits"] ?? 0,
                                                     "status" => $u["status"],
@@ -1001,7 +1006,7 @@ $statusLabelText = $statusFilter === 'inactive'
                             <option value="">Select position</option>
                         </select>
                     </div>
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Employment *</label>
                             <select name="employment_type" id="addEmployment" onchange="handleEmploymentChange('add')"
@@ -1013,19 +1018,22 @@ $statusLabelText = $statusFilter === 'inactive'
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱)</label>
                             <input type="number" step="0.01" min="0" name="basic_salary" id="addBasicSalary" value="0"
-                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="0.00">
+                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                                placeholder="0.00">
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay (₱/credit)</label>
                             <input type="number" step="0.01" min="0" name="leave_pay" id="addLeavePay" value="0"
-                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="0.00">
+                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                                placeholder="0.00">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Credits</label>
                             <input type="number" step="1" name="leave_credits" id="addLeaveCredits" value="15" min="0"
-                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition disabled:bg-gray-50 disabled:text-[#2C3E50]/40 disabled:cursor-not-allowed" placeholder="0">
+                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition disabled:bg-gray-50 disabled:text-[#2C3E50]/40 disabled:cursor-not-allowed"
+                                placeholder="0">
                         </div>
                     </div>
                     <div>
@@ -1160,7 +1168,7 @@ $statusLabelText = $statusFilter === 'inactive'
                         <option value="">Select position</option>
                     </select>
                 </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Employment</label>
                         <select name="employment_type" id="editEmpType" onchange="handleEmploymentChange('edit')"
@@ -1172,19 +1180,22 @@ $statusLabelText = $statusFilter === 'inactive'
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱)</label>
                         <input type="number" step="0.01" min="0" name="basic_salary" id="editBasicSalary"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="0.00">
+                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                            placeholder="0.00">
                     </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay (₱/credit)</label>
                         <input type="number" step="0.01" min="0" name="leave_pay" id="editLeavePay"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="0.00">
+                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                            placeholder="0.00">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Credits</label>
                         <input type="number" step="1" name="leave_credits" id="editCredits" min="0"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition disabled:bg-gray-50 disabled:text-[#2C3E50]/40 disabled:cursor-not-allowed" placeholder="0">
+                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition disabled:bg-gray-50 disabled:text-[#2C3E50]/40 disabled:cursor-not-allowed"
+                            placeholder="0">
                     </div>
                 </div>
                 <div>

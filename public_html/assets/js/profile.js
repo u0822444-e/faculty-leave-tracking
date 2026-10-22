@@ -200,79 +200,71 @@ async function compressImage(file, maxDimension = 512, quality = 0.9) {
 //   Faculty / Staff → goes pending for HR review
 // ============================================
 async function handleAvatarUpload(input) {
-  let file = input.files && input.files[0];
-  if (!file) return;
+    if (!input.files || input.files.length === 0) return;
+    
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('action', 'upload');
+    formData.append('avatar', file);
 
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-  if (!allowed.includes(file.type)) {
-    showError("Invalid file type", "Please choose a JPG, PNG, WEBP, or GIF image.");
-    input.value = "";
-    return;
-  }
+    // UI Feedback (assuming you have these helpers from app.js)
+    if (typeof showLoading === 'function') showLoading("Uploading...", "Please wait while we upload your image.");
 
-  if (file.size > 25 * 1024 * 1024) {
-    showError("File too large", "Original image must be 25MB or smaller.");
-    input.value = "";
-    return;
-  }
+    try {
+        const response = await fetch('/api/avatar', {
+            method: 'POST',
+            body: formData
+        });
 
-  try {
-    file = await compressImage(file);
-  } catch (e) {
-    console.warn("Compression failed, uploading original", e);
-  }
-
-  if (file.size > 10 * 1024 * 1024) {
-    showError("File too large", "Profile pictures must be 10MB or smaller.");
-    input.value = "";
-    return;
-  }
-
-  const fd = new FormData();
-  fd.append("action", "upload");
-  fd.append("avatar", file, file.name || "avatar.jpg");
-
-  showLoading("Uploading...", "Sending your profile picture.");
-
-  try {
-    const res = await fetch("/api/avatar", { method: "POST", body: fd });
-    const data = await res.json();
-
-    await new Promise((r) => setTimeout(r, 400));
-    hideLoading();
-
-    if (data.success) {
-      if (data.pending) {
-        // Faculty / Staff — held for HR approval
-        document.getElementById("successTitle").textContent = "Submitted for Approval";
-        document.getElementById("successMessage").textContent =
-          data.message || "Your avatar change is pending HR approval.";
-        showModal("successModal", "successCard");
-        if (typeof initIcons === "function") initIcons();
-      } else {
-        // HR — applied immediately
-        const wrap =
-          document.querySelector("#profileAvatarImg")?.parentElement ||
-          document.querySelector("#profileAvatarInitials")?.parentElement;
-        if (wrap) {
-          wrap.innerHTML = `<img id="profileAvatarImg" src="${data.avatar}?t=${Date.now()}" alt="Avatar" class="w-full h-full object-cover">`;
+        // Read the text first to prevent the SyntaxError crash if PHP outputs HTML
+        const text = await response.text();
+        
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error("Server returned invalid JSON:", text);
+            throw new Error("Server error. Check server logs for details.");
         }
-        document.getElementById("successTitle").textContent = "Avatar Updated";
-        document.getElementById("successMessage").textContent =
-          data.message || "Your profile picture has been updated.";
-        showModal("successModal", "successCard");
-        if (typeof initIcons === "function") initIcons();
-      }
-    } else {
-      showError("Could not upload picture", data.error || "Please try again.");
+
+        if (typeof hideLoading === 'function') hideLoading();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Upload failed.');
+        }
+
+        // Update UI immediately if HR, or show pending badge if Faculty/Staff
+        if (data.status === 'applied') {
+            if (typeof showSuccessModal === 'function') {
+                showSuccessModal("Avatar Updated", "Your profile picture has been updated.");
+            }
+            // Optional: reload page or update the img src instantly
+            const img = document.getElementById('profileAvatarImg');
+            if (img) {
+                img.src = data.url + '?t=' + new Date().getTime(); // Cache buster
+            } else {
+                location.reload();
+            }
+        } else {
+            if (typeof showSuccessModal === 'function') {
+                showSuccessModal("Submitted for Approval", "Your avatar change is pending HR approval.");
+            } else {
+                location.reload();
+            }
+        }
+
+    } catch (error) {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Avatar upload error:", error);
+        if (typeof showErrorModal === 'function') {
+            showErrorModal("Upload Failed", error.message);
+        } else {
+            alert("Upload Failed: " + error.message);
+        }
+    } finally {
+        // Reset input so the same file can be selected again
+        input.value = '';
     }
-  } catch (err) {
-    hideLoading();
-    console.error(err);
-    showError("Connection error", "Unable to reach the server.");
-  } finally {
-    input.value = "";
-  }
 }
 
 // ============================================

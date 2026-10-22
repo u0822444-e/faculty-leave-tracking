@@ -41,10 +41,8 @@ $employeeId = $user['employee_id'] ?? null;
 $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: $user['username'];
 $initials = strtoupper(substr($user['first_name'] ?? $user['username'], 0, 1) . substr($user['last_name'] ?? '', 0, 1));
 
-// ── Total Leave Pay = rate × credits ──
 $leavePayRate    = (float) ($user['leave_pay'] ?? 0);
 $leaveCredits    = (float) ($user['leave_credits'] ?? 0);
-$totalLeavePay   = $leavePayRate * $leaveCredits;
 
 // Leave stats
 $stmt = $pdo->prepare("
@@ -236,17 +234,12 @@ function timeAgoShort($ts) {
                         </div>
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Credits</p>
-                            <p class="text-sm font-semibold text-[#0F5E3D]"><?= number_format($leaveCredits) ?> days</p>
+                            <p class="text-sm font-semibold text-[#0F5E3D]"><?= number_format($leaveCredits) ?></p>
                         </div>
                         <div>
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Total Leave Pay</p>
-                            <p class="text-sm font-semibold text-[#0F5E3D]">₱<?= number_format($totalLeavePay, 2) ?></p>
-                            <p class="text-[9px] text-[#2C3E50]/30 mt-0.5">
-                                ₱<?= number_format($leavePayRate, 2) ?> × <?= number_format($leaveCredits) ?>
-                            </p>
-                            <p class="text-[9px] text-amber-600 mt-1 font-medium">
-                                Convertible (sick): ₱<?= number_format($convertibleLeavePay, 2) ?>
-                            </p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Convertible Leave Pay</p>
+                            <p class="text-sm font-semibold text-amber-600">₱<?= number_format($convertibleLeavePay, 2) ?></p>
+                            
                         </div>
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Total Deduction</p>

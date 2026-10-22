@@ -24,14 +24,56 @@ if (($stmt->fetchColumn() ?: '') !== 'Accounting Section') {
 }
 
 // ============================================
-// Pagination
+// Filters & Search (Server-side)
+// ============================================
+$searchQuery = trim($_GET['q'] ?? '');
+$searchQuery = substr($searchQuery, 0, 100);
+$statusFilter = $_GET['settlement_status'] ?? '';
+$categoryFilter = $_GET['category'] ?? '';
+
+$whereClauses = ["e.category IN ('faculty', 'staff')"];
+$bindings = [];
+
+if ($searchQuery !== '') {
+    $whereClauses[] = "(
+        e.first_name LIKE ?
+        OR e.last_name LIKE ?
+        OR CONCAT_WS(' ', e.first_name, e.last_name) LIKE ?
+    )";
+    $like = '%' . $searchQuery . '%';
+    $bindings = array_merge($bindings, [$like, $like, $like]);
+}
+
+if ($statusFilter === 'none') {
+    $whereClauses[] = "ps.status IS NULL";
+} elseif (in_array($statusFilter, ['settled', 'outstanding'], true)) {
+    $whereClauses[] = "ps.status = ?";
+    $bindings[] = $statusFilter;
+}
+
+if (in_array($categoryFilter, ['faculty', 'staff'], true)) {
+    $whereClauses[] = "e.category = ?";
+    $bindings[] = $categoryFilter;
+}
+
+$whereSql = ' WHERE ' . implode(' AND ', $whereClauses);
+
+// ============================================
+// Pagination Setup
 // ============================================
 $perPage = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $perPage;
 
-$countStmt = $pdo->prepare("SELECT COUNT(*) FROM employees WHERE category IN ('faculty', 'staff')");
-$countStmt->execute();
+// Count query for pagination
+$countSql = "
+    SELECT COUNT(*)
+    FROM employees e
+    LEFT JOIN payroll_settlements ps ON ps.employee_id = e.id
+    {$whereSql}
+";
+$countStmt = $pdo->prepare($countSql);
+$countStmt->execute($bindings);
 $totalEmployees = (int) $countStmt->fetchColumn();
 $totalPages = max(1, (int) ceil($totalEmployees / $perPage));
 
@@ -40,8 +82,14 @@ if ($page > $totalPages) {
     $offset = ($page - 1) * $perPage;
 }
 
+// Preserve filters across pagination
+$baseQs = '';
+if ($searchQuery !== '') $baseQs .= '&q=' . urlencode($searchQuery);
+if ($statusFilter !== '') $baseQs .= '&settlement_status=' . urlencode($statusFilter);
+if ($categoryFilter !== '') $baseQs .= '&category=' . urlencode($categoryFilter);
+
 // ============================================
-// Fetch current page of employees
+// Fetch current page
 // ============================================
 $stmt = $pdo->prepare("
     SELECT
@@ -66,12 +114,17 @@ $stmt = $pdo->prepare("
         GROUP BY employee_id
     ) lr ON lr.employee_id = e.id
     LEFT JOIN payroll_settlements ps ON ps.employee_id = e.id
-    WHERE e.category IN ('faculty', 'staff')
+    {$whereSql}
     ORDER BY e.last_name ASC, e.first_name ASC
     LIMIT ? OFFSET ?
 ");
-$stmt->bindValue(1, $perPage, PDO::PARAM_INT);
-$stmt->bindValue(2, $offset, PDO::PARAM_INT);
+
+$i = 1;
+foreach ($bindings as $b) {
+    $stmt->bindValue($i++, $b, PDO::PARAM_STR);
+}
+$stmt->bindValue($i++, $perPage, PDO::PARAM_INT);
+$stmt->bindValue($i++, $offset, PDO::PARAM_INT);
 $stmt->execute();
 $employees = $stmt->fetchAll();
 
@@ -116,7 +169,7 @@ foreach ($employees as $e) {
 }
 
 // ============================================
-// Global aggregates
+// Global aggregates (across ALL employees)
 // ============================================
 $agg = $pdo->query("
     SELECT
@@ -260,34 +313,34 @@ $pageIcon   = 'receipt';
                     </div>
                 </div>
 
-                <!-- TOOLBAR -->
-                <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
+                <!-- TOOLBAR (Server-side form) -->
+                <form method="GET" action="/accounting/payroll" id="filterForm" class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
                         <div class="flex flex-wrap items-center gap-2">
-                            <select id="settlementFilter" onchange="filterPayroll()"
+                            <select name="settlement_status" onchange="this.form.submit()"
                                 class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="">All Statuses</option>
-                                <option value="settled">Settled</option>
-                                <option value="outstanding">Outstanding</option>
-                                <option value="none">Not Yet Recorded</option>
+                                <option value="settled" <?= $statusFilter === 'settled' ? 'selected' : '' ?>>Settled</option>
+                                <option value="outstanding" <?= $statusFilter === 'outstanding' ? 'selected' : '' ?>>Outstanding</option>
+                                <option value="none" <?= $statusFilter === 'none' ? 'selected' : '' ?>>Not Yet Recorded</option>
                             </select>
 
-                            <select id="categoryFilter" onchange="filterPayroll()"
+                            <select name="category" onchange="this.form.submit()"
                                 class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="">All Categories</option>
-                                <option value="faculty">Faculty</option>
-                                <option value="staff">Staff</option>
+                                <option value="faculty" <?= $categoryFilter === 'faculty' ? 'selected' : '' ?>>Faculty</option>
+                                <option value="staff" <?= $categoryFilter === 'staff' ? 'selected' : '' ?>>Staff</option>
                             </select>
                         </div>
 
                         <div class="relative flex-1 sm:w-72">
                             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
-                            <input type="text" id="searchInput" oninput="filterPayroll()" placeholder="Search employee"
+                            <input type="text" name="q" id="searchInput" value="<?= htmlspecialchars($searchQuery) ?>" placeholder="Search employee" oninput="scheduleSearch()"
                                 class="w-full pl-10 pr-10 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                             <kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-[#2C3E50]/40 bg-white px-1.5 py-0.5 rounded border border-[#E0E0E0]">/</kbd>
                         </div>
                     </div>
-                </div>
+                </form>
 
                 <!-- TABLE -->
                 <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
@@ -525,7 +578,7 @@ $pageIcon   = 'receipt';
                         <?php if ($totalPages > 1): ?>
                             <div class="flex items-center gap-1">
                                 <?php if ($page > 1): ?>
-                                    <a href="?page=<?= $page - 1 ?>" class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
+                                    <a href="?page=<?= $page - 1 ?><?= $baseQs ?>" class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
                                         <i data-lucide="chevron-left" class="w-4 h-4"></i>
                                     </a>
                                 <?php else: ?>
@@ -543,12 +596,12 @@ $pageIcon   = 'receipt';
                                     <?php if ($i === $page): ?>
                                         <span class="w-8 h-8 rounded-lg bg-[#0F5E3D] text-white text-xs font-medium flex items-center justify-center"><?= $i ?></span>
                                     <?php else: ?>
-                                        <a href="?page=<?= $i ?>" class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition text-xs font-medium"><?= $i ?></a>
+                                        <a href="?page=<?= $i ?><?= $baseQs ?>" class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition text-xs font-medium"><?= $i ?></a>
                                     <?php endif; ?>
                                 <?php endfor; ?>
 
                                 <?php if ($page < $totalPages): ?>
-                                    <a href="?page=<?= $page + 1 ?>" class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
+                                    <a href="?page=<?= $page + 1 ?><?= $baseQs ?>" class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
                                         <i data-lucide="chevron-right" class="w-4 h-4"></i>
                                     </a>
                                 <?php else: ?>
@@ -703,6 +756,42 @@ $pageIcon   = 'receipt';
     </div>
 
     <!-- ============================================ -->
+    <!-- EDIT SALARY MODAL                              -->
+    <!-- ============================================ -->
+    <div id="editSalaryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm transform transition-all duration-200 scale-95" id="editSalaryCard">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-[#2C3E50]">Edit Salary</h3>
+                        <p class="text-xs text-[#2C3E50]/50" id="editSalaryName">—</p>
+                    </div>
+                </div>
+                <button onclick="closeEditSalaryModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="editSalaryForm" class="p-6 space-y-4">
+                <input type="hidden" name="employee_id" id="editSalaryEmployeeId">
+                <div>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱) *</label>
+                    <input type="number" step="0.01" min="0" name="basic_salary" id="editSalaryInput" required
+                        class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
+                </div>
+            </form>
+            <div class="flex gap-3 px-6 py-4 border-t border-[#E0E0E0]">
+                <button type="button" onclick="closeEditSalaryModal()"
+                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
+                <button type="button" onclick="confirmEditSalary()" id="editSalaryConfirmBtn"
+                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Save Salary</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
     <!-- SETTLEMENT MODAL                               -->
     <!-- ============================================ -->
     <div id="settleModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -751,42 +840,6 @@ $pageIcon   = 'receipt';
                     class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
                 <button type="button" onclick="confirmSettle()" id="settleConfirmBtn"
                     class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Confirm</button>
-            </div>
-        </div>
-    </div>
-
-        <!-- ============================================ -->
-    <!-- EDIT SALARY MODAL                              -->
-    <!-- ============================================ -->
-    <div id="editSalaryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm transform transition-all duration-200 scale-95" id="editSalaryCard">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                        <i data-lucide="pencil" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-base font-bold text-[#2C3E50]">Edit Salary</h3>
-                        <p class="text-xs text-[#2C3E50]/50" id="editSalaryName">—</p>
-                    </div>
-                </div>
-                <button onclick="closeEditSalaryModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <form id="editSalaryForm" class="p-6 space-y-4">
-                <input type="hidden" name="employee_id" id="editSalaryEmployeeId">
-                <div>
-                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱) *</label>
-                    <input type="number" step="0.01" min="0" name="basic_salary" id="editSalaryInput" required
-                        class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
-                </div>
-            </form>
-            <div class="flex gap-3 px-6 py-4 border-t border-[#E0E0E0]">
-                <button type="button" onclick="closeEditSalaryModal()"
-                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
-                <button type="button" onclick="confirmEditSalary()" id="editSalaryConfirmBtn"
-                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Save Salary</button>
             </div>
         </div>
     </div>

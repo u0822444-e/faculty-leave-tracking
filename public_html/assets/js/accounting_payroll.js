@@ -29,29 +29,15 @@ function fmtNum(v) {
 }
 
 // ============================================
-// Filter
+// Server-side Search & Filter
 // ============================================
-function filterPayroll() {
-  const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
-  const status = document.getElementById("settlementFilter")?.value || "";
-  const category = document.getElementById("categoryFilter")?.value || "";
+let searchDebounceTimer = null;
 
-  const rows = document.querySelectorAll(".payroll-row");
-  let visible = 0;
-
-  rows.forEach((row) => {
-    const name = row.dataset.name || "";
-    const s = row.dataset.status || "";
-    const c = row.dataset.category || "";
-    const matches =
-      (!search || name.includes(search)) &&
-      (!status || s === status) &&
-      (!category || c === category);
-    row.classList.toggle("hidden", !matches);
-    if (matches) visible++;
-  });
-
-  document.getElementById("payrollEmpty")?.classList.toggle("hidden", visible > 0);
+function scheduleSearch() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    document.getElementById("filterForm").submit();
+  }, 400);
 }
 
 // ============================================

@@ -228,7 +228,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
             require __DIR__ . '/../components/topbar.php';
             ?>
 
-            <main class="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+            <main class="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 overflow-visible">
 
                 <!-- ============================================ -->
                 <!-- HERO ROW                                       -->
@@ -386,9 +386,9 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                 </div>
 
                 <!-- ============================================ -->
-                <!-- TOOLBAR                                        -->
+                <!-- TOOLBAR — z-30 + isolate keeps dropdowns above the table -->
                 <!-- ============================================ -->
-                <div class="animate-fade-in-up relative bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
+                <div class="animate-fade-in-up relative z-20 isolate bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
 
                         <div class="flex flex-wrap items-center gap-2">
@@ -402,7 +402,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                 </button>
 
                                 <div id="sortMenu"
-                                    class="hidden absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[100]">
+                                    class="hidden absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[999]">
 
                                     <div class="px-3 py-2 border-b border-[#E0E0E0] bg-[#F1FDF6]/40">
                                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Sort By</p>
@@ -477,7 +477,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                 </button>
 
                                 <div id="employmentMenu"
-                                    class="hidden absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[100]">
+                                    class="hidden absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[999]">
 
                                     <div class="px-3 py-2 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 flex items-center justify-between">
                                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Employment</p>
@@ -530,7 +530,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                 </button>
 
                                 <div id="filterMenu"
-                                    class="hidden absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[100]">
+                                    class="hidden absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-[#E0E0E0] overflow-hidden z-[999]">
 
                                     <div class="px-4 py-3 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 flex items-center justify-between">
                                         <div class="flex items-center gap-2">
@@ -600,9 +600,9 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                 </div>
 
                 <!-- ============================================ -->
-                <!-- TABLE                                          -->
+                <!-- TABLE — no z-index so toolbar dropdowns stay above -->
                 <!-- ============================================ -->
-                <div class="relative z-10 animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
+                <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <?php if (empty($rows)): ?>
                         <div class="p-12 text-center">

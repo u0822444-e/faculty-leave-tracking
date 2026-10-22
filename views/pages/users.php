@@ -623,7 +623,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                                         </button>
                                                     <?php endif; ?>
 
-                                                    <a href="/faculty/<?= $u['user_id'] ?>"
+                                                    <a href="/users/<?= $u['user_id'] ?>"
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View profile">
                                                         <i data-lucide="eye" class="w-3.5 h-3.5"></i>

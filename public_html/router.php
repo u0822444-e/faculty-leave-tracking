@@ -29,7 +29,6 @@ if (($uri === '/login' || $uri === '/login.php' || $uri === '/') && $method === 
         } elseif ($role === 'hr') {
             header('Location: /hr/dashboard');
         } else {
-            // Unknown role — force re-login
             header('Location: /logout');
         }
         exit;
@@ -107,7 +106,7 @@ if ($uri === '/api/activity-logs') {
 }
 
 // ============================================
-// HR ROUTES (replaces former admin routes)
+// HR ROUTES
 // ============================================
 if ($uri === '/hr/dashboard') {
     require __DIR__ . '/../views/pages/hr_dashboard.php';
@@ -120,20 +119,22 @@ if ($uri === '/hr/leaves' || $uri === '/leaves') {
     exit;
 }
 
-// HR manages users (was /faculty admin page)
-if ($uri === '/hr/users' || $uri === '/faculty') {
+// HR manages users — LIST page only
+if ($uri === '/hr/users' || $uri === '/faculty' || $uri === '/users') {
     require __DIR__ . '/../views/pages/users.php';
     exit;
 }
-if ($uri === '/api/hr/users' || $uri === '/api/faculty' || $uri === '/api/users') {
-    require __DIR__ . '/../app/controllers/UserController.php';
+
+// HR user detail — must come BEFORE or independent of the list route (regex won't clash)
+if (preg_match('#^/(?:hr/users|faculty|users)/(\d+)$#', $uri, $matches)) {
+    $_GET['id'] = (int) $matches[1];
+    require __DIR__ . '/../views/pages/user_detail.php';
     exit;
 }
 
-// HR user detail
-if (preg_match('#^/hr/users/(\d+)$#', $uri, $matches)) {
-    $_GET['id'] = (int) $matches[1];
-    require __DIR__ . '/../views/pages/user_detail.php';
+// HR users API
+if ($uri === '/api/hr/users' || $uri === '/api/faculty' || $uri === '/api/users') {
+    require __DIR__ . '/../app/controllers/UserController.php';
     exit;
 }
 
@@ -209,6 +210,7 @@ if ($uri === '/accounting/leaves') {
     require __DIR__ . '/../views/pages/staff_leaves.php';
     exit;
 }
+
 // ============================================
 // ACCOUNTING PAYROLL API
 // ============================================

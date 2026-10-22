@@ -77,6 +77,27 @@ if ($employeeId > 0) {
     $myLeaves = $stmt->fetchAll();
 }
 
+// ============================================
+// Sick-leave aggregation for convertible calculation
+// ============================================
+$sickCap        = 7.5;
+$sickUsed       = 0.0;
+$sickRemaining  = $sickCap;
+
+if ($employeeId > 0) {
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(SUM(days_count), 0)
+        FROM leave_requests
+        WHERE employee_id = ? AND status = 'approved' AND leave_type = 'sick'
+    ");
+    $stmt->execute([$employeeId]);
+    $sickUsed      = (float) $stmt->fetchColumn();
+    $sickRemaining = max(0, $sickCap - $sickUsed);
+}
+
+// Convertible = sick-only, capped at 7.5
+$convertibleLeavePay = $leavePayRate * $sickRemaining;
+
 $statusStyles = [
     'pending'   => 'text-amber-700 bg-amber-50',
     'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
@@ -285,7 +306,7 @@ $activePage = 'profile';
                                     <?php endif; ?>
                                 </div>
 
-                                                                                                <div class="space-y-4 lg:border-l lg:border-[#E0E0E0] lg:pl-6">
+                                <div class="space-y-4 lg:border-l lg:border-[#E0E0E0] lg:pl-6">
                                     <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Account Information</p>
 
                                     <!-- Identity — always read-only -->
@@ -367,11 +388,21 @@ $activePage = 'profile';
                                             </div>
 
                                             <div class="mt-3">
-                                                <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay</label>
+                                                <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay (allocated)</label>
                                                 <input type="text" id="profTotalLeavePay" value="₱<?= number_format($totalLeavePay, 2) ?>" readonly
                                                     class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
                                                 <p class="text-[10px] text-[#2C3E50]/40 mt-1">
                                                     Auto-computed: leave pay rate × leave credits
+                                                </p>
+                                            </div>
+
+                                            <div class="mt-3">
+                                                <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Convertible Leave Pay (sick only)</label>
+                                                <input type="text" value="₱<?= number_format($convertibleLeavePay, 2) ?>" readonly
+                                                    class="w-full px-3 py-2 bg-amber-50/60 border border-amber-200 rounded-lg text-sm text-amber-700 font-mono cursor-not-allowed">
+                                                <p class="text-[10px] text-[#2C3E50]/40 mt-1">
+                                                    Remaining sick credits (≤ <?= number_format($sickCap, 1) ?>) × leave pay rate
+                                                    · <?= rtrim(rtrim(number_format($sickRemaining, 2, '.', ''), '0'), '.') ?> day(s) left
                                                 </p>
                                             </div>
 
@@ -402,11 +433,20 @@ $activePage = 'profile';
                                         </div>
 
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay</label>
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay (allocated)</label>
                                             <input type="text" value="₱<?= number_format($totalLeavePay, 2) ?>" readonly
                                                 class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
                                             <p class="text-[10px] text-[#2C3E50]/40 mt-1">
                                                 ₱<?= number_format($leavePayRate, 2) ?> × <?= number_format($leaveCredits) ?> credits
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Convertible Leave Pay (sick only)</label>
+                                            <input type="text" value="₱<?= number_format($convertibleLeavePay, 2) ?>" readonly
+                                                class="w-full px-3 py-2 bg-amber-50/60 border border-amber-200 rounded-lg text-sm text-amber-700 font-mono cursor-not-allowed">
+                                            <p class="text-[10px] text-[#2C3E50]/40 mt-1">
+                                                <?= rtrim(rtrim(number_format($sickRemaining, 2, '.', ''), '0'), '.') ?> sick day(s) remaining × ₱<?= number_format($leavePayRate, 2) ?>
                                             </p>
                                         </div>
                                     <?php endif; ?>

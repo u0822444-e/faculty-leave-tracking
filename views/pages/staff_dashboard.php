@@ -133,9 +133,13 @@ foreach ($typeCaps as $t => $cap) {
 }
 
 // Leave Pay math
-$totalLeavePay     = $leavePayRate * $totalCredits;
-$remainingLeavePay = $leavePayRate * $leaveCreditsLeft;
-$leaveDeduction    = $leavePayRate * $lwopDays;
+$sickCap       = 7.5;
+$sickUsed      = (float) ($typeUsed['sick'] ?? 0);
+$sickRemaining = max(0, $sickCap - $sickUsed);
+
+$totalLeavePay       = $leavePayRate * $totalCredits;         // full allocated value
+$remainingLeavePay   = $leavePayRate * $sickRemaining;        // sick-only convertible
+$leaveDeduction      = $leavePayRate * $lwopDays;             // LWOP × rate
 
 $trendLabels = [];
 $trendValues = [];
@@ -371,8 +375,9 @@ $statusLabels = [
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
                                 <?php if ($leavePayRate > 0): ?>
                                     ₱<?= number_format($leavePayRate, 2) ?>/credit × <?= fmt_credits($totalCredits) ?> credits
-                                    <span class="block mt-0.5 text-[#0F5E3D] font-medium">
-                                        ₱<?= number_format($remainingLeavePay, 2) ?> still convertible
+                                    <span class="block mt-0.5 text-amber-600 font-medium">
+                                        Convertible (sick only): ₱<?= number_format($remainingLeavePay, 2) ?>
+                                        · <?= fmt_credits($sickRemaining) ?> day(s) left
                                     </span>
                                 <?php else: ?>
                                     no leave pay rate on file

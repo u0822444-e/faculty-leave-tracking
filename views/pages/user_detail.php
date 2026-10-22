@@ -60,6 +60,18 @@ $stmt = $pdo->prepare("
 $stmt->execute([$employeeId]);
 $leaveStats = $stmt->fetch();
 
+// Sick-leave aggregation for convertible calculation
+$sickCap = 7.5;
+$stmt = $pdo->prepare("
+    SELECT COALESCE(SUM(days_count), 0)
+    FROM leave_requests
+    WHERE employee_id = ? AND status = 'approved' AND leave_type = 'sick'
+");
+$stmt->execute([$employeeId]);
+$sickUsed      = (float) $stmt->fetchColumn();
+$sickRemaining = max(0, $sickCap - $sickUsed);
+$convertibleLeavePay = $leavePayRate * $sickRemaining;
+
 // Leave history (last 50)
 $stmt = $pdo->prepare("
     SELECT lr.*, 
@@ -231,6 +243,9 @@ function timeAgoShort($ts) {
                             <p class="text-sm font-semibold text-[#0F5E3D]">₱<?= number_format($totalLeavePay, 2) ?></p>
                             <p class="text-[9px] text-[#2C3E50]/30 mt-0.5">
                                 ₱<?= number_format($leavePayRate, 2) ?> × <?= number_format($leaveCredits) ?>
+                            </p>
+                            <p class="text-[9px] text-amber-600 mt-1 font-medium">
+                                Convertible (sick): ₱<?= number_format($convertibleLeavePay, 2) ?>
                             </p>
                         </div>
                         <div>

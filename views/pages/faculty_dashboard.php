@@ -55,8 +55,6 @@ $typeUsed = [
 ];
 
 // Days that were deducted as "leave without pay".
-// Rule: a leave counts as LWOP if it was approved AND its type is 'other'
-// (or has an explicit `without_pay` flag — see the two SQL variants below).
 $lwopDays = 0;
 
 $statusCounts = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'cancelled' => 0];
@@ -79,9 +77,6 @@ if ($employeeId > 0) {
     $creditsUsed   = (float) ($stats['credits_used'] ?? 0);
 
     // LWOP days — sum of approved days where the leave was without pay.
-    // If your schema has a dedicated `is_without_pay TINYINT` column, use:
-    //   WHERE employee_id = ? AND status = 'approved' AND is_without_pay = 1
-    // Otherwise this falls back to leave_type = 'other' (adjust as needed).
     $stmt = $pdo->prepare("
         SELECT COALESCE(SUM(days_count), 0)
         FROM leave_requests
@@ -150,12 +145,16 @@ foreach ($typeCaps as $t => $cap) {
 // ============================================
 // Leave Pay calculations
 //   totalLeavePay       = leave_pay × total_credits       (full allocated value)
-//   remainingLeavePay   = leave_pay × remaining_credits   (still convertible)
+//   remainingLeavePay   = leave_pay × sick_remaining      (sick-only convertible)
 //   leaveDeduction      = leave_pay × LWOP days           (already taken, unpaid)
 // ============================================
-$totalLeavePay     = $leavePayRate * $totalCredits;
-$remainingLeavePay = $leavePayRate * $leaveCreditsLeft;
-$leaveDeduction    = $leavePayRate * $lwopDays;
+$sickCap       = 7.5;
+$sickUsed      = (float) ($typeUsed['sick'] ?? 0);
+$sickRemaining = max(0, $sickCap - $sickUsed);
+
+$totalLeavePay     = $leavePayRate * $totalCredits;      // full allocated value
+$remainingLeavePay = $leavePayRate * $sickRemaining;     // sick-only convertible
+$leaveDeduction    = $leavePayRate * $lwopDays;          // LWOP × rate
 
 // Monthly trend — approved days per month (last 6 months)
 $trendLabels = [];
@@ -392,6 +391,10 @@ $statusLabels = [
                             <span class="text-2xl sm:text-3xl font-bold text-[#0F5E3D]">
                                 ₱<?= number_format($totalLeavePay, 2) ?>
                             </span>
+                            <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
+                                Convertible (sick only): <span class="font-semibold text-amber-600">₱<?= number_format($remainingLeavePay, 2) ?></span>
+                                · <?= fmt_credits($sickRemaining) ?> day(s) remaining
+                            </p>
                         </div>
 
                         <!-- Leave Deduction (LWOP) -->
@@ -409,6 +412,7 @@ $statusLabels = [
                                 <?php if ($leavePayRate > 0 && $lwopDays > 0): ?>
                                     <?= fmt_credits($lwopDays) ?> day(s) × ₱<?= number_format($leavePayRate, 2) ?>/credit
                                 <?php elseif ($lwopDays <= 0): ?>
+                                    No unpaid leave taken
                                 <?php else: ?>
                                 <?php endif; ?>
                             </p>
@@ -586,7 +590,7 @@ $statusLabels = [
                                 <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Leave Pay Rate</dt>
                                 <dd class="text-[#2C3E50]">₱<?= number_format($leavePayRate, 2) ?> / credit</dd>
                             </div>
-                                                        <?php if (($me['basic_salary'] ?? 0) > 0): ?>
+                            <?php if (($me['basic_salary'] ?? 0) > 0): ?>
                             <div>
                                 <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Monthly Salary</dt>
                                 <dd class="text-[#2C3E50]">₱<?= number_format((float)$me['basic_salary'], 2) ?></dd>

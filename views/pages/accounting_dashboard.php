@@ -124,30 +124,35 @@ foreach ($typeCaps as $t => $cap) {
     $typeRemaining[$t] = max(0, $cap - ($typeUsed[$t] ?? 0));
 }
 
-// Own leave pay
-$totalLeavePay     = $leavePayRate * $totalCredits;
-$remainingLeavePay = $leavePayRate * $leaveCreditsLeft;
-$leaveDeduction    = $leavePayRate * $lwopDays;
+// Own leave pay — sick-only convertible
+$sickCap       = 7.5;
+$sickUsed      = (float) ($typeUsed['sick'] ?? 0);
+$sickRemaining = max(0, $sickCap - $sickUsed);
+
+$totalLeavePay     = $leavePayRate * $totalCredits;         // full allocated value
+$remainingLeavePay = $leavePayRate * $sickRemaining;        // sick-only convertible
+$leaveDeduction    = $leavePayRate * $lwopDays;             // LWOP × rate
 
 // ============================================
 // PAYROLL SUMMARY (accountant-only)
 //   Aggregated across all faculty & staff
 // ============================================
-$payrollTotalLiability    = 0;   // sum of (leave_pay × remaining credits) for everyone
-$payrollTotalSettled      = 0;   // sum of settlements marked "settled"
-$payrollTotalPending      = 0;   // sum of settlements marked "pending"
+$payrollTotalLiability    = 0;   // sum of (leave_pay × sick remaining) for everyone
+$payrollTotalSettled      = 0;
+$payrollTotalPending      = 0;
 $payrollPendingCount      = 0;
 $payrollSettledCount      = 0;
 $payrollSettledThisMonth  = 0;
 
-// Individual leave-pay liabilities per employee
+// Individual leave-pay liabilities per employee — sick-only convertible
 $stmt = $pdo->query("
     SELECT 
         e.id,
         e.first_name, e.last_name,
         e.leave_pay,
         e.leave_credits,
-        COALESCE(SUM(CASE WHEN lr.status = 'approved' THEN lr.days_count ELSE 0 END), 0) AS used
+        COALESCE(SUM(CASE WHEN lr.status = 'approved' THEN lr.days_count ELSE 0 END), 0) AS used,
+        COALESCE(SUM(CASE WHEN lr.status = 'approved' AND lr.leave_type = 'sick' THEN lr.days_count ELSE 0 END), 0) AS sick_used
     FROM employees e
     LEFT JOIN leave_requests lr ON lr.employee_id = e.id
     WHERE e.category IN ('faculty', 'staff')
@@ -155,9 +160,10 @@ $stmt = $pdo->query("
 ");
 $perEmployee = $stmt->fetchAll();
 
+$sickCap = 7.5;
 foreach ($perEmployee as $row) {
-    $remaining = max(0, (float)$row['leave_credits'] - (float)$row['used']);
-    $payrollTotalLiability += (float)$row['leave_pay'] * $remaining;
+    $sickRemainingEmp = max(0, $sickCap - (float)$row['sick_used']);
+    $payrollTotalLiability += (float)$row['leave_pay'] * $sickRemainingEmp;
 }
 
 // Settlement totals from payroll_settlements
@@ -254,7 +260,7 @@ $statusLabels = [
                             </div>
                         </div>
                         <p class="text-2xl font-bold text-[#2C3E50]">₱<?= number_format($payrollTotalLiability, 2) ?></p>
-                        <p class="text-[11px] text-[#2C3E50]/50 mt-1">Convertible from unused credits</p>
+                        <p class="text-[11px] text-[#2C3E50]/50 mt-1">Convertible from unused sick credits (cap 7.5)</p>
                     </div>
 
                     <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
@@ -414,6 +420,10 @@ $statusLabels = [
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
                                 <?php if ($leavePayRate > 0): ?>
                                     ₱<?= number_format($leavePayRate, 2) ?>/credit × <?= fmt_credits($totalCredits) ?> credits
+                                    <span class="block mt-0.5 text-amber-600 font-medium">
+                                        Convertible (sick only): ₱<?= number_format($remainingLeavePay, 2) ?>
+                                        · <?= fmt_credits($sickRemaining) ?> day(s) left
+                                    </span>
                                 <?php else: ?>
                                     no leave pay rate on file
                                 <?php endif; ?>
@@ -442,14 +452,14 @@ $statusLabels = [
                 </div>
 
                 <!-- ============================================ -->
-                <!-- PAYROLL CHARTS (moved from HR dashboard)        -->
+                <!-- PAYROLL CHARTS                                 -->
                 <!-- ============================================ -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
                     <div class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between mb-3">
                             <div>
                                 <h2 class="text-sm font-bold text-[#2C3E50]">Payroll Liability</h2>
-                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Convertible credits per department · live</p>
+                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Convertible sick credits per department · live</p>
                             </div>
                             <a href="/accounting/payroll"
                                 class="text-[11px] font-medium text-[#0F5E3D] hover:text-[#0a4a2f] transition">
@@ -473,7 +483,7 @@ $statusLabels = [
                 </div>
 
                 <!-- ============================================ -->
-                <!-- Leave Breakdown + Trend (same as staff)         -->
+                <!-- Leave Breakdown + Trend                        -->
                 <!-- ============================================ -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
                     <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
@@ -521,7 +531,7 @@ $statusLabels = [
                 </div>
 
                 <!-- ============================================ -->
-                <!-- Recent Leaves + My Info (same as staff)         -->
+                <!-- Recent Leaves + My Info                        -->
                 <!-- ============================================ -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                     <div class="animate-fade-in-up-delay-3 lg:col-span-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">

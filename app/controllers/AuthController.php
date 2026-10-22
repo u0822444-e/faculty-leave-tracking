@@ -13,6 +13,7 @@ require_once __DIR__ . '/../helpers/ActivityLogger.php';
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (isset($_SESSION['user_id'])) {
         $role = $_SESSION['role'] ?? 'admin';
+        $subCategory = trim((string) ($_SESSION['sub_category'] ?? ''));
 
         switch ($role) {
             case 'admin':
@@ -25,7 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
                 header('Location: /faculty/dashboard');
                 exit;
             case 'staff':
-                header('Location: /staff/dashboard');
+                // Accounting staff go to their dedicated dashboard
+                if ($subCategory === 'Accounting Section') {
+                    header('Location: /accounting/dashboard');
+                } else {
+                    header('Location: /staff/dashboard');
+                }
                 exit;
             default:
                 session_unset();
@@ -117,6 +123,8 @@ if ($user && password_verify($password, $user['password'])) {
     // ============================================
     // Role-based redirect
     // ============================================
+    $subCategory = trim((string) ($user['sub_category'] ?? ''));
+
     switch ($user['role']) {
         case 'admin':
             header('Location: /dashboard');
@@ -131,7 +139,12 @@ if ($user && password_verify($password, $user['password'])) {
             exit;
 
         case 'staff':
-            header('Location: /staff/dashboard');
+            // Accounting staff get their own dashboard
+            if ($subCategory === 'Accounting Section') {
+                header('Location: /accounting/dashboard');
+            } else {
+                header('Location: /staff/dashboard');
+            }
             exit;
 
         default:

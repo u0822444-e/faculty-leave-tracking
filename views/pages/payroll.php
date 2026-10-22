@@ -29,11 +29,15 @@ $stmt = $pdo->prepare("
         e.category, e.sub_category, e.employment_type,
         e.basic_salary, e.leave_pay, e.leave_credits,
         u.username, u.status AS user_status,
-        COALESCE(lr.credits_used, 0) AS credits_used
+        COALESCE(lr.credits_used, 0) AS credits_used,
+        COALESCE(lr.sick_used, 0)    AS sick_used
     FROM employees e
     LEFT JOIN users u ON u.employee_id = e.id
     LEFT JOIN (
-        SELECT employee_id, SUM(days_count) AS credits_used
+        SELECT
+            employee_id,
+            SUM(days_count) AS credits_used,
+            SUM(CASE WHEN leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used
         FROM leave_requests
         WHERE status = 'approved'
         GROUP BY employee_id
@@ -77,7 +81,13 @@ foreach ($employees as $e) {
 
     $totalLeavePay = $leavePayRate * $allocated;
     $saved         = $leavePayRate * $used;
-    $convertible   = $leavePayRate * $remaining;
+
+    // Convertible = remaining SICK leave credits (cap 7.5) × leave pay
+    // Other leave types are not convertible.
+    $sickCap       = 7.5;
+    $sickUsed      = (float) ($e['sick_used'] ?? 0);
+    $sickRemaining = max(0, $sickCap - $sickUsed);
+    $convertible   = $leavePayRate * $sickRemaining;
 
     $monthlyDeduction = $leavePayRate * $used;
 
@@ -124,10 +134,14 @@ $agg = $pdo->query("
         e.basic_salary,
         e.leave_pay,
         e.leave_credits,
-        COALESCE(lr.credits_used, 0) AS credits_used
+        COALESCE(lr.credits_used, 0) AS credits_used,
+        COALESCE(lr.sick_used, 0)    AS sick_used
     FROM employees e
     LEFT JOIN (
-        SELECT employee_id, SUM(days_count) AS credits_used
+        SELECT
+            employee_id,
+            SUM(days_count) AS credits_used,
+            SUM(CASE WHEN leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used
         FROM leave_requests
         WHERE status = 'approved'
         GROUP BY employee_id
@@ -154,9 +168,14 @@ foreach ($agg as $a) {
     $allocated    = (float) $a['leave_credits'];
     $remaining    = max(0, $allocated - $used);
 
-    $saved       = $leavePayRate * $used;
-    $convertible = $leavePayRate * $remaining;
-    $payValue    = $leavePayRate * $allocated;
+    $saved    = $leavePayRate * $used;
+    $payValue = $leavePayRate * $allocated;
+
+    // Convertible is sick-only, capped at 7.5
+    $sickCap       = 7.5;
+    $sickUsed      = (float) ($a['sick_used'] ?? 0);
+    $sickRemaining = max(0, $sickCap - $sickUsed);
+    $convertible   = $leavePayRate * $sickRemaining;
 
     $monthlyDeduction = $leavePayRate * $used;
 
@@ -263,13 +282,13 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
                                     Convertible Balance</p>
                                 <p class="text-lg font-bold text-amber-600">₱<?= number_format($totalConvertible, 2) ?></p>
-                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">remaining unused credits</p>
+                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">remaining sick leave credits</p>
                             </div>
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
                                     Monthly Deduction</p>
                                 <p class="text-lg font-bold text-red-600">₱<?= number_format($totalMonthlyDeduction, 2) ?></p>
-                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">salary value of used days</p>
+                                <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">leave-pay value of used days</p>
                             </div>
                             <div>
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">
@@ -338,7 +357,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                     <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="mb-3">
                             <h2 class="text-sm font-bold text-[#2C3E50]">Convertible Balance</h2>
-                            <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Remaining credits · ₱ value</p>
+                            <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Remaining sick leave credits · ₱ value</p>
                         </div>
                         <div class="relative h-40">
                             <canvas id="catChart"></canvas>
@@ -383,7 +402,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                 </div>
 
                 <!-- ============================================ -->
-                <!-- TOOLBAR — z-30 + isolate keeps dropdowns above the table -->
+                <!-- TOOLBAR                                        -->
                 <!-- ============================================ -->
                 <div class="animate-fade-in-up relative z-20 isolate bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
@@ -597,7 +616,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                 </div>
 
                 <!-- ============================================ -->
-                <!-- TABLE — no z-index so toolbar dropdowns stay above -->
+                <!-- TABLE                                          -->
                 <!-- ============================================ -->
                 <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
@@ -660,12 +679,9 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize text-slate-600 bg-slate-100">
                                                     <?= htmlspecialchars($r['category']) ?>
                                                 </span>
-                                                
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm text-[#2C3E50]"><?= $r['basic_salary'] > 0 ? '₱' . number_format($r['basic_salary'], 2) : '—' ?></span>
-                                                <?php if ($r['daily_rate'] > 0): ?>
-                                                <?php endif; ?>
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="text-sm text-[#2C3E50]">₱<?= number_format($r['leave_pay'], 2) ?></span>

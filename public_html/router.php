@@ -22,10 +22,17 @@ if (($uri === '/login' || $uri === '/login.php') && $method === 'POST') {
 if (($uri === '/login' || $uri === '/login.php' || $uri === '/') && $method === 'GET') {
     if (isset($_SESSION['user_id'])) {
         $role = $_SESSION['role'] ?? '';
+        $subCategory = trim((string) ($_SESSION['sub_category'] ?? ''));
+
         if ($role === 'faculty') {
             header('Location: /faculty/dashboard');
         } elseif ($role === 'staff') {
-            header('Location: /staff/dashboard');
+            // Accounting staff get their own dashboard
+            if ($subCategory === 'Accounting Section') {
+                header('Location: /accounting/dashboard');
+            } else {
+                header('Location: /staff/dashboard');
+            }
         } elseif ($role === 'hr') {
             header('Location: /hr/dashboard');
         } else {

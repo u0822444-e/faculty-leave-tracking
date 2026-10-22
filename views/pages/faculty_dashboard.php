@@ -20,7 +20,7 @@ $stmt = $pdo->prepare("
         e.id AS employee_id,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.year_level, e.position, e.employment_type, e.basic_salary,
-        e.leave_credits, e.leave_pay,
+        e.leave_credits, e.leave_pay
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.id = ?

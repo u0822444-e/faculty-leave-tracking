@@ -392,16 +392,6 @@ $statusLabels = [
                             <span class="text-2xl sm:text-3xl font-bold text-[#0F5E3D]">
                                 ₱<?= number_format($totalLeavePay, 2) ?>
                             </span>
-                            <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
-                                <?php if ($leavePayRate > 0): ?>
-                                    ₱<?= number_format($leavePayRate, 2) ?>/credit × <?= fmt_credits($totalCredits) ?> credits
-                                    <span class="block mt-0.5 text-[#0F5E3D] font-medium">
-                                        ₱<?= number_format($remainingLeavePay, 2) ?> still convertible
-                                    </span>
-                                <?php else: ?>
-                                    no leave pay rate on file
-                                <?php endif; ?>
-                            </p>
                         </div>
 
                         <!-- Leave Deduction (LWOP) -->
@@ -419,9 +409,7 @@ $statusLabels = [
                                 <?php if ($leavePayRate > 0 && $lwopDays > 0): ?>
                                     <?= fmt_credits($lwopDays) ?> day(s) × ₱<?= number_format($leavePayRate, 2) ?>/credit
                                 <?php elseif ($lwopDays <= 0): ?>
-                                    no leave-without-pay days
                                 <?php else: ?>
-                                    no leave pay rate on file
                                 <?php endif; ?>
                             </p>
                         </div>

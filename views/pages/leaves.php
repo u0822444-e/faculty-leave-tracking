@@ -3,7 +3,7 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: /login');
     exit;
 }
-if ($_SESSION['role'] !== 'admin') {
+if ($_SESSION['role'] !== 'hr') {
     header('Location: /login');
     exit;
 }
@@ -83,7 +83,7 @@ $leaveLabels = [
             class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
         <?php
-        $activePage = 'leaves';
+        $activePage = 'hr_leaves';
         require __DIR__ . '/../components/sidebar.php';
         ?>
 

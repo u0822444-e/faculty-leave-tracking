@@ -1,6 +1,7 @@
 <?php
 $activePage = $activePage ?? '';
-$role = $_SESSION['role'] ?? 'admin';
+$role = $_SESSION['role'] ?? '';
+$sidebarSubCategory = trim((string) ($_SESSION['sub_category'] ?? ''));
 
 // ============================================
 // Leadership access flags
@@ -45,20 +46,20 @@ function navClass($key, $activePage)
 
     <nav class="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
 
-        <?php if ($role === 'admin'): ?>
-            <a href="/dashboard" class="<?= navClass('dashboard', $activePage) ?>">
+        <?php if ($role === 'hr'): ?>
+            <a href="/hr/dashboard" class="<?= navClass('hr_dashboard', $activePage) ?>">
                 <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                 <span>Dashboard</span>
             </a>
-            <a href="/faculty" class="<?= navClass('faculty', $activePage) ?>">
+            <a href="/hr/users" class="<?= navClass('hr_users', $activePage) ?>">
                 <i data-lucide="users" class="w-5 h-5"></i>
                 <span>Faculty</span>
             </a>
-            <a href="/leaves" class="<?= navClass('leaves', $activePage) ?>">
+            <a href="/hr/leaves" class="<?= navClass('hr_leaves', $activePage) ?>">
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>
-                <span>Leaves</span>
+                <span>Leave Requests</span>
             </a>
-            <a href="/payroll" class="<?= navClass('payroll', $activePage) ?>">
+            <a href="/hr/payroll" class="<?= navClass('hr_payroll', $activePage) ?>">
                 <i data-lucide="wallet" class="w-5 h-5"></i>
                 <span>Payroll</span>
             </a>
@@ -66,7 +67,7 @@ function navClass($key, $activePage)
                 <i data-lucide="history" class="w-5 h-5"></i>
                 <span>Activity Logs</span>
             </a>
-            <a href="/settings" class="<?= navClass('settings', $activePage) ?>">
+            <a href="/hr/settings" class="<?= navClass('hr_settings', $activePage) ?>">
                 <i data-lucide="settings" class="w-5 h-5"></i>
                 <span>Settings</span>
             </a>
@@ -91,33 +92,40 @@ function navClass($key, $activePage)
                 <span>My Activity</span>
             </a>
 
-        <?php elseif (in_array($role, ['hr'], true)): ?>
-            <a href="/hr/dashboard" class="<?= navClass('hr_dashboard', $activePage) ?>">
-                <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-                <span>Dashboard</span>
-            </a>
-            <a href="/hr/leaves" class="<?= navClass('hr_leaves', $activePage) ?>">
-                <i data-lucide="calendar-days" class="w-5 h-5"></i>
-                <span>Leave Requests</span>
-            </a>
-            <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
-                <i data-lucide="history" class="w-5 h-5"></i>
-                <span>My Activity</span>
-            </a>
-
         <?php elseif ($role === 'staff'): ?>
-            <a href="/staff/dashboard" class="<?= navClass('staff_dashboard', $activePage) ?>">
-                <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-                <span>Dashboard</span>
-            </a>
-            <a href="/staff/leaves" class="<?= navClass('staff_leaves', $activePage) ?>">
-                <i data-lucide="calendar-days" class="w-5 h-5"></i>
-                <span>My Leaves</span>
-            </a>
-            <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
-                <i data-lucide="history" class="w-5 h-5"></i>
-                <span>My Activity</span>
-            </a>
+            <?php if ($sidebarSubCategory === 'Accounting Section'): ?>
+                <!-- Accounting staff — dedicated nav -->
+                <a href="/accounting/dashboard" class="<?= navClass('accounting_dashboard', $activePage) ?>">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/accounting/payroll" class="<?= navClass('accounting_payroll', $activePage) ?>">
+                    <i data-lucide="receipt" class="w-5 h-5"></i>
+                    <span>Payroll</span>
+                </a>
+                <a href="/accounting/leaves" class="<?= navClass('staff_leaves', $activePage) ?>">
+                    <i data-lucide="calendar-days" class="w-5 h-5"></i>
+                    <span>My Leaves</span>
+                </a>
+                <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
+                    <i data-lucide="history" class="w-5 h-5"></i>
+                    <span>My Activity</span>
+                </a>
+            <?php else: ?>
+                <!-- Regular staff — unchanged nav -->
+                <a href="/staff/dashboard" class="<?= navClass('staff_dashboard', $activePage) ?>">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/staff/leaves" class="<?= navClass('staff_leaves', $activePage) ?>">
+                    <i data-lucide="calendar-days" class="w-5 h-5"></i>
+                    <span>My Leaves</span>
+                </a>
+                <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
+                    <i data-lucide="history" class="w-5 h-5"></i>
+                    <span>My Activity</span>
+                </a>
+            <?php endif; ?>
 
         <?php endif; ?>
 

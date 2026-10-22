@@ -1,5 +1,5 @@
 <?php
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['admin', 'hr'], true)) {
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'hr') {
     header('Location: /login');
     exit;
 }
@@ -66,18 +66,6 @@ $leaveLabels = [
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
-    <style>
-        .rv-select {
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%232C3E50' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-            background-position: right 0.5rem center;
-            background-repeat: no-repeat;
-            background-size: 1.15em 1.15em;
-            padding-right: 2rem;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            appearance: none;
-        }
-    </style>
 </head>
 
 <body class="bg-gradient-to-br from-[#F1FDF6] via-[#eafaf1] to-[#dcf3e5] min-h-screen">
@@ -88,8 +76,8 @@ $leaveLabels = [
             class="fixed inset-0 bg-black/40 z-40 hidden md:hidden backdrop-blur-sm"></div>
 
         <?php
-        $role = $_SESSION['role'] ?? 'admin';
-        $activePage = ($role === 'admin') ? 'leaves' : 'hr_leaves'; 
+        $role = $_SESSION['role'] ?? 'hr';
+        $activePage = 'hr_leaves'; 
         require __DIR__ . '/../components/sidebar.php';
         ?>
 
@@ -191,6 +179,7 @@ $leaveLabels = [
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Dates</th>
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Days</th>
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Status</th>
+                                        <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Pay Status</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Actions</th>
                                     </tr>
                                 </thead>
@@ -203,6 +192,19 @@ $leaveLabels = [
                                         $leaveClass = $leaveStyles[$l['leave_type']] ?? 'text-slate-700 bg-slate-100';
                                         $statusClass = $statusStyles[$l['status']] ?? 'text-slate-700 bg-slate-100';
                                         $leaveLabel = $leaveLabels[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                        
+                                        // Pay Status logic
+                                        $payStatus = $l['pay_status'] ?? null;
+                                        $payLabel = '—';
+                                        $payClass = 'text-slate-400 bg-slate-50';
+                                        
+                                        if ($payStatus === 'with_pay') {
+                                            $payLabel = 'With Pay';
+                                            $payClass = 'text-[#0F5E3D] bg-[#F1FDF6] border border-[#0F5E3D]/20';
+                                        } elseif ($payStatus === 'without_pay') {
+                                            $payLabel = 'Without Pay';
+                                            $payClass = 'text-amber-700 bg-amber-50 border border-amber-200';
+                                        }
                                         ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12"
                                             data-name="<?= strtolower($fullName) ?>" data-status="<?= $l['status'] ?>"
@@ -246,6 +248,11 @@ $leaveLabels = [
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $payClass ?>">
+                                                    <?= $payLabel ?>
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
                                                     <button onclick="openReview(<?= (int) $l['id'] ?>)"
                                                         class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
@@ -270,6 +277,19 @@ $leaveLabels = [
                                 $leaveClass = $leaveStyles[$l['leave_type']] ?? 'text-slate-700 bg-slate-100';
                                 $statusClass = $statusStyles[$l['status']] ?? 'text-slate-700 bg-slate-100';
                                 $leaveLabel = $leaveLabels[$l['leave_type']] ?? ucfirst($l['leave_type']);
+
+                                // Pay Status logic
+                                $payStatus = $l['pay_status'] ?? null;
+                                $payLabel = '—';
+                                $payClass = 'text-slate-400';
+                                
+                                if ($payStatus === 'with_pay') {
+                                    $payLabel = 'With Pay';
+                                    $payClass = 'text-[#0F5E3D]';
+                                } elseif ($payStatus === 'without_pay') {
+                                    $payLabel = 'Without Pay';
+                                    $payClass = 'text-amber-700';
+                                }
                                 ?>
                                 <div class="p-4 hover:bg-[#F1FDF6]/40 transition" data-name="<?= strtolower($fullName) ?>"
                                     data-status="<?= $l['status'] ?>" data-type="<?= $l['leave_type'] ?>">
@@ -288,7 +308,7 @@ $leaveLabels = [
                                                     <?= htmlspecialchars($l['status']) ?>
                                                 </span>
                                             </div>
-                                            <div class="flex items-center gap-2 mb-1">
+                                            <div class="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span
                                                     class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium <?= $leaveClass ?>">
                                                     <?= htmlspecialchars($leaveLabel) ?>
@@ -297,10 +317,17 @@ $leaveLabels = [
                                                     <?= date('M j', strtotime($l['start_date'])) ?>–<?= date('M j', strtotime($l['end_date'])) ?>
                                                 </span>
                                             </div>
-                                            <p class="text-xs text-[#2C3E50]/50">
-                                                <?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?>
-                                                days
-                                            </p>
+                                            <div class="flex items-center gap-3">
+                                                <p class="text-xs text-[#2C3E50]/50">
+                                                    <?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?>
+                                                    days
+                                                </p>
+                                                <?php if ($payStatus): ?>
+                                                    <p class="text-xs font-medium <?= $payClass ?>">
+                                                        • <?= $payLabel ?>
+                                                    </p>
+                                                <?php endif; ?>
+                                            </div>
                                             <div class="flex items-center gap-2 mt-3">
                                                 <button onclick="openReview(<?= (int) $l['id'] ?>)"
                                                     class="w-full text-sm py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
@@ -532,18 +559,6 @@ $leaveLabels = [
                     <!-- Decision bar (pinned) -->
                     <div id="rvDecideBar" class="hidden border-t border-[#E0E0E0] bg-white px-8 py-4 shrink-0">
                         <div class="flex items-center gap-3">
-
-                            <div class="flex items-center gap-2 shrink-0">
-                                <button type="button" data-pay="with_pay" onclick="rvSelectPay('with_pay')"
-                                    class="rv-pay-btn rv-pay-with" data-pay="with_pay">
-                                    With Pay
-                                </button>
-                                <button type="button" data-pay="without_pay" onclick="rvSelectPay('without_pay')"
-                                    class="rv-pay-btn rv-pay-without" data-pay="without_pay">
-                                    Without Pay
-                                </button>
-                            </div>
-
                             <input type="text" id="rvRemarksInput"
                                 class="flex-1 min-w-0 px-3 py-2 border border-[#E0E0E0] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition bg-white"
                                 placeholder="Add remarks (optional)…">
@@ -635,12 +650,13 @@ $leaveLabels = [
             return [
                 'id' => (int) $l['id'],
                 'employee_id' => (int) ($l['employee_id'] ?? 0),
-                'name' => trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? '')) ?: 'Unknown',
+                'name' => trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? '')),
                 'status' => $l['status'],
                 'type' => $l['leave_type'],
                 'start' => $l['start_date'],
                 'end' => $l['end_date'],
                 'days' => (float) $l['days_count'],
+                'pay_status' => $l['pay_status'] ?? null,
             ];
         }, $leaves)) ?>;
     </script>

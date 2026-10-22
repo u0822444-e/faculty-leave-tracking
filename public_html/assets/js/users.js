@@ -1,5 +1,5 @@
 // ============================================
-// Users page — logic
+// Users page — logic (HR manages users)
 // ============================================
 
 const SUB_CATEGORIES = {
@@ -15,54 +15,46 @@ const YEAR_LEVELS_OR_DEPARTMENTS = {
   Elementary: ["Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6"],
   "High School": ["Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12"],
   College: [
-    "College of Education",
-    "College of Social Work and Community Development",
-    "College of Business Administration",
+    "College of Teacher Education",
+    "College of Business Education",
     "College of Computer Studies",
     "College of Criminal Justice Education",
+    "College of Social Work",
   ],
 };
 
+// Only faculty sub-categories have a position list.
+// Staff sub-categories are intentionally absent — they fall to DEFAULT_POSITIONS,
+// which now contains only "N/A" (the field is hidden for staff anyway).
 const POSITIONS_BY_CONTEXT = {
   Elementary: [
     "N/A", "Elementary Principal", "Assistant Principal", "Department Head",
     "Master Teacher", "Teacher I", "Teacher II", "Teacher III",
-    "Guidance Counselor", "Librarian", "Registrar Staff"
+    "Guidance Counselor", "Librarian", "Registrar Staff", "Other",
   ],
   "High School": [
     "N/A", "High School Principal", "Assistant Principal", "Department Head",
     "Master Teacher", "Teacher I", "Teacher II", "Teacher III",
-    "Guidance Counselor", "Librarian", "Registrar Staff"
+    "Guidance Counselor", "Librarian", "Registrar Staff", "Other",
   ],
   College: [
-    "N/A", "College Dean", "Academic Dean", "Department Head",
-    "Professor I", "Professor II", "Professor III", "Professor IV",
+    "N/A", "College Dean", "Academic Dean",
+    "Professor",
     "Associate Professor", "Assistant Professor",
-    "Instructor I", "Instructor II", "Instructor III",
-    "Lecturer", "Guidance Counselor", "Librarian", "Registrar Staff"
-  ],
-  "Registrar's Office": [
-    "N/A", "University Registrar", "Assistant Registrar",
-    "Registrar Staff", "Records Officer", "Admin Staff"
-  ],
-  "Accounting Section": [
-    "N/A", "Chief Accountant", "Accountant", "Accounting Staff",
-    "Cashier", "Admin Staff"
-  ],
-  "Library & Guidance": [
-    "N/A", "Head Librarian", "Librarian", "Library Assistant",
-    "Guidance Counselor", "Guidance Staff", "Admin Staff"
+    "Instructor",
+    "Lecturer", "Guidance Counselor", "Librarian", "Other",
   ],
 };
 
-const DEFAULT_POSITIONS = [
-  "N/A", "Admin Staff", "Teacher I", "Teacher II", "Instructor I"
-];
+const DEFAULT_POSITIONS = ["N/A"];
 
+// ============================================
+// Role ↔ Category coupling (no admin role)
+// ============================================
 const ROLE_TO_CATEGORY = {
-  faculty: "faculty",
-  staff: "staff",
   hr: "staff",
+  staff: "staff",
+  faculty: "faculty",
 };
 
 const CATEGORY_TO_ROLE = {
@@ -102,11 +94,11 @@ function submitGlobalSearch() {
   if (status) params.set("status", status);
   if (q) params.set("q", q);
 
-  window.location.href = "/faculty" + (params.toString() ? "?" + params.toString() : "");
+  window.location.href = "/hr/users" + (params.toString() ? "?" + params.toString() : "");
 }
 
 // ============================================
-// Role ↔ Category coupling
+// Role ↔ Category coupling enforcement
 // ============================================
 function enforceRoleCategoryCoupling(prefix = "add", source = "") {
   const roleEl = document.getElementById(`${prefix}Role`);
@@ -118,13 +110,6 @@ function enforceRoleCategoryCoupling(prefix = "add", source = "") {
   const cat = catEl.value;
 
   if (source === "role" && role) {
-    if (role === "admin") {
-      if (cat !== "faculty" && cat !== "staff") catEl.value = "";
-      catEl.disabled = false;
-      if (hiddenCatEl) hiddenCatEl.value = "";
-      return;
-    }
-
     const requiredCat = ROLE_TO_CATEGORY[role];
     if (requiredCat) {
       catEl.value = requiredCat;
@@ -228,6 +213,57 @@ function handleEmploymentChange(prefix = "add") {
 }
 
 // ============================================
+// Position visibility
+//   Position / Designation applies only to FACULTY.
+//   For staff & hr it is hidden and stored as "N/A".
+// ============================================
+function shouldShowPosition(prefix) {
+  const catEl = document.getElementById(`${prefix}Category`);
+  if (!catEl) return false;
+  return catEl.value === "faculty";
+}
+
+function togglePositionField(prefix) {
+  const positionEl =
+    document.getElementById(`${prefix}Position`) ||
+    document.getElementById(`${prefix}PositionSelect`);
+  if (!positionEl) return;
+
+  // Find the wrapper (label + select) — prefer explicit ID, fall back to closest div
+  const wrap =
+    document.getElementById(`${prefix}PositionWrap`) ||
+    positionEl.closest("[data-field='position']") ||
+    positionEl.parentElement;
+
+  const show = shouldShowPosition(prefix);
+
+  if (wrap) {
+    wrap.classList.toggle("hidden", !show);
+  }
+
+  if (!show) {
+    // Store "N/A" via hidden input so the POST still gets a value
+    let hidden = document.getElementById(`${prefix}PositionHidden`);
+    if (!hidden) {
+      hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "position";
+      hidden.id = `${prefix}PositionHidden`;
+      positionEl.parentElement.appendChild(hidden);
+    }
+    hidden.value = "N/A";
+    positionEl.removeAttribute("required");
+    positionEl.disabled = true;
+    positionEl.value = "N/A";
+  } else {
+    const hidden = document.getElementById(`${prefix}PositionHidden`);
+    if (hidden) hidden.remove();
+    positionEl.disabled = false;
+    positionEl.setAttribute("required", "required");
+  }
+}
+
+// ============================================
 // Validation
 // ============================================
 function validateStep1() {
@@ -245,13 +281,17 @@ function validateStep1() {
 function validateStep2() {
   const role = document.getElementById("addRole").value;
   const cat = document.getElementById("addCategory").value;
-  const pos = document.getElementById("addPosition").value;
   const pwd = document.getElementById("addTempPassword").value.trim();
 
   if (!role) { markInvalid("addRole"); return false; }
   if (!cat) { markInvalid("addCategory"); return false; }
-  if (!pos) { markInvalid("addPosition"); return false; }
   if (!pwd || pwd.length < 8) { markInvalid("addTempPassword"); return false; }
+
+  // Position is only required for faculty
+  if (role === "faculty") {
+    const pos = document.getElementById("addPosition").value;
+    if (!pos) { markInvalid("addPosition"); return false; }
+  }
 
   if (role === "faculty" && cat !== "faculty") {
     showError("Role mismatch", "Faculty role requires Faculty category.");
@@ -318,6 +358,7 @@ function updateSubCategories(prefix = "add") {
       yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
     }
     populatePositionDropdown(`${prefix}Position`, "N/A", "");
+    togglePositionField(prefix);
     return;
   }
 
@@ -335,6 +376,7 @@ function updateSubCategories(prefix = "add") {
     yearEl.innerHTML = '<option value="">Select a sub-category first</option>';
   }
   populatePositionDropdown(`${prefix}Position`, "N/A", "");
+  togglePositionField(prefix);
 }
 
 function updateYearLevelOrDepartment(prefix, selectedValue = null) {
@@ -477,11 +519,14 @@ function openAddUserModal() {
 
   const leavePayEl = document.getElementById("addLeavePay");
   if (leavePayEl) leavePayEl.value = 0;
+    const basicSalaryEl = document.getElementById("addBasicSalary");
+  if (basicSalaryEl) basicSalaryEl.value = 0;
 
   const pwdEl = document.getElementById("addTempPassword");
   if (!pwdEl.value) regeneratePassword();
 
   populatePositionDropdown("addPosition", "N/A", "");
+  togglePositionField("add");
   handleEmploymentChange("add");
 
   currentStep = 1;
@@ -512,16 +557,10 @@ function openEditUserModal(data) {
   document.getElementById("editCategory").value = data.category || "staff";
 
   const catEl = document.getElementById("editCategory");
-  const roleEl = document.getElementById("editRole");
   const hiddenCatEl = document.getElementById("editCategoryHidden");
 
-  if (roleEl.value !== "admin") {
-    catEl.disabled = true;
-    if (hiddenCatEl) hiddenCatEl.value = catEl.value;
-  } else {
-    catEl.disabled = false;
-    if (hiddenCatEl) hiddenCatEl.value = "";
-  }
+  catEl.disabled = true;
+  if (hiddenCatEl) hiddenCatEl.value = catEl.value;
 
   updateSubCategories("edit");
 
@@ -529,8 +568,15 @@ function openEditUserModal(data) {
   if (subEl) subEl.value = data.sub || "";
   updateYearLevelOrDepartment("edit", data.year_level || "");
   populatePositionDropdown("editPosition", data.position || "N/A", data.sub || "");
+  togglePositionField("edit");
 
   document.getElementById("editEmpType").value = data.emp || "full-time";
+
+    const editBasicSalaryEl = document.getElementById("editBasicSalary");
+  if (editBasicSalaryEl) {
+    editBasicSalaryEl.value =
+      data.salary !== undefined && data.salary !== null ? data.salary : 0;
+  }
 
   const editLeavePayEl = document.getElementById("editLeavePay");
   if (editLeavePayEl) {
@@ -739,8 +785,7 @@ function closeResetSentModal() {
 }
 
 // ============================================
-// View toggle — pagination is now OUTSIDE both views
-// so it always shows
+// View toggle — pagination is outside both views
 // ============================================
 function setView(view) {
   currentView = view;
@@ -992,7 +1037,6 @@ function closeStatusOnOutside(e) {
 
 // ============================================
 // Filters — client-side only (role/category/sub/year)
-// Search & status are server-side via URL
 // ============================================
 function applyFilters() {
   const role     = document.getElementById("filterRole")?.value || "";
@@ -1059,12 +1103,18 @@ document.addEventListener("DOMContentLoaded", () => {
   if (addRoleEl) addRoleEl.addEventListener("change", () => enforceRoleCategoryCoupling("add", "role"));
   if (addCategoryEl) addCategoryEl.addEventListener("change", () => enforceRoleCategoryCoupling("add", "category"));
 
+  const addSubEl = document.getElementById("addSubCategory");
+  if (addSubEl) addSubEl.addEventListener("change", () => togglePositionField("add"));
+
   const editRoleEl = document.getElementById("editRole");
   const editCategoryEl = document.getElementById("editCategory");
   if (editRoleEl) editRoleEl.addEventListener("change", () => enforceRoleCategoryCoupling("edit", "role"));
   if (editCategoryEl) editCategoryEl.addEventListener("change", () => enforceRoleCategoryCoupling("edit", "category"));
 
-  // Info form (add user)
+  const editSubEl = document.getElementById("editSub");
+  if (editSubEl) editSubEl.addEventListener("change", () => togglePositionField("edit"));
+
+  // Add user form
   document.getElementById("addUserForm")?.addEventListener("submit", async function (e) {
     e.preventDefault();
     if (!validateStep2()) return;
@@ -1078,21 +1128,36 @@ document.addEventListener("DOMContentLoaded", () => {
     formData.append("username", username);
     formData.append("password", tempPassword);
 
+    // If position field is hidden, force "N/A"
+    if (!shouldShowPosition("add")) {
+      formData.set("position", "N/A");
+    }
+
     await submitCreateUser(formData);
   });
 
-  // Edit form
+  // Edit user form
   document.getElementById("editUserForm")?.addEventListener("submit", async function (e) {
     e.preventDefault();
     const first = document.getElementById("editFirstName").value.trim();
     const last = document.getElementById("editLastName").value.trim();
     const username = document.getElementById("editUsername").value.trim();
-    const position = document.getElementById("editPosition").value;
     if (!first) { markInvalid("editFirstName"); return; }
     if (!last) { markInvalid("editLastName"); return; }
     if (!username) { markInvalid("editUsername"); return; }
-    if (!position) { markInvalid("editPosition"); return; }
-    await submitEditUser(new FormData(this));
+
+    // Position is only required for faculty
+    if (shouldShowPosition("edit")) {
+      const position = document.getElementById("editPosition").value;
+      if (!position) { markInvalid("editPosition"); return; }
+    }
+
+    const formData = new FormData(this);
+    if (!shouldShowPosition("edit")) {
+      formData.set("position", "N/A");
+    }
+
+    await submitEditUser(formData);
   });
 
   // `/` shortcut → focus search box

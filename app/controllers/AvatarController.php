@@ -27,7 +27,7 @@ $action = $_POST['action'] ?? '';
 $uploadDir = __DIR__ . '/../../public/uploads/avatars/';
 $uploadUrl = '/uploads/avatars/';
 
-$isPrivileged = ($role === 'admin');
+$isPrivileged = ($role === 'hr');
 
 function deleteAvatarFile(?string $filename, string $dir): void {
     if (!$filename) return;

@@ -8,7 +8,7 @@ require_once __DIR__ . '/../../config/database.php';
 
 $userId  = (int) $_SESSION['user_id'];
 $role    = $_SESSION['role'] ?? 'staff';
-$isAdmin = ($role === 'admin');
+$isAdmin = ($role === 'hr');
 
 // ============================================
 // Action filter options — role-aware

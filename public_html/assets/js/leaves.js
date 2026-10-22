@@ -1,5 +1,5 @@
 // ============================================
-// Admin & HR Leaves — logic
+// HR Leaves — logic
 // ============================================
 
 // ============================================
@@ -51,13 +51,6 @@ function groupType(dbType) {
   return "others";
 }
 
-function groupLabel(dbType) {
-  const g = groupType(dbType);
-  if (g === "sick") return "Sick";
-  if (g === "mandatory") return "Mandatory / Vacation";
-  return "Others";
-}
-
 // Detailed label for the header pill (still shows the exact subtype)
 const TYPE_DETAIL_LABELS = {
   vacation: "Vacation",
@@ -97,7 +90,6 @@ const STATUS_CLASSES = {
 let rvAllLeaves = []; // populated by PHP inline script
 let rvCurrentId = null;
 let rvEmployeeData = null;
-let rvSelectedPay = "";
 let rvFilteredHistory = [];
 let rvHistoryPage = 1;
 const RV_HISTORY_PAGE_SIZE = 5;
@@ -141,36 +133,9 @@ function filterLeaves() {
 async function openReview(leaveId) {
   rvCurrentId = leaveId;
   rvEmployeeData = null;
-  rvSelectedPay = "";
   rvFilteredHistory = [];
   rvHistoryPage = 1;
 
-    document.querySelectorAll(".rv-pay-btn").forEach((btn) => {
-    const isWithPay = btn.dataset.pay === "with_pay";
-
-    btn.classList.remove(
-      "bg-[#0F5E3D]", "text-white", "border-[#0F5E3D]", "hover:bg-[#0a4a2f]",
-      "bg-amber-500", "text-white", "border-amber-500", "hover:bg-amber-600",
-      "hover:bg-[#F1FDF6]", "hover:border-[#0F5E3D]", "hover:text-[#0F5E3D]",
-      "hover:bg-amber-50", "hover:border-amber-400", "hover:text-amber-700",
-      "bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]"
-    );
-
-    btn.classList.add("bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]");
-    if (isWithPay) {
-      btn.classList.add(
-        "hover:bg-[#F1FDF6]",
-        "hover:border-[#0F5E3D]",
-        "hover:text-[#0F5E3D]"
-      );
-    } else {
-      btn.classList.add(
-        "hover:bg-amber-50",
-        "hover:border-amber-400",
-        "hover:text-amber-700"
-      );
-    }
-  });
   document.getElementById("rvRemarksInput").value = "";
 
   document.getElementById("rvLoading").classList.remove("hidden");
@@ -185,7 +150,7 @@ async function openReview(leaveId) {
   if (ht) ht.value = "";
 
   showModal("reviewModal", "reviewCard");
-  initIcons();
+  if (typeof initIcons === "function") initIcons();
 
   const leave = rvAllLeaves.find((l) => l.id === leaveId);
   if (!leave || !leave.employee_id) {
@@ -217,7 +182,7 @@ async function openReview(leaveId) {
 
     document.getElementById("rvLoading").classList.add("hidden");
     document.getElementById("rvContent").classList.remove("hidden");
-    initIcons();
+    if (typeof initIcons === "function") initIcons();
   } catch (err) {
     console.error(err);
     document.getElementById("rvLoading").innerHTML =
@@ -484,66 +449,6 @@ function rvHistoryNext() {
 }
 
 // ============================================
-// Pay selector
-// ============================================
-function rvSelectPay(pay) {
-  rvSelectedPay = pay;
-
-  document.querySelectorAll(".rv-pay-btn").forEach((btn) => {
-    const isSelected = btn.dataset.pay === pay;
-    const isWithPay = btn.dataset.pay === "with_pay";
-
-    // Clear all state classes first
-    btn.classList.remove(
-      // Selected — green (with pay)
-      "bg-[#0F5E3D]", "text-white", "border-[#0F5E3D]", "hover:bg-[#0a4a2f]",
-      // Selected — amber (without pay)
-      "bg-amber-500", "text-white", "border-amber-500", "hover:bg-amber-600",
-      // Hover — light green
-      "hover:bg-[#F1FDF6]", "hover:border-[#0F5E3D]", "hover:text-[#0F5E3D]",
-      // Hover — light amber
-      "hover:bg-amber-50", "hover:border-amber-400", "hover:text-amber-700",
-      // Unselected base
-      "bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]"
-    );
-
-    if (isSelected) {
-      if (isWithPay) {
-        btn.classList.add(
-          "bg-[#0F5E3D]",
-          "text-white",
-          "border-[#0F5E3D]",
-          "hover:bg-[#0a4a2f]"
-        );
-      } else {
-        btn.classList.add(
-          "bg-amber-500",
-          "text-white",
-          "border-amber-500",
-          "hover:bg-amber-600"
-        );
-      }
-    } else {
-      // Unselected — hover color depends on which button it is
-      btn.classList.add("bg-white", "text-[#2C3E50]/70", "border-[#E0E0E0]");
-      if (isWithPay) {
-        btn.classList.add(
-          "hover:bg-[#F1FDF6]",
-          "hover:border-[#0F5E3D]",
-          "hover:text-[#0F5E3D]"
-        );
-      } else {
-        btn.classList.add(
-          "hover:bg-amber-50",
-          "hover:border-amber-400",
-          "hover:text-amber-700"
-        );
-      }
-    }
-  });
-}
-
-// ============================================
 // Submit decision
 // ============================================
 async function rvSubmitDecision(decision) {
@@ -551,12 +456,11 @@ async function rvSubmitDecision(decision) {
 
   const remarks = document.getElementById("rvRemarksInput").value.trim();
 
-  if (decision === "approved" && !rvSelectedPay) {
-    showError(
-      "Pay status required",
-      "Please select With Pay or Without Pay before approving."
-    );
-    return;
+  // Automatically assign Pay Status based on Leave Type
+  let payStatus = 'without_pay';
+  const leave = rvAllLeaves.find(l => l.id === rvCurrentId);
+  if (leave && leave.type === 'sick') {
+    payStatus = 'with_pay';
   }
 
   const fd = new FormData();
@@ -564,7 +468,10 @@ async function rvSubmitDecision(decision) {
   fd.append("id", rvCurrentId);
   fd.append("decision", decision);
   fd.append("remarks", remarks);
-  if (decision === "approved") fd.append("pay_status", rvSelectedPay);
+  
+  if (decision === "approved") {
+      fd.append("pay_status", payStatus);
+  }
 
   showLoading(
     "Saving…",
@@ -589,7 +496,7 @@ async function rvSubmitDecision(decision) {
           ? "The faculty member will see the approval."
           : "The faculty member will see the rejection.";
       showModal("successModal", "successCard");
-      initIcons();
+      if (typeof initIcons === "function") initIcons();
     } else {
       showError("Could not save decision", data.error || "Unknown error");
     }

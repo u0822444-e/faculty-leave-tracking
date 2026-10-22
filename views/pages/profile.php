@@ -8,15 +8,13 @@ require_once __DIR__ . '/../../config/database.php';
 
 $userId = (int) $_SESSION['user_id'];
 
-// Fetch current user's data (basic_salary removed, leave_pay added,
-// pending_* columns added for the approve-before-apply workflow)
 $stmt = $pdo->prepare("
     SELECT 
         u.id, u.username, u.role, u.status, u.avatar, u.pending_avatar,
         u.employee_id, u.profile_edit_requested,
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.year_level, e.position,
-        e.employment_type, e.leave_credits, e.leave_pay,
+        e.employment_type, e.basic_salary, e.leave_credits, e.leave_pay,
         e.pending_first_name, e.pending_middle_name, e.pending_last_name, e.pending_email,
         u.created_at
     FROM users u
@@ -32,16 +30,16 @@ if (!$me) {
     exit;
 }
 
-// Live avatar (the approved one — this is what everyone sees)
+// Live avatar (approved)
 $avatarUrl = !empty($me['avatar'])
     ? '/uploads/avatars/' . htmlspecialchars($me['avatar'])
     : null;
 
-// Pending avatar preview marker (badge only — NOT applied yet)
+// Pending avatar marker (badge only)
 $pendingAvatarUrl = null;
 if (array_key_exists('pending_avatar', $me) && $me['pending_avatar'] !== null) {
     $pendingAvatarUrl = $me['pending_avatar'] === ''
-        ? '__REMOVE__' // sentinel for pending removal
+        ? '__REMOVE__'
         : '/uploads/avatars/' . htmlspecialchars($me['pending_avatar']);
 }
 
@@ -49,15 +47,15 @@ $fullName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? '')) ?: 
 $initials = strtoupper(substr($me['first_name'] ?? $me['username'], 0, 1) . substr($me['last_name'] ?? '', 0, 1));
 
 // Leave Pay = rate × credits
-$leavePayRate  = (float) ($me['leave_pay'] ?? 0);
-$leaveCredits  = (float) ($me['leave_credits'] ?? 0);
+$leavePayRate = (float) ($me['leave_pay'] ?? 0);
+$leaveCredits = (float) ($me['leave_credits'] ?? 0);
 $totalLeavePay = $leavePayRate * $leaveCredits;
 
-// A user is "locked" when they have an outstanding profile-edit request
+// Locked only when this user has a pending request
 $isLocked = (int) ($me['profile_edit_requested'] ?? 0) === 1;
 
-// Only admin can bypass the lock
-$canEditDirectly = ($me['role'] === 'admin');
+// HR bypasses the lock (self-applies immediately) — equivalent to old admin
+$canEditDirectly = ($me['role'] === 'hr');
 
 // ============================================
 // Leave history
@@ -80,24 +78,24 @@ if ($employeeId > 0) {
 }
 
 $statusStyles = [
-    'pending' => 'text-amber-700 bg-amber-50',
-    'approved' => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'rejected' => 'text-red-700 bg-red-50',
+    'pending'   => 'text-amber-700 bg-amber-50',
+    'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'rejected'  => 'text-red-700 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
 ];
 $statusLabels = [
-    'pending' => 'Pending',
-    'approved' => 'Approved',
-    'rejected' => 'Rejected',
+    'pending'   => 'Pending',
+    'approved'  => 'Approved',
+    'rejected'  => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
 $leaveTypes = [
-    'vacation' => 'Vacation',
-    'sick' => 'Sick',
+    'vacation'  => 'Vacation',
+    'sick'      => 'Sick',
     'maternity' => 'Maternity',
     'paternity' => 'Paternity',
-    'terminal' => 'Terminal',
-    'other' => 'Other',
+    'terminal'  => 'Terminal',
+    'other'     => 'Other',
 ];
 
 $pageTitle = 'My Profile';
@@ -153,20 +151,26 @@ $activePage = 'profile';
                                 <?php endif; ?>
                             </div>
 
-                            <button type="button" onclick="document.getElementById('avatarInput').click()" class="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white cursor-pointer" title="Change profile picture">
+                            <button type="button" onclick="document.getElementById('avatarInput').click()"
+                                class="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white cursor-pointer"
+                                title="Change profile picture">
                                 <i data-lucide="camera" class="w-5 h-5"></i>
                             </button>
 
-                            <input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" onchange="handleAvatarUpload(this)">
+                            <input type="file" id="avatarInput" accept="image/png,image/jpeg,image/webp,image/gif"
+                                class="hidden" onchange="handleAvatarUpload(this)">
 
                             <?php if ($avatarUrl): ?>
-                                <button type="button" onclick="removeAvatar()" class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md transition" title="Remove profile picture">
+                                <button type="button" onclick="removeAvatar()"
+                                    class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-md transition"
+                                    title="Remove profile picture">
                                     <i data-lucide="x" class="w-3 h-3"></i>
                                 </button>
                             <?php endif; ?>
 
                             <?php if ($pendingAvatarUrl && !$canEditDirectly): ?>
-                                <span class="absolute -bottom-1 -right-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold shadow-sm ring-2 ring-white" title="Avatar change pending admin approval">
+                                <span class="absolute -bottom-1 -right-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-semibold shadow-sm ring-2 ring-white"
+                                    title="Avatar change pending HR approval">
                                     <i data-lucide="clock" class="w-2.5 h-2.5"></i>
                                     Pending
                                 </span>
@@ -198,13 +202,16 @@ $activePage = 'profile';
                 <!-- Tabs -->
                 <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
                     <div class="border-b border-[#E0E0E0] flex overflow-x-auto">
-                        <button onclick="switchProfileTab('info')" id="tabInfo" class="profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D] transition">
+                        <button onclick="switchProfileTab('info')" id="tabInfo"
+                            class="profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D] transition">
                             Personal Info
                         </button>
-                        <button onclick="switchProfileTab('leaves')" id="tabLeaves" class="profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#2C3E50]/60 border-b-2 border-transparent hover:text-[#2C3E50] transition">
+                        <button onclick="switchProfileTab('leaves')" id="tabLeaves"
+                            class="profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#2C3E50]/60 border-b-2 border-transparent hover:text-[#2C3E50] transition">
                             Leave History
                         </button>
-                        <button onclick="switchProfileTab('password')" id="tabPassword" class="profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#2C3E50]/60 border-b-2 border-transparent hover:text-[#2C3E50] transition">
+                        <button onclick="switchProfileTab('password')" id="tabPassword"
+                            class="profile-tab shrink-0 px-5 py-2.5 text-sm font-medium text-[#2C3E50]/60 border-b-2 border-transparent hover:text-[#2C3E50] transition">
                             Password
                         </button>
                     </div>
@@ -217,7 +224,10 @@ $activePage = 'profile';
                                 <i data-lucide="lock" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
                                 <div>
                                     <p class="text-sm font-medium text-amber-800">Profile Update Pending</p>
-                                    <p class="text-xs text-amber-700 mt-1">You have already submitted a profile change request. Please wait for the administrator to review and approve it. If you need to make further changes, contact HR or the Admin.</p>
+                                    <p class="text-xs text-amber-700 mt-1">
+                                        You have already submitted a profile change request. Please wait for HR to review and approve it.
+                                        If you need to make further changes, contact HR.
+                                    </p>
                                 </div>
                             </div>
                         <?php endif; ?>
@@ -231,96 +241,175 @@ $activePage = 'profile';
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50] mb-1">First Name *</label>
-                                            <input type="text" name="first_name" id="profFirstName" value="<?= htmlspecialchars($me['first_name'] ?? '') ?>" <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
+                                            <input type="text" name="first_name" id="profFirstName"
+                                                value="<?= htmlspecialchars($me['first_name'] ?? '') ?>"
+                                                <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
                                                 class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition <?= ($isLocked && !$canEditDirectly) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '' ?>">
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50] mb-1">Last Name *</label>
-                                            <input type="text" name="last_name" id="profLastName" value="<?= htmlspecialchars($me['last_name'] ?? '') ?>" <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
+                                            <input type="text" name="last_name" id="profLastName"
+                                                value="<?= htmlspecialchars($me['last_name'] ?? '') ?>"
+                                                <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
                                                 class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition <?= ($isLocked && !$canEditDirectly) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '' ?>">
                                         </div>
                                     </div>
 
                                     <div>
                                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">Middle Name</label>
-                                        <input type="text" name="middle_name" value="<?= htmlspecialchars($me['middle_name'] ?? '') ?>" <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
+                                        <input type="text" name="middle_name"
+                                            value="<?= htmlspecialchars($me['middle_name'] ?? '') ?>"
+                                            <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
                                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition <?= ($isLocked && !$canEditDirectly) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '' ?>">
                                     </div>
 
                                     <div>
                                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">Email</label>
-                                        <input type="email" name="email" id="profEmail" value="<?= htmlspecialchars($me['email'] ?? '') ?>" <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
+                                        <input type="email" name="email" id="profEmail"
+                                            value="<?= htmlspecialchars($me['email'] ?? '') ?>"
+                                            <?= ($isLocked && !$canEditDirectly) ? 'disabled' : '' ?>
                                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition <?= ($isLocked && !$canEditDirectly) ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '' ?>">
                                     </div>
 
                                     <?php if (!($isLocked && !$canEditDirectly)): ?>
                                         <div class="flex flex-col sm:flex-row gap-2 pt-1">
-                                            <button type="submit" class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 rounded-lg transition text-sm shadow-sm hover:shadow-md">
+                                            <button type="submit"
+                                                class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 rounded-lg transition text-sm shadow-sm hover:shadow-md">
                                                 <?= $canEditDirectly ? 'Save Changes' : 'Submit for Approval' ?>
                                             </button>
-                                            <button type="reset" class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-lg transition text-sm">
+                                            <button type="reset"
+                                                class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-lg transition text-sm">
                                                 Reset
                                             </button>
                                         </div>
                                     <?php endif; ?>
                                 </div>
 
-                                <div class="space-y-4 lg:border-l lg:border-[#E0E0E0] lg:pl-6">
+                                                                                                <div class="space-y-4 lg:border-l lg:border-[#E0E0E0] lg:pl-6">
                                     <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40">Account Information</p>
 
+                                    <!-- Identity — always read-only -->
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Username</label>
-                                            <input type="text" value="<?= htmlspecialchars($me['username']) ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 font-mono cursor-not-allowed">
+                                            <input type="text" value="<?= htmlspecialchars($me['username']) ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 font-mono cursor-not-allowed">
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Role</label>
-                                            <input type="text" value="<?= ucfirst($me['role']) ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                            <input type="text" value="<?= ucfirst($me['role']) ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                     </div>
 
                                     <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 pt-1">Employment Details</p>
 
+                                    <!-- Employment — read-only for everyone -->
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Category</label>
-                                            <input type="text" value="<?= htmlspecialchars(ucfirst($me['category'] ?? '—')) ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                            <input type="text" value="<?= htmlspecialchars(ucfirst($me['category'] ?? '—')) ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Department</label>
-                                            <input type="text" value="<?= htmlspecialchars($me['sub_category'] ?? '—') ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                            <input type="text" value="<?= htmlspecialchars($me['sub_category'] ?? '—') ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Year Level / Dept.</label>
-                                            <input type="text" value="<?= htmlspecialchars($me['year_level'] ?? '—') ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                            <input type="text" value="<?= htmlspecialchars($me['year_level'] ?? '—') ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Position / Designation</label>
-                                            <input type="text" value="<?= htmlspecialchars($me['position'] ?? '—') ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                            <input type="text" value="<?= htmlspecialchars($me['position'] ?? 'N/A') ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
                                             <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Employment Type</label>
-                                            <input type="text" value="<?= ucfirst($me['employment_type'] ?? '—') ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
+                                            <input type="text" value="<?= ucfirst($me['employment_type'] ?? '—') ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 cursor-not-allowed">
                                         </div>
                                         <div>
-                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Leave Credits</label>
-                                            <input type="text" value="<?= number_format($leaveCredits, 0) ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Monthly Salary</label>
+                                            <input type="text" value="₱<?= number_format((float) ($me['basic_salary'] ?? 0), 2) ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50]/60 font-mono cursor-not-allowed">
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay</label>
-                                        <input type="text" value="₱<?= number_format($totalLeavePay, 2) ?>" readonly class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
-                                        <p class="text-[10px] text-[#2C3E50]/40 mt-1">
-                                            ₱<?= number_format($leavePayRate, 2) ?> × <?= number_format($leaveCredits) ?> credits
-                                        </p>
-                                    </div>
+                                    <?php if ($canEditDirectly): ?>
+                                        <!-- HR: editable leave credits + leave pay rate only -->
+                                        <form id="profileAccountForm" novalidate>
+                                            <input type="hidden" name="action" value="update_account">
+
+                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 pt-2">Leave Pay Settings</p>
+
+                                            <div class="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Leave Credits</label>
+                                                    <input type="number" step="0.5" min="0" name="leave_credits" id="profLeaveCredits"
+                                                        value="<?= number_format($leaveCredits, 2, '.', '') ?>"
+                                                        class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Leave Pay Rate (₱/credit)</label>
+                                                    <input type="number" step="0.01" min="0" name="leave_pay" id="profLeavePay"
+                                                        value="<?= number_format($leavePayRate, 2, '.', '') ?>"
+                                                        class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
+                                                </div>
+                                            </div>
+
+                                            <div class="mt-3">
+                                                <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay</label>
+                                                <input type="text" id="profTotalLeavePay" value="₱<?= number_format($totalLeavePay, 2) ?>" readonly
+                                                    class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
+                                                <p class="text-[10px] text-[#2C3E50]/40 mt-1">
+                                                    Auto-computed: leave pay rate × leave credits
+                                                </p>
+                                            </div>
+
+                                            <div class="flex flex-col sm:flex-row gap-2 pt-3 mt-3 border-t border-[#E0E0E0]">
+                                                <button type="submit"
+                                                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 rounded-lg transition text-sm shadow-sm hover:shadow-md">
+                                                    Save Leave Pay Settings
+                                                </button>
+                                                <button type="reset"
+                                                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-lg transition text-sm">
+                                                    Reset
+                                                </button>
+                                            </div>
+                                        </form>
+                                    <?php else: ?>
+                                        <!-- Faculty/Staff: read-only leave pay -->
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Leave Credits</label>
+                                                <input type="text" value="<?= number_format($leaveCredits, 0) ?>" readonly
+                                                    class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Leave Pay Rate</label>
+                                                <input type="text" value="₱<?= number_format($leavePayRate, 2) ?>" readonly
+                                                    class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label class="block text-xs font-medium text-[#2C3E50]/50 mb-1">Total Leave Pay</label>
+                                            <input type="text" value="₱<?= number_format($totalLeavePay, 2) ?>" readonly
+                                                class="w-full px-3 py-2 bg-[#F1FDF6]/60 border border-[#E0E0E0] rounded-lg text-sm text-[#0F5E3D] font-mono cursor-not-allowed">
+                                            <p class="text-[10px] text-[#2C3E50]/40 mt-1">
+                                                ₱<?= number_format($leavePayRate, 2) ?> × <?= number_format($leaveCredits) ?> credits
+                                            </p>
+                                        </div>
+                                    <?php endif; ?>
 
                                 </div>
 
@@ -333,10 +422,12 @@ $activePage = 'profile';
                         <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between mb-4">
                             <div class="relative flex-1 sm:max-w-sm">
                                 <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
-                                <input type="text" id="leaveSearchInput" oninput="filterProfileLeaves()" placeholder="Search leaves" class="w-full pl-10 pr-4 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
+                                <input type="text" id="leaveSearchInput" oninput="filterProfileLeaves()" placeholder="Search leaves"
+                                    class="w-full pl-10 pr-4 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
                             </div>
                             <div class="flex items-center gap-2">
-                                <select id="leaveStatusFilter" onchange="filterProfileLeaves()" class="px-3 py-2 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                                <select id="leaveStatusFilter" onchange="filterProfileLeaves()"
+                                    class="px-3 py-2 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                     <option value="">All Status</option>
                                     <option value="pending">Pending</option>
                                     <option value="approved">Approved</option>
@@ -372,16 +463,18 @@ $activePage = 'profile';
                                             $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
                                             $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
                                             $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
-                                            ?>
-                                            <tr class="hover:bg-[#F1FDF6]/40 transition h-12 profile-leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>" data-status="<?= $l['status'] ?>">
-                                                <td class="px-4"><span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span></td>
-                                                <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
-                                                <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
-                                                <td class="px-4 text-sm text-[#2C3E50]/70"><?= number_format((float) $l['days_count'], 2) ?></td>
-                                                <td class="px-4"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>"><?= $sLabel ?></span></td>
-                                                <td class="px-4 text-sm text-[#2C3E50]/50"><?= date('M j, Y', strtotime($l['created_at'])) ?></td>
-                                            </tr>
-                                        <?php endforeach; endif; ?>
+                                    ?>
+                                        <tr class="hover:bg-[#F1FDF6]/40 transition h-12 profile-leave-row"
+                                            data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>"
+                                            data-status="<?= $l['status'] ?>">
+                                            <td class="px-4"><span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= number_format((float) $l['days_count'], 2) ?></td>
+                                            <td class="px-4"><span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>"><?= $sLabel ?></span></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/50"><?= date('M j, Y', strtotime($l['created_at'])) ?></td>
+                                        </tr>
+                                    <?php endforeach; endif; ?>
                                 </tbody>
                             </table>
                         </div>
@@ -395,16 +488,20 @@ $activePage = 'profile';
                                     $sClass = $statusStyles[$l['status']] ?? 'text-slate-600 bg-slate-100';
                                     $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
                                     $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
-                                    ?>
-                                    <div class="py-3 profile-leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>" data-status="<?= $l['status'] ?>">
-                                        <div class="flex items-start justify-between gap-2 mb-1">
-                                            <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0"><?= $sLabel ?></span>
-                                        </div>
-                                        <p class="text-xs text-[#2C3E50]/60"><?= date('M j, Y', strtotime($l['start_date'])) ?> → <?= date('M j, Y', strtotime($l['end_date'])) ?></p>
-                                        <p class="text-[10px] text-[#2C3E50]/40 mt-0.5"><?= number_format((float) $l['days_count'], 2) ?> day(s) · filed <?= date('M j', strtotime($l['created_at'])) ?></p>
+                            ?>
+                                <div class="py-3 profile-leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>" data-status="<?= $l['status'] ?>">
+                                    <div class="flex items-start justify-between gap-2 mb-1">
+                                        <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0"><?= $sLabel ?></span>
                                     </div>
-                                <?php endforeach; endif; ?>
+                                    <p class="text-xs text-[#2C3E50]/60">
+                                        <?= date('M j, Y', strtotime($l['start_date'])) ?> → <?= date('M j, Y', strtotime($l['end_date'])) ?>
+                                    </p>
+                                    <p class="text-[10px] text-[#2C3E50]/40 mt-0.5">
+                                        <?= number_format((float) $l['days_count'], 2) ?> day(s) · filed <?= date('M j', strtotime($l['created_at'])) ?>
+                                    </p>
+                                </div>
+                            <?php endforeach; endif; ?>
                         </div>
 
                         <div id="profileLeavesEmpty" class="hidden p-10 text-center">
@@ -426,12 +523,16 @@ $activePage = 'profile';
 
                                     <div>
                                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">Current Password *</label>
-                                        <input type="password" name="current_password" id="currentPassword" required class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="Enter your current password">
+                                        <input type="password" name="current_password" id="currentPassword" required
+                                            class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                                            placeholder="Enter your current password">
                                     </div>
 
                                     <div>
                                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">New Password *</label>
-                                        <input type="password" name="new_password" id="newPassword" required minlength="8" class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="At least 8 characters">
+                                        <input type="password" name="new_password" id="newPassword" required minlength="8"
+                                            class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                                            placeholder="At least 8 characters">
                                         <div id="pwStrengthWrap" class="mt-1.5 hidden">
                                             <div class="flex gap-1 mb-1">
                                                 <div class="pw-strength-bar h-1 flex-1 rounded-full bg-gray-200 transition-all" data-bar="1"></div>
@@ -448,20 +549,25 @@ $activePage = 'profile';
 
                                     <div>
                                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">Confirm New Password *</label>
-                                        <input type="password" name="confirm_password" id="confirmPassword" required minlength="8" class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition" placeholder="Re-enter new password">
+                                        <input type="password" name="confirm_password" id="confirmPassword" required minlength="8"
+                                            class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                                            placeholder="Re-enter new password">
                                         <p id="pwMatchHint" class="mt-1 text-[11px] text-gray-400 hidden">Passwords must match.</p>
                                     </div>
 
                                     <div class="flex items-center gap-2">
-                                        <input type="checkbox" id="showPasswords" onclick="toggleProfilePasswords()" class="w-4 h-4 rounded border-gray-300 accent-[#0F5E3D] cursor-pointer">
+                                        <input type="checkbox" id="showPasswords" onclick="toggleProfilePasswords()"
+                                            class="w-4 h-4 rounded border-gray-300 accent-[#0F5E3D] cursor-pointer">
                                         <label for="showPasswords" class="text-sm text-gray-500 cursor-pointer select-none hover:text-[#2C3E50] transition-colors">Show passwords</label>
                                     </div>
 
                                     <div class="flex flex-col sm:flex-row gap-2 pt-1">
-                                        <button type="submit" class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 rounded-lg transition text-sm shadow-sm hover:shadow-md">
+                                        <button type="submit"
+                                            class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 rounded-lg transition text-sm shadow-sm hover:shadow-md">
                                             Update Password
                                         </button>
-                                        <button type="reset" class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-lg transition text-sm">
+                                        <button type="reset"
+                                            class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-lg transition text-sm">
                                             Clear
                                         </button>
                                     </div>
@@ -535,7 +641,8 @@ $activePage = 'profile';
             </div>
             <h3 class="text-lg font-bold text-[#2C3E50] mb-2" id="successTitle">Saved Successfully</h3>
             <p class="text-sm text-[#2C3E50]/60 mb-6" id="successMessage">Your changes have been saved.</p>
-            <button type="button" onclick="closeSuccessModal()" class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">
+            <button type="button" onclick="closeSuccessModal()"
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">
                 Done
             </button>
         </div>
@@ -549,7 +656,8 @@ $activePage = 'profile';
             </div>
             <h3 class="text-lg font-bold text-[#2C3E50] mb-2" id="errorTitle">Something went wrong</h3>
             <p class="text-sm text-[#2C3E50]/60 mb-6" id="errorMessage">An unexpected error occurred.</p>
-            <button type="button" onclick="closeErrorModal()" class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">
+            <button type="button" onclick="closeErrorModal()"
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">
                 Got it
             </button>
         </div>

@@ -19,8 +19,8 @@ $stmt = $pdo->prepare("
     SELECT 
         e.id AS employee_id,
         e.first_name, e.middle_name, e.last_name, e.email,
-        e.category, e.sub_category, e.year_level, e.position, e.employment_type,
-        e.leave_credits, e.leave_pay
+        e.category, e.sub_category, e.year_level, e.position, e.employment_type, e.basic_salary,
+        e.leave_credits, e.leave_pay,
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     WHERE u.id = ?
@@ -598,6 +598,12 @@ $statusLabels = [
                                 <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Leave Pay Rate</dt>
                                 <dd class="text-[#2C3E50]">₱<?= number_format($leavePayRate, 2) ?> / credit</dd>
                             </div>
+                                                        <?php if (($me['basic_salary'] ?? 0) > 0): ?>
+                            <div>
+                                <dt class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-0.5">Monthly Salary</dt>
+                                <dd class="text-[#2C3E50]">₱<?= number_format((float)$me['basic_salary'], 2) ?></dd>
+                            </div>
+                            <?php endif; ?>
                         </dl>
 
                         <div class="mt-5 pt-4 border-t border-[#E0E0E0] space-y-2">

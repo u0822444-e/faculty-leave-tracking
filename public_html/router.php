@@ -11,7 +11,9 @@ if ($uri !== '/' && file_exists(__DIR__ . $uri)) {
     return false;
 }
 
-// POST /login → AuthController
+// ============================================
+// AUTH
+// ============================================
 if (($uri === '/login' || $uri === '/login.php') && $method === 'POST') {
     require __DIR__ . '/../app/controllers/AuthController.php';
     exit;
@@ -19,41 +21,20 @@ if (($uri === '/login' || $uri === '/login.php') && $method === 'POST') {
 
 if (($uri === '/login' || $uri === '/login.php' || $uri === '/') && $method === 'GET') {
     if (isset($_SESSION['user_id'])) {
-        $role = $_SESSION['role'] ?? 'admin';
+        $role = $_SESSION['role'] ?? '';
         if ($role === 'faculty') {
             header('Location: /faculty/dashboard');
+        } elseif ($role === 'staff') {
+            header('Location: /staff/dashboard');
         } elseif ($role === 'hr') {
             header('Location: /hr/dashboard');
         } else {
-            header('Location: /dashboard');
+            // Unknown role — force re-login
+            header('Location: /logout');
         }
         exit;
     }
     require __DIR__ . '/index.php';
-    exit;
-}
-
-// Dashboard (admin)
-if ($uri === '/dashboard' || $uri === '/dashboard.php') {
-    require __DIR__ . '/../views/pages/dashboard.php';
-    exit;
-}
-
-// Users page
-if ($uri === '/faculty') {
-    require __DIR__ . '/../views/pages/users.php';
-    exit;
-}
-
-// Users API
-if ($uri === '/api/faculty') {
-    require __DIR__ . '/../app/controllers/UserController.php';
-    exit;
-}
-
-// Users API alias — frontend JS uses /api/users
-if ($uri === '/api/users') {
-    require __DIR__ . '/../app/controllers/UserController.php';
     exit;
 }
 
@@ -93,6 +74,28 @@ if ($uri === '/reset-password' && $method === 'POST') {
     exit;
 }
 
+// ============================================
+// PROFILE (everyone)
+// ============================================
+if ($uri === '/profile') {
+    require __DIR__ . '/../views/pages/profile.php';
+    exit;
+}
+if ($uri === '/api/profile') {
+    require __DIR__ . '/../app/controllers/ProfileController.php';
+    exit;
+}
+if ($uri === '/api/avatar') {
+    require __DIR__ . '/../app/controllers/AvatarController.php';
+    exit;
+}
+
+// Notifications (everyone)
+if ($uri === '/api/notifications') {
+    require __DIR__ . '/../app/controllers/NotificationController.php';
+    exit;
+}
+
 // Activity logs
 if ($uri === '/activity-logs') {
     require __DIR__ . '/../views/pages/activity_logs.php';
@@ -103,30 +106,45 @@ if ($uri === '/api/activity-logs') {
     exit;
 }
 
-// Notifications API
-if ($uri === '/api/notifications') {
-    require __DIR__ . '/../app/controllers/NotificationController.php';
+// ============================================
+// HR ROUTES (replaces former admin routes)
+// ============================================
+if ($uri === '/hr/dashboard') {
+    require __DIR__ . '/../views/pages/hr_dashboard.php';
     exit;
 }
 
-// Profile
-if ($uri === '/profile') {
-    require __DIR__ . '/../views/pages/profile.php';
-    exit;
-}
-if ($uri === '/api/profile') {
-    require __DIR__ . '/../app/controllers/ProfileController.php';
+// HR reviews leave requests
+if ($uri === '/hr/leaves' || $uri === '/leaves') {
+    require __DIR__ . '/../views/pages/hr_leaves.php';
     exit;
 }
 
-// Profile avatar upload
-if ($uri === '/api/avatar') {
-    require __DIR__ . '/../app/controllers/AvatarController.php';
+// HR manages users (was /faculty admin page)
+if ($uri === '/hr/users' || $uri === '/faculty') {
+    require __DIR__ . '/../views/pages/users.php';
+    exit;
+}
+if ($uri === '/api/hr/users' || $uri === '/api/faculty' || $uri === '/api/users') {
+    require __DIR__ . '/../app/controllers/UserController.php';
     exit;
 }
 
-// Settings
-if ($uri === '/settings') {
+// HR user detail
+if (preg_match('#^/hr/users/(\d+)$#', $uri, $matches)) {
+    $_GET['id'] = (int) $matches[1];
+    require __DIR__ . '/../views/pages/user_detail.php';
+    exit;
+}
+
+// HR payroll
+if ($uri === '/hr/payroll' || $uri === '/payroll') {
+    require __DIR__ . '/../views/pages/payroll.php';
+    exit;
+}
+
+// HR settings
+if ($uri === '/hr/settings' || $uri === '/settings') {
     require __DIR__ . '/../views/pages/settings.php';
     exit;
 }
@@ -135,31 +153,6 @@ if ($uri === '/api/settings') {
     exit;
 }
 
-// User detail — /users/{id}
-if (preg_match('#^/faculty/(\d+)$#', $uri, $matches)) {
-    $_GET['id'] = (int) $matches[1];
-    require __DIR__ . '/../views/pages/user_detail.php';
-    exit;
-}
-
-// Leaves page (admin or HR)
-// Leaves page (admin or HR) — same review workspace for both
-if ($uri === '/leaves') {
-    $role = $_SESSION['role'] ?? '';
-    if (in_array($role, ['admin', 'hr'], true)) {
-        require __DIR__ . '/../views/pages/hr_leaves.php';
-    } else {
-        require __DIR__ . '/../views/pages/leaves.php';
-    }
-    exit;
-}
-
-// Payroll (admin)
-if ($uri === '/payroll') {
-    require __DIR__ . '/../views/pages/payroll.php';
-    exit;
-}
-
 // ============================================
 // FACULTY ROUTES
 // ============================================
@@ -167,48 +160,10 @@ if ($uri === '/faculty/dashboard') {
     require __DIR__ . '/../views/pages/faculty_dashboard.php';
     exit;
 }
-
 if ($uri === '/faculty/leaves') {
     require __DIR__ . '/../views/pages/faculty_leaves.php';
     exit;
 }
-
-if ($uri === '/faculty/profile') {
-    require __DIR__ . '/../views/pages/faculty_profile.php';
-    exit;
-}
-
-// Leave API (shared by admin + faculty)
-if ($uri === '/api/leaves') {
-    require __DIR__ . '/../app/controllers/LeaveController.php';
-    exit;
-}
-
-// ============================================
-// HR ROUTES
-// ============================================
-if ($uri === '/hr/dashboard') {
-    require __DIR__ . '/../views/pages/hr_dashboard.php';
-    exit;
-}
-if ($uri === '/hr/leaves') {
-    require __DIR__ . '/../views/pages/hr_leaves.php';
-    exit;
-}
-
-// ============================================
-// FACULTY ROUTES
-// ============================================
-if ($uri === '/faculty/dashboard') {
-    require __DIR__ . '/../views/pages/faculty_dashboard.php';
-    exit;
-}
-
-if ($uri === '/faculty/leaves') {
-    require __DIR__ . '/../views/pages/faculty_leaves.php';
-    exit;
-}
-
 if ($uri === '/faculty/profile') {
     require __DIR__ . '/../views/pages/faculty_profile.php';
     exit;
@@ -221,20 +176,44 @@ if ($uri === '/staff/dashboard') {
     require __DIR__ . '/../views/pages/staff_dashboard.php';
     exit;
 }
-
 if ($uri === '/staff/leaves') {
-    require __DIR__ . '/../views/pages/staff_leaves.php';   
+    require __DIR__ . '/../views/pages/staff_leaves.php';
     exit;
 }
-
-// Staff profile reuses the faculty profile page
 if ($uri === '/staff/profile') {
     require __DIR__ . '/../views/pages/faculty_profile.php';
     exit;
 }
 
+// Leave monitoring (leadership)
 if ($uri === '/leave-monitoring') {
     require __DIR__ . '/../views/pages/leave_monitoring.php';
+    exit;
+}
+
+// Leave API (shared)
+if ($uri === '/api/leaves') {
+    require __DIR__ . '/../app/controllers/LeaveController.php';
+    exit;
+}
+
+if ($uri === '/accounting/dashboard') {
+    require __DIR__ . '/../views/pages/accounting_dashboard.php';
+    exit;
+}
+if ($uri === '/accounting/payroll') {
+    require __DIR__ . '/../views/pages/accounting_payroll.php';
+    exit;
+}
+if ($uri === '/accounting/leaves') {
+    require __DIR__ . '/../views/pages/staff_leaves.php';
+    exit;
+}
+// ============================================
+// ACCOUNTING PAYROLL API
+// ============================================
+if ($uri === '/api/accounting/payroll') {
+    require __DIR__ . '/../app/controllers/AccountingPayrollController.php';
     exit;
 }
 

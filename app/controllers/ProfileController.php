@@ -27,7 +27,7 @@ try {
         //   others → store as pending, set flag
         // ============================================
         case 'update_info':
-            $isPrivileged = ($role === 'admin');
+            $isPrivileged = ($role === 'hr');
 
             if (!$isPrivileged) {
                 $stmt = $pdo->prepare("SELECT profile_edit_requested FROM users WHERE id = ?");
@@ -131,6 +131,67 @@ try {
                 'success' => true,
                 'applied' => false,
                 'message' => 'Profile change submitted for admin approval.',
+            ]);
+            break;
+
+                // ============================================
+        // Update leave pay settings (HR only)
+        //   Only `leave_credits` and `leave_pay` are accepted.
+        //   Department / position / employment type are read-only.
+        // ============================================
+        case 'update_account':
+            if ($role !== 'hr') {
+                echo json_encode(['success' => false, 'error' => 'Not authorized.']);
+                break;
+            }
+
+            $leaveCredits = floatval($_POST['leave_credits'] ?? 0);
+            $leavePayRate = floatval($_POST['leave_pay'] ?? 0);
+
+            if ($leaveCredits < 0 || $leavePayRate < 0) {
+                echo json_encode(['success' => false, 'error' => 'Values cannot be negative.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("SELECT employee_id FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $employeeId = (int) ($stmt->fetchColumn() ?: 0);
+
+            if ($employeeId <= 0) {
+                echo json_encode(['success' => false, 'error' => 'No employee record linked to this account.']);
+                break;
+            }
+
+            $pdo->beginTransaction();
+            try {
+                $stmt = $pdo->prepare("
+                    UPDATE employees
+                    SET leave_credits = ?,
+                        leave_pay     = ?
+                    WHERE id = ?
+                ");
+                $stmt->execute([$leaveCredits, $leavePayRate, $employeeId]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+
+            try {
+                ActivityLogger::log(
+                    $pdo,
+                    'update_leave_pay_settings',
+                    "HR updated own leave pay settings (credits = {$leaveCredits}, rate = ₱{$leavePayRate})",
+                    'user',
+                    $userId
+                );
+            } catch (Throwable $e) {
+                error_log('ActivityLogger failed (update_leave_pay_settings): ' . $e->getMessage());
+            }
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'Leave pay settings updated.',
             ]);
             break;
 

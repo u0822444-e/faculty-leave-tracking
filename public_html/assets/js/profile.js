@@ -196,6 +196,8 @@ async function compressImage(file, maxDimension = 512, quality = 0.9) {
 
 // ============================================
 // Avatar upload (pending or immediate depending on role)
+//   HR  → applies immediately
+//   Faculty / Staff → goes pending for HR review
 // ============================================
 async function handleAvatarUpload(input) {
   let file = input.files && input.files[0];
@@ -241,14 +243,14 @@ async function handleAvatarUpload(input) {
 
     if (data.success) {
       if (data.pending) {
-        // Faculty / Staff / HR — held for admin approval
+        // Faculty / Staff — held for HR approval
         document.getElementById("successTitle").textContent = "Submitted for Approval";
         document.getElementById("successMessage").textContent =
-          data.message || "Your avatar change is pending admin approval.";
+          data.message || "Your avatar change is pending HR approval.";
         showModal("successModal", "successCard");
         if (typeof initIcons === "function") initIcons();
       } else {
-        // Admin — applied immediately
+        // HR — applied immediately
         const wrap =
           document.querySelector("#profileAvatarImg")?.parentElement ||
           document.querySelector("#profileAvatarInitials")?.parentElement;
@@ -275,6 +277,8 @@ async function handleAvatarUpload(input) {
 
 // ============================================
 // Remove avatar (pending or immediate depending on role)
+//   HR  → applies immediately
+//   Faculty / Staff → goes pending for HR review
 // ============================================
 async function removeAvatar() {
   if (!confirm("Remove your profile picture?")) return;
@@ -293,21 +297,19 @@ async function removeAvatar() {
 
     if (data.success) {
       if (data.pending) {
+        // Faculty / Staff — held for HR approval
         document.getElementById("successTitle").textContent = "Submitted for Approval";
         document.getElementById("successMessage").textContent =
-          data.message || "Your avatar removal is pending admin approval.";
+          data.message || "Your avatar removal is pending HR approval.";
         showModal("successModal", "successCard");
         if (typeof initIcons === "function") initIcons();
       } else {
-        const wrap = document.querySelector("#profileAvatarImg")?.parentElement;
-        if (wrap) {
-          const initials =
-            document.querySelector("#profileAvatarInitials")?.textContent ||
-            wrap.closest(".relative")?.querySelector("h2")?.textContent?.trim().charAt(0) ||
-            "?";
-          wrap.innerHTML = `<span id="profileAvatarInitials" class="text-white font-bold text-lg">${initials}</span>`;
-        }
-        setTimeout(() => location.reload(), 300);
+        // HR — applied immediately
+        document.getElementById("successTitle").textContent = "Avatar Removed";
+        document.getElementById("successMessage").textContent =
+          data.message || "Your profile picture has been removed.";
+        showModal("successModal", "successCard");
+        if (typeof initIcons === "function") initIcons();
       }
     } else {
       showError("Could not remove picture", data.error || "Please try again.");
@@ -365,7 +367,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (data.applied === false) {
           document.getElementById("successTitle").textContent = "Submitted for Approval";
           document.getElementById("successMessage").textContent =
-            data.message || "Your profile change is pending admin approval.";
+            data.message || "Your profile change is pending HR approval.";
         } else {
           document.getElementById("successTitle").textContent = "Profile Updated";
           document.getElementById("successMessage").textContent =
@@ -442,6 +444,57 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+  // ---- Leave Pay Settings form (HR only) ----
+  const accountForm = document.getElementById("profileAccountForm");
+  if (accountForm) {
+    const creditsEl = document.getElementById("profLeaveCredits");
+    const rateEl    = document.getElementById("profLeavePay");
+    const totalEl   = document.getElementById("profTotalLeavePay");
+
+    const recalcTotal = () => {
+      if (!totalEl) return;
+      const credits = parseFloat(creditsEl?.value) || 0;
+      const rate    = parseFloat(rateEl?.value) || 0;
+      totalEl.value = "₱" + (credits * rate).toLocaleString("en-PH", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    };
+
+    creditsEl?.addEventListener("input", recalcTotal);
+    rateEl?.addEventListener("input", recalcTotal);
+
+    accountForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const fd = new FormData(this);
+      fd.append("action", "update_account");
+
+      showLoading("Saving...", "Updating your leave pay settings.");
+
+      try {
+        const res = await fetch("/api/profile", { method: "POST", body: fd });
+        const data = await res.json();
+
+        await new Promise((r) => setTimeout(r, 500));
+        hideLoading();
+
+        if (data.success) {
+          document.getElementById("successTitle").textContent = "Leave Pay Updated";
+          document.getElementById("successMessage").textContent =
+            data.message || "Your leave pay settings have been saved.";
+          showModal("successModal", "successCard");
+          if (typeof initIcons === "function") initIcons();
+        } else if (data.error) {
+          showError("Could not save settings", data.error);
+        }
+      } catch (err) {
+        hideLoading();
+        console.error(err);
+        showError("Connection error", "Unable to reach the server.");
+      }
+    });
+  }
 
 // Close success modal and refresh
 function closeSuccessModal() {

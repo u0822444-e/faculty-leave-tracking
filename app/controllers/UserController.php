@@ -10,7 +10,7 @@ require_once __DIR__ . '/../helpers/ActivityLogger.php';
 require_once __DIR__ . '/../helpers/NotificationService.php';
 
 // Auth guard
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'hr') {
     http_response_code(403);
     header('Content-Type: application/json');
     echo json_encode(['success' => false, 'error' => 'Unauthorized']);
@@ -46,6 +46,7 @@ try {
                     e.year_level,
                     e.position,
                     e.employment_type,
+                     e.basic_salary,
                     e.leave_credits,
                     e.leave_pay,
                     u.created_at
@@ -84,6 +85,7 @@ try {
                     'year_level' => $u['year_level'] ?? '',
                     'position' => $u['position'] ?? '',
                     'employment_type' => $u['employment_type'] ?? 'full-time',
+                    'basic_salary' => $u['basic_salary'] ?? 0,
                     'leave_pay' => $u['leave_pay'] ?? 0,
                     'leave_credits' => $u['leave_credits'] ?? 0,
                     'status' => $u['status'],
@@ -111,6 +113,7 @@ try {
             $yearLevel = trim($_POST['year_level'] ?? '');
             $position = trim($_POST['position'] ?? '');
             $empType = $_POST['employment_type'] ?? 'full-time';
+            $basicSalary = floatval($_POST['basic_salary'] ?? 0);
             $leavePay = floatval($_POST['leave_pay'] ?? 0);
             $creditsRaw = $_POST['leave_credits'] ?? '';
             $credits = ($creditsRaw === '' || $creditsRaw === null)
@@ -187,9 +190,9 @@ try {
 
             try {
                 $stmt = $pdo->prepare("
-                    INSERT INTO employees 
-                        (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, leave_pay, leave_credits)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        INSERT INTO employees 
+                        (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_pay, leave_credits)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([
                     $first,
@@ -201,6 +204,7 @@ try {
                     $yearLevel,
                     $position,
                     $empType,
+                     $basicSalary,
                     $leavePay,
                     $credits,
                 ]);
@@ -307,7 +311,8 @@ try {
             $subCat = trim($_POST['sub_category'] ?? '');
             $yearLevel = trim($_POST['year_level'] ?? '');
             $position = trim($_POST['position'] ?? '');
-            $empType = $_POST['employment_type'] ?? 'full-time';
+                        $empType = $_POST['employment_type'] ?? 'full-time';
+            $basicSalary = floatval($_POST['basic_salary'] ?? 0);
             $leavePay = floatval($_POST['leave_pay'] ?? 0);
             $status = $_POST['status'] ?? 'active';
 
@@ -352,7 +357,7 @@ try {
                     u.id AS user_id, u.username, u.role, u.status, u.employee_id,
                     e.first_name, e.middle_name, e.last_name, e.email,
                     e.category, e.sub_category, e.year_level, e.position,
-                    e.employment_type, e.leave_pay, e.leave_credits
+                                        e.employment_type, e.basic_salary, e.leave_pay, e.leave_credits
                 FROM users u
                 LEFT JOIN employees e ON u.employee_id = e.id
                 WHERE u.id = ?
@@ -434,10 +439,10 @@ try {
             try {
                 if ($employeeId !== null) {
                     $stmt = $pdo->prepare("
-                        UPDATE employees 
+                                                UPDATE employees 
                         SET first_name = ?, middle_name = ?, last_name = ?, email = ?, 
                             category = ?, sub_category = ?, year_level = ?, position = ?,
-                            employment_type = ?, leave_pay = ?, leave_credits = ?
+                            employment_type = ?, basic_salary = ?, leave_pay = ?, leave_credits = ?
                         WHERE id = ?
                     ");
                     $stmt->execute([
@@ -450,6 +455,7 @@ try {
                         $yearLevel,
                         $position,
                         $empType,
+                        $basicSalary,
                         $leavePay,
                         $credits,
                         $employeeId,
@@ -533,6 +539,11 @@ try {
                 if ($b !== $a) {
                     $changes[] = "{$f['label']}: " . ($b === '' ? '—' : $b) . " → " . ($a === '' ? '—' : $a);
                 }
+            }
+
+                        $beforeSalary = (float) ($before['basic_salary'] ?? 0);
+            if (abs($beforeSalary - $basicSalary) > 0.001) {
+                $changes[] = 'Basic salary: ₱' . number_format($beforeSalary, 2) . ' → ₱' . number_format($basicSalary, 2);
             }
 
             $beforeLeavePay = (float) ($before['leave_pay'] ?? 0);
@@ -663,7 +674,7 @@ try {
         // ============================================
         // Approve Profile Edit
         // ============================================
-                // ============================================
+        // ============================================
         // Approve Profile Edit — applies ALL pending values
         // ============================================
         case 'approve_profile_edit':
@@ -696,17 +707,17 @@ try {
                 break;
             }
 
-            $hasPendingName   = $row['pending_first_name'] !== null || $row['pending_last_name'] !== null;
-            $hasPendingEmail  = $row['pending_email'] !== null;
+            $hasPendingName = $row['pending_first_name'] !== null || $row['pending_last_name'] !== null;
+            $hasPendingEmail = $row['pending_email'] !== null;
             $hasPendingAvatar = $row['pending_avatar'] !== null;
 
             $pdo->beginTransaction();
             try {
                 if ($row['emp_id'] !== null && ($hasPendingName || $hasPendingEmail)) {
-                    $newFirst  = $row['pending_first_name']  ?? $row['first_name'];
+                    $newFirst = $row['pending_first_name'] ?? $row['first_name'];
                     $newMiddle = $row['pending_middle_name'] ?? $row['middle_name'];
-                    $newLast   = $row['pending_last_name']   ?? $row['last_name'];
-                    $newEmail  = $row['pending_email']       ?? $row['email'];
+                    $newLast = $row['pending_last_name'] ?? $row['last_name'];
+                    $newEmail = $row['pending_email'] ?? $row['email'];
 
                     $stmt = $pdo->prepare("
                         UPDATE employees
@@ -730,7 +741,8 @@ try {
                             ->execute([$id]);
                         if (!empty($old)) {
                             $path = __DIR__ . '/../../public_html/uploads/avatars/' . $old;
-                            if (is_file($path)) @unlink($path);
+                            if (is_file($path))
+                                @unlink($path);
                         }
                     } else {
                         // New avatar: swap and delete the previous live file
@@ -738,7 +750,8 @@ try {
                             ->execute([$pendingAvatar, $id]);
                         if (!empty($old) && $old !== $pendingAvatar) {
                             $path = __DIR__ . '/../../public_html/uploads/avatars/' . $old;
-                            if (is_file($path)) @unlink($path);
+                            if (is_file($path))
+                                @unlink($path);
                         }
                     }
                 }
@@ -809,7 +822,8 @@ try {
             try {
                 if (!empty($row['pending_avatar']) && $row['pending_avatar'] !== $row['avatar']) {
                     $path = __DIR__ . '/../../public_html/uploads/avatars/' . $row['pending_avatar'];
-                    if (is_file($path)) @unlink($path);
+                    if (is_file($path))
+                        @unlink($path);
                 }
 
                 $pdo->prepare("UPDATE users SET pending_avatar = NULL, profile_edit_requested = 0 WHERE id = ?")

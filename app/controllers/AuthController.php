@@ -99,9 +99,9 @@ if ($user && password_verify($password, $user['password'])) {
     $_SESSION['last_name']    = $user['last_name']  ?? '';
     $_SESSION['avatar']       = $user['avatar']     ?? null;
     $_SESSION['category']     = $user['category']     ?? null;
-    $_SESSION['sub_category'] = $user['sub_category'] ?? null;
     $_SESSION['year_level']   = $user['year_level']   ?? null;
-    $_SESSION['position']     = $user['position']     ?? null;
+    $_SESSION['sub_category'] = $user['sub_category'] ?? '';
+    $_SESSION['position']     = $user['position'] ?? '';
 
     // Log sign-in
     ActivityLogger::log($pdo, 'login', 'Signed in to the system');

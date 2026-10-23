@@ -40,7 +40,7 @@ $myEmployeeId = (int) ($me['employee_id'] ?? 0);
 // ============================================
 // Scope filter based on position
 // ============================================
-$where = ["lr.status IN ('pending','approved')"];
+$where = [];
 $params = [];
 
 $where[] = "lr.employee_id <> ?";
@@ -48,14 +48,27 @@ $params[] = $myEmployeeId;
 
 $where[] = "emp.category = 'faculty'";
 
-if ($myPosition === 'College Dean') {
+// Apply specific rules per role
+if ($myPosition === 'Academic Dean') {
+    // Academic Dean sees ALL requests (pending and approved)
+    $where[] = "lr.status IN ('pending', 'approved')";
+    
+} elseif ($myPosition === 'College Dean') {
+    // College Dean sees ONLY approved requests from their specific department
+    $where[] = "lr.status = 'approved'";
     if ($myYearLevel !== '') {
         $where[] = "emp.year_level = ?";
         $params[] = $myYearLevel;
     }
+    
 } elseif ($myPosition === 'Elementary Principal') {
+    // Elementary Principal sees ONLY approved Elementary requests
+    $where[] = "lr.status = 'approved'";
     $where[] = "emp.sub_category = 'Elementary'";
+    
 } elseif ($myPosition === 'High School Principal') {
+    // High School Principal sees ONLY approved High School requests
+    $where[] = "lr.status = 'approved'";
     $where[] = "emp.sub_category = 'High School'";
 }
 
@@ -246,14 +259,14 @@ switch ($myPosition) {
                             <?php if ($myPosition === 'Academic Dean'): ?>
                                 · You must endorse pending requests before HR can approve them.
                             <?php else: ?>
-                                · HR and Admin are the only ones who can approve or reject requests.
+                                · You are viewing approved leaves in your department only.
                             <?php endif; ?>
                         </p>
                     </div>
                 </div>
 
                 <!-- Summary -->
-                <div class="grid grid-cols-3 gap-3">
+                <div class="grid <?= $myPosition === 'Academic Dean' ? 'grid-cols-3' : 'grid-cols-2' ?> gap-3">
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Total</p>
                         <p class="text-xl font-bold text-[#2C3E50]"><?= $summary['total'] ?></p>
@@ -263,10 +276,12 @@ switch ($myPosition) {
                         </p>
                         <p class="text-xl font-bold text-[#0F5E3D]"><?= $summary['approved'] ?></p>
                     </div>
-                    <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
-                        <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Pending</p>
-                        <p class="text-xl font-bold text-amber-600"><?= $summary['pending'] ?></p>
-                    </div>
+                    <?php if ($myPosition === 'Academic Dean'): ?>
+                        <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 font-semibold mb-1">Pending</p>
+                            <p class="text-xl font-bold text-amber-600"><?= $summary['pending'] ?></p>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Toolbar -->
@@ -356,9 +371,9 @@ switch ($myPosition) {
                                                     <?= $sLabel ?>
                                                 </span>
                                                 <?php if ($l['status'] === 'pending' && empty($l['dean_approved_at'])): ?>
-                                                    <p class="text-[9px] text-amber-600 mt-0.5">Needs Dean Endorsement</p>
+                                                    <p class="text-[9px] text-amber-600 mt-0.5">Needs Endorsement</p>
                                                 <?php elseif ($l['status'] === 'pending' && !empty($l['dean_approved_at'])): ?>
-                                                    <p class="text-[9px] text-[#0F5E3D] mt-0.5">Endorsed by Dean</p>
+                                                    <p class="text-[9px] text-[#0F5E3D] mt-0.5">Endorsed</p>
                                                 <?php endif; ?>
                                             </td>
                                             <td class="px-4">
@@ -444,9 +459,9 @@ switch ($myPosition) {
                                         </span>
                                     </div>
                                     <?php if ($l['status'] === 'pending' && empty($l['dean_approved_at'])): ?>
-                                        <p class="text-[10px] text-amber-600 font-medium">Needs Dean Endorsement</p>
+                                        <p class="text-[10px] text-amber-600 font-medium">Needs Endorsement</p>
                                     <?php elseif ($l['status'] === 'pending' && !empty($l['dean_approved_at'])): ?>
-                                        <p class="text-[10px] text-[#0F5E3D] font-medium">Endorsed by Dean</p>
+                                        <p class="text-[10px] text-[#0F5E3D] font-medium">Endorsed</p>
                                     <?php endif; ?>
                                     <button onclick='openViewFacultyLeave(<?= json_encode([
                                         "id" => (int) $l["id"],
@@ -623,7 +638,7 @@ switch ($myPosition) {
         </div>
     </div>
 
-        <!-- Success Modal -->
+    <!-- Success Modal -->
     <div id="successModal"
         class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div id="successCard"
@@ -643,7 +658,7 @@ switch ($myPosition) {
         </div>
     </div>
 
-        <!-- Confirmation Modal -->
+    <!-- Confirmation Modal -->
     <div id="confirmModal"
         class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div id="confirmCard"

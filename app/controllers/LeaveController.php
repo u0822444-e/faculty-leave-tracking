@@ -450,7 +450,7 @@ try {
                 NotificationService::notifyAdmins(
                     $pdo,
                     'leave_endorsed',
-                    "Leave endorsed by Dean",
+                    "Leave endorsed",
                     "A leave request (#{$id}) has been endorsed and is ready for HR review.",
                     '/leaves'
                 );

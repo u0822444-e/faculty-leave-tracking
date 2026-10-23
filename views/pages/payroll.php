@@ -644,7 +644,6 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                     <tr class="h-11">
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Employee</th>
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Category</th>
-                                        <!-- <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Salary</th> -->
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Used</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Remaining</th>
@@ -689,9 +688,6 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-[#2C3E50]"><?= $r['basic_salary'] > 0 ? '₱' . number_format($r['basic_salary'], 2) : '—' ?></span>
-                                            </td>
-                                            <td class="px-4 py-0 text-right">
                                                 <span class="text-sm text-[#2C3E50]">₱<?= number_format($r['leave_pay'], 2) ?></span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
@@ -717,9 +713,6 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                     <tr class="h-14">
                                         <td class="px-4 py-0" colspan="2">
                                             <span class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total (all employees)</span>
-                                        </td>
-                                        <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-[#2C3E50]">₱<?= number_format($totalSalaryPool, 2) ?></span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
                                             <span class="text-xs text-[#2C3E50]/50">—</span>
@@ -753,8 +746,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                     data-sub="<?= htmlspecialchars(strtolower($r['sub_category'] ?? '')) ?>"
                                     data-year=""
                                     data-saved="<?= (float) $r['saved'] ?>"
-                                    data-convertible="<?= (float) $r['convertible'] ?>"
-                                    data-salary="<?= (float) $r['basic_salary'] ?>">
+                                    data-convertible="<?= (float) $r['convertible'] ?>">
                                     <div class="flex items-start gap-3 mb-3">
                                         <div class="w-9 h-9 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xs shrink-0">
                                             <?= $r['initials'] ?>
@@ -769,10 +761,6 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                         </div>
                                     </div>
                                     <div class="grid grid-cols-2 gap-2 text-xs">
-                                        <div>
-                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Salary</p>
-                                            <p class="text-[#2C3E50] font-medium"><?= $r['basic_salary'] > 0 ? '₱' . number_format($r['basic_salary'], 2) : '—' ?></p>
-                                        </div>
                                         <div>
                                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Pay</p>
                                             <p class="text-[#2C3E50] font-medium">₱<?= number_format($r['leave_pay'], 2) ?> <span class="text-[10px] text-[#2C3E50]/40">/ credit</span></p>

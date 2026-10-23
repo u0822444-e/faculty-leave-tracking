@@ -99,6 +99,7 @@ $stmt = $pdo->prepare("
         e.employment_type,
         e.basic_salary, e.leave_credits, e.leave_pay,
         COALESCE(lr.approved_days, 0) AS approved_days,
+        COALESCE(lr.sick_used, 0) AS sick_used,
         COALESCE(lr.lwop_days, 0) AS lwop_days,
         ps.status AS settlement_status,
         ps.amount AS settlement_amount,
@@ -109,6 +110,7 @@ $stmt = $pdo->prepare("
         SELECT
             employee_id,
             SUM(CASE WHEN status = 'approved' THEN days_count ELSE 0 END) AS approved_days,
+            SUM(CASE WHEN status = 'approved' AND leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used,
             SUM(CASE WHEN status = 'approved' AND leave_type = 'other' THEN days_count ELSE 0 END) AS lwop_days
         FROM leave_requests
         GROUP BY employee_id
@@ -137,12 +139,17 @@ foreach ($employees as $e) {
     $leavePayRate = (float) $e['leave_pay'];
     $allocated    = (float) $e['leave_credits'];
     $approved     = (float) $e['approved_days'];
+    $sickUsed     = (float) $e['sick_used'];
     $lwopDays     = (float) $e['lwop_days'];
     $remaining    = max(0, $allocated - $approved);
 
     $dailyRate        = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
     $lwopDeduction    = $dailyRate * $lwopDays;
-    $leavePayValue    = $leavePayRate * $remaining;
+    
+    // NEW CALCULATION: Leave Pay Value = Remaining SICK credits (cap 7.5) × Leave Pay Rate
+    $sickCap          = 7.5;
+    $sickRemaining    = max(0, $sickCap - $sickUsed);
+    $leavePayValue    = $leavePayRate * $sickRemaining;
 
     $rows[] = [
         'employee_id'       => (int) $e['employee_id'],
@@ -179,6 +186,7 @@ $agg = $pdo->query("
         e.leave_credits,
         e.leave_pay,
         COALESCE(lr.approved_days, 0) AS approved_days,
+        COALESCE(lr.sick_used, 0) AS sick_used,
         COALESCE(lr.lwop_days, 0) AS lwop_days,
         ps.status AS settlement_status,
         ps.amount AS settlement_amount
@@ -187,6 +195,7 @@ $agg = $pdo->query("
         SELECT
             employee_id,
             SUM(CASE WHEN status = 'approved' THEN days_count ELSE 0 END) AS approved_days,
+            SUM(CASE WHEN status = 'approved' AND leave_type = 'sick' THEN days_count ELSE 0 END) AS sick_used,
             SUM(CASE WHEN status = 'approved' AND leave_type = 'other' THEN days_count ELSE 0 END) AS lwop_days
         FROM leave_requests
         GROUP BY employee_id
@@ -209,12 +218,16 @@ foreach ($agg as $a) {
     $leavePayRate = (float) $a['leave_pay'];
     $allocated    = (float) $a['leave_credits'];
     $approved     = (float) $a['approved_days'];
+    $sickUsed     = (float) $a['sick_used'];
     $lwopDays     = (float) $a['lwop_days'];
-    $remaining    = max(0, $allocated - $approved);
-
+    
     $dailyRate     = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
     $lwopDeduction = $dailyRate * $lwopDays;
-    $leavePayValue = $leavePayRate * $remaining;
+    
+    // NEW CALCULATION: Leave Pay Value = Remaining SICK credits (cap 7.5) × Leave Pay Rate
+    $sickCap          = 7.5;
+    $sickRemaining    = max(0, $sickCap - $sickUsed);
+    $leavePayValue    = $leavePayRate * $sickRemaining;
 
     $totalSalaryPool    += $salary;
     $totalLeavePayValue += $leavePayValue;
@@ -287,7 +300,7 @@ $pageIcon   = 'receipt';
                             </div>
                         </div>
                         <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($totalLeavePayValue, 2) ?></p>
-                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">convertible from remaining credits</p>
+                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">convertible from remaining sick credits</p>
                     </div>
 
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">

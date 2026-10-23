@@ -55,48 +55,50 @@ try {
         exit;
     }
 
-    // ============================================
-    // SETTLE PAYROLL
-    // ============================================
-    if ($action === 'settle_payroll') {
-        $employeeId = (int) ($_POST['employee_id'] ?? 0);
-        $status = $_POST['status'] ?? '';
-        $amount = (float) ($_POST['amount'] ?? 0);
-        $remarks = trim($_POST['remarks'] ?? '');
+            // ============================================
+        // SETTLE PAYROLL (Mark as Paid / Unpaid)
+        // ============================================
+        if ($action === 'settle_payroll') {
+            $employeeId = (int) ($_POST['employee_id'] ?? 0);
+            $status = $_POST['status'] ?? '';
+            $amount = (float) ($_POST['amount'] ?? 0);
+            $remarks = trim($_POST['remarks'] ?? '');
 
-        if ($employeeId <= 0 || !in_array($status, ['settled', 'outstanding'])) {
-            echo json_encode(['success' => false, 'error' => 'Invalid input.']);
+            if ($employeeId <= 0 || !in_array($status, ['settled', 'outstanding'])) {
+                echo json_encode(['success' => false, 'error' => 'Invalid input.']);
+                exit;
+            }
+
+            // Check if a record already exists using COUNT instead of ID
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM payroll_settlements WHERE employee_id = ?");
+            $stmt->execute([$employeeId]);
+            $exists = (int) $stmt->fetchColumn() > 0;
+
+            if ($exists) {
+                // Update existing record
+                $stmt = $pdo->prepare("
+                    UPDATE payroll_settlements 
+                    SET status = ?, amount = ?, remarks = ?, settled_at = IF(? = 'settled', NOW(), NULL)
+                    WHERE employee_id = ?
+                ");
+                $stmt->execute([$status, $amount, $remarks, $status, $employeeId]);
+            } else {
+                // Insert new record
+                $stmt = $pdo->prepare("
+                    INSERT INTO payroll_settlements (employee_id, status, amount, remarks, settled_at)
+                    VALUES (?, ?, ?, ?, IF(? = 'settled', NOW(), NULL))
+                ");
+                $stmt->execute([$employeeId, $status, $amount, $remarks, $status]);
+            }
+
+            if (class_exists('ActivityLogger')) {
+                ActivityLogger::log($pdo, 'settle_payroll', "Marked payroll as {$status} (₱" . number_format($amount, 2) . ")", 'employee', $employeeId);
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Payroll updated.']);
             exit;
         }
-
-        // Check if a record already exists
-        $stmt = $pdo->prepare("SELECT id FROM payroll_settlements WHERE employee_id = ? LIMIT 1");
-        $stmt->execute([$employeeId]);
-        $settlementId = $stmt->fetchColumn();
-
-        if ($settlementId) {
-            $stmt = $pdo->prepare("
-                UPDATE payroll_settlements 
-                SET status = ?, amount = ?, remarks = ?, settled_at = IF(? = 'settled', NOW(), NULL)
-                WHERE id = ?
-            ");
-            $stmt->execute([$status, $amount, $remarks, $status, $settlementId]);
-        } else {
-            $stmt = $pdo->prepare("
-                INSERT INTO payroll_settlements (employee_id, status, amount, remarks, settled_at)
-                VALUES (?, ?, ?, ?, IF(? = 'settled', NOW(), NULL))
-            ");
-            $stmt->execute([$employeeId, $status, $amount, $remarks, $status]);
-        }
-
-        if (class_exists('ActivityLogger')) {
-            ActivityLogger::log($pdo, 'settle_payroll', "Marked payroll as {$status} (₱" . number_format($amount, 2) . ")", 'employee', $employeeId);
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Payroll updated.']);
-        exit;
-    }
-
+        
     echo json_encode(['success' => false, 'error' => 'Unknown action.']);
 } catch (PDOException $e) {
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);

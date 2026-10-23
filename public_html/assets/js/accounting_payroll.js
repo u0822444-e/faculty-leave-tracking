@@ -68,11 +68,11 @@ function openPayrollView(row) {
   const remarksWrap = document.getElementById("pvRemarksWrap");
 
   if (status === "settled") {
-    badge.textContent = "Settled";
+    badge.textContent = "Paid";
     badge.className = "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-[#0F5E3D] bg-[#F1FDF6] mb-4";
     settleDetails.classList.remove("hidden");
   } else if (status === "outstanding") {
-    badge.textContent = "Outstanding";
+    badge.textContent = "Unpaid";
     badge.className = "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-amber-700 bg-amber-50 mb-4";
     settleDetails.classList.remove("hidden");
   } else {
@@ -116,7 +116,7 @@ function openPayrollView(row) {
   const employeeSalary = num(d.salary);
   pvCurrentEmployeeId = employeeId;
 
-  // NEW: Edit Salary Button
+  // Edit Salary Button
   const btnEditSalary = document.createElement("button");
   btnEditSalary.type = "button";
   btnEditSalary.className = "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5 mr-auto";
@@ -130,7 +130,7 @@ function openPayrollView(row) {
     const btnSettle = document.createElement("button");
     btnSettle.type = "button";
     btnSettle.className = "px-4 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
-    btnSettle.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4"></i><span>Mark as Settled</span>';
+    btnSettle.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4"></i><span>Mark as Paid</span>';
     btnSettle.onclick = () => {
       closePayrollView();
       openSettleModal({ id: employeeId, name: employeeName, amount: employeeAmount, status: "settled" });
@@ -142,7 +142,7 @@ function openPayrollView(row) {
     const btnOut = document.createElement("button");
     btnOut.type = "button";
     btnOut.className = "px-4 border border-amber-300 text-amber-700 hover:bg-amber-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
-    btnOut.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i><span>Mark as Outstanding</span>';
+    btnOut.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i><span>Mark as Unpaid</span>';
     btnOut.onclick = () => {
       closePayrollView();
       openSettleModal({ id: employeeId, name: employeeName, amount: employeeAmount, status: "outstanding" });
@@ -226,7 +226,7 @@ async function confirmEditSalary() {
 }
 
 // ============================================
-// Settlement Modal
+// Payment Modal
 // ============================================
 function openSettleModal(employee) {
   settleEmployeeId = employee.id;
@@ -235,7 +235,7 @@ function openSettleModal(employee) {
 
   const isSettle = employee.status === "settled";
 
-  document.getElementById("settleTitle").textContent = isSettle ? "Mark as Settled" : "Mark as Outstanding";
+  document.getElementById("settleTitle").textContent = isSettle ? "Mark as Paid" : "Mark as Unpaid";
   document.getElementById("settleSubtitle").textContent = employee.name;
   document.getElementById("settleEmployeeId").value = employee.id;
   document.getElementById("settleStatus").value = employee.status;
@@ -255,7 +255,7 @@ function openSettleModal(employee) {
   }
 
   const btn = document.getElementById("settleConfirmBtn");
-  btn.textContent = isSettle ? "Confirm Settlement" : "Mark Outstanding";
+  btn.textContent = isSettle ? "Confirm Payment" : "Mark Unpaid";
   btn.className = isSettle
     ? "flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm"
     : "flex-1 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2.5 rounded-lg transition text-sm";
@@ -289,8 +289,8 @@ async function confirmSettle() {
   const isSettle = settleStatus === "settled";
   closeSettleModal();
   showLoading(
-    isSettle ? "Recording settlement..." : "Marking outstanding...",
-    isSettle ? "Recording the settled amount." : "Marking as outstanding."
+    isSettle ? "Recording payment..." : "Marking unpaid...",
+    isSettle ? "Recording the paid amount." : "Marking as unpaid."
   );
 
   try {
@@ -316,10 +316,10 @@ async function confirmSettle() {
     hideLoading();
 
     if (data.success) {
-      document.getElementById("successTitle").textContent = isSettle ? "Marked as Settled" : "Marked as Outstanding";
+      document.getElementById("successTitle").textContent = isSettle ? "Marked as Paid" : "Marked as Unpaid";
       document.getElementById("successMessage").textContent = isSettle
-        ? "The leave-pay liability has been settled."
-        : "The liability is now outstanding and awaiting settlement.";
+        ? "The leave-pay liability has been paid."
+        : "The liability is now marked as unpaid.";
       showModal("successModal", "successCard");
       if (typeof initIcons === "function") initIcons();
     } else {

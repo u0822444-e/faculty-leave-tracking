@@ -21,10 +21,12 @@ $stmt = $pdo->query("
         e.first_name, e.middle_name, e.last_name, e.email,
         e.category, e.sub_category, e.year_level, e.position,
         e.employment_type, e.leave_credits,
-        u.username AS approver_username
+        u.username AS approver_username,
+        d.username AS dean_username
     FROM leave_requests lr
     LEFT JOIN employees e ON lr.employee_id = e.id
     LEFT JOIN users u ON lr.approved_by = u.id
+    LEFT JOIN users d ON lr.dean_approved_by = d.id
     ORDER BY 
         CASE WHEN lr.status = 'pending' THEN 0 ELSE 1 END,
         lr.created_at DESC
@@ -246,6 +248,11 @@ $leaveLabels = [
                                                     class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize <?= $statusClass ?>">
                                                     <?= htmlspecialchars($l['status']) ?>
                                                 </span>
+                                                <?php if ($l['status'] === 'pending' && empty($l['dean_approved_at'])): ?>
+                                                    <p class="text-[9px] text-amber-600 mt-0.5">Waiting for Dean</p>
+                                                <?php elseif ($l['status'] === 'pending' && !empty($l['dean_approved_at'])): ?>
+                                                    <p class="text-[9px] text-[#0F5E3D] mt-0.5">Endorsed by Dean</p>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="px-4 py-0">
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $payClass ?>">
@@ -254,9 +261,9 @@ $leaveLabels = [
                                             </td>
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
-                                                    <button onclick="openReview(<?= (int) $l['id'] ?>)"
-                                                        class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
-                                                        title="Review request">
+                                                    <button onclick="openReview(<?= (int) $l['id'] ?>)" 
+                                                        class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition <?= (empty($l['dean_approved_at']) && $l['status'] === 'pending') ? 'opacity-30 cursor-not-allowed' : '' ?>"
+                                                        title="<?= (empty($l['dean_approved_at']) && $l['status'] === 'pending') ? 'Waiting for Dean endorsement' : 'Review request' ?>">
                                                         <i data-lucide="eye" class="w-4 h-4"></i>
                                                     </button>
                                                 </div>
@@ -317,6 +324,11 @@ $leaveLabels = [
                                                     <?= date('M j', strtotime($l['start_date'])) ?>–<?= date('M j', strtotime($l['end_date'])) ?>
                                                 </span>
                                             </div>
+                                            <?php if ($l['status'] === 'pending' && empty($l['dean_approved_at'])): ?>
+                                                <p class="text-[10px] text-amber-600 font-medium mb-2">Needs Dean Endorsement</p>
+                                            <?php elseif ($l['status'] === 'pending' && !empty($l['dean_approved_at'])): ?>
+                                                <p class="text-[10px] text-[#0F5E3D] font-medium mb-2">Endorsed by Dean</p>
+                                            <?php endif; ?>
                                             <div class="flex items-center gap-3">
                                                 <p class="text-xs text-[#2C3E50]/50">
                                                     <?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?>
@@ -330,7 +342,7 @@ $leaveLabels = [
                                             </div>
                                             <div class="flex items-center gap-2 mt-3">
                                                 <button onclick="openReview(<?= (int) $l['id'] ?>)"
-                                                    class="w-full text-sm py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
+                                                    class="w-full text-sm py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition <?= (empty($l['dean_approved_at']) && $l['status'] === 'pending') ? 'opacity-50' : '' ?>">
                                                     Review
                                                 </button>
                                             </div>
@@ -462,6 +474,12 @@ $leaveLabels = [
                                 </p>
                             </div>
 
+                        </div>
+
+                        <!-- Dean Endorsement (if pending) -->
+                        <div id="rvDeanSection" class="hidden py-5 border-b border-[#F0F0F0]">
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">Dean Endorsement</p>
+                            <p id="rvDeanSummary" class="text-sm text-[#2C3E50] font-medium">—</p>
                         </div>
 
                         <!-- Decision (approved/rejected only) -->
@@ -657,6 +675,7 @@ $leaveLabels = [
                 'end' => $l['end_date'],
                 'days' => (float) $l['days_count'],
                 'pay_status' => $l['pay_status'] ?? null,
+                'dean_approved' => $l['dean_approved_at'] ?? null,
             ];
         }, $leaves)) ?>;
     </script>

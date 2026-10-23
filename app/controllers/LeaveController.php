@@ -402,6 +402,64 @@ try {
             break;
 
         // ============================================
+        // Dean Endorses Leave
+        // ============================================
+        case 'endorse_dean':
+            if (($_SESSION['position'] ?? '') !== 'Academic Dean') {
+                echo json_encode(['success' => false, 'error' => 'Only the Academic Dean can endorse requests.']);
+                break;
+            }
+
+            $id = (int) ($_POST['id'] ?? 0);
+            if ($id <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Invalid request ID.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("SELECT status, dean_approved_at FROM leave_requests WHERE id = ? LIMIT 1");
+            $stmt->execute([$id]);
+            $leave = $stmt->fetch();
+
+            if (!$leave) {
+                echo json_encode(['success' => false, 'error' => 'Leave request not found.']);
+                break;
+            }
+
+            if ($leave['status'] !== 'pending') {
+                echo json_encode(['success' => false, 'error' => 'Only pending requests can be endorsed.']);
+                break;
+            }
+
+            if ($leave['dean_approved_at'] !== null) {
+                echo json_encode(['success' => false, 'error' => 'This request has already been endorsed.']);
+                break;
+            }
+
+            $stmt = $pdo->prepare("
+                UPDATE leave_requests 
+                SET dean_approved_by = ?, dean_approved_at = NOW() 
+                WHERE id = ?
+            ");
+            $stmt->execute([$userId, $id]);
+
+            if (class_exists('ActivityLogger')) {
+                ActivityLogger::log($pdo, 'endorse_leave', "Endorsed leave request #{$id} to HR", 'leave_request', $id);
+            }
+            
+            if (class_exists('NotificationService')) {
+                NotificationService::notifyAdmins(
+                    $pdo,
+                    'leave_endorsed',
+                    "Leave endorsed by Dean",
+                    "A leave request (#{$id}) has been endorsed and is ready for HR review.",
+                    '/leaves'
+                );
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Leave request endorsed.']);
+            break;
+
+        // ============================================
         // Approve / Reject (admin/hr only)
         // ============================================
         case 'decide':
@@ -445,6 +503,11 @@ try {
 
             if ($leave['status'] !== 'pending') {
                 echo json_encode(['success' => false, 'error' => 'This request has already been decided.']);
+                break;
+            }
+
+            if ($leave['dean_approved_at'] === null) {
+                echo json_encode(['success' => false, 'error' => 'This request must be endorsed by the Academic Dean before HR can decide on it.']);
                 break;
             }
 

@@ -43,7 +43,6 @@ function fmtDaysShort(n) {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
-// Map DB leave types to the 3 presentation groups
 function groupType(dbType) {
   const t = (dbType || "").toLowerCase();
   if (t === "sick") return "sick";
@@ -51,7 +50,6 @@ function groupType(dbType) {
   return "others";
 }
 
-// Detailed label for the header pill (still shows the exact subtype)
 const TYPE_DETAIL_LABELS = {
   vacation: "Vacation",
   sick: "Sick",
@@ -87,7 +85,7 @@ const STATUS_CLASSES = {
 // ============================================
 // State
 // ============================================
-let rvAllLeaves = []; // populated by PHP inline script
+let rvAllLeaves = []; 
 let rvCurrentId = null;
 let rvEmployeeData = null;
 let rvFilteredHistory = [];
@@ -323,6 +321,24 @@ function renderReview(leave) {
   document.getElementById("rvFiled").textContent = formatDateTime(full.created);
   document.getElementById("rvReason").textContent = full.reason || "—";
 
+  // ── Dean Endorsement ──
+  const deanSection = document.getElementById("rvDeanSection");
+  const myDeanInfo = rvAllLeaves.find(l => l.id === rvCurrentId);
+  
+  if (status === "pending" && myDeanInfo) {
+    if (myDeanInfo.dean_approved) {
+      deanSection.classList.remove("hidden");
+      document.getElementById("rvDeanSummary").textContent = "Endorsed by Academic Dean";
+      document.getElementById("rvDeanSummary").className = "text-sm text-[#0F5E3D] font-medium";
+    } else {
+      deanSection.classList.remove("hidden");
+      document.getElementById("rvDeanSummary").textContent = "Awaiting endorsement from Academic Dean";
+      document.getElementById("rvDeanSummary").className = "text-sm text-amber-600 font-medium italic";
+    }
+  } else {
+    deanSection.classList.add("hidden");
+  }
+
   // ── Decision ──
   const decisionSection = document.getElementById("rvDecisionSection");
   if (status === "approved" || status === "rejected") {
@@ -346,9 +362,11 @@ function renderReview(leave) {
     decisionSection.classList.add("hidden");
   }
 
+  // Hide decide bar if not pending OR if pending but not endorsed by dean
+  const canDecide = (status === 'pending' && myDeanInfo && myDeanInfo.dean_approved);
   document
     .getElementById("rvDecideBar")
-    .classList.toggle("hidden", status !== "pending");
+    .classList.toggle("hidden", !canDecide);
 }
 
 // ============================================
@@ -365,7 +383,7 @@ function rvRenderHistory(page) {
     const typeGroup = document.getElementById("rvHistoryType")?.value || "";
 
     rvFilteredHistory = (rvEmployeeData.history || [])
-      // .filter((h) => h.id !== rvCurrentId) // exclude current -> REMOVED to show current request
+      .filter((h) => h.id !== rvCurrentId) // exclude current
       .filter((h) => {
         if (status && h.status !== status) return false;
         if (typeGroup && groupType(h.type) !== typeGroup) return false;
@@ -456,11 +474,10 @@ async function rvSubmitDecision(decision) {
 
   const remarks = document.getElementById("rvRemarksInput").value.trim();
 
-  // Automatically assign Pay Status based on Leave Type
-  let payStatus = "without_pay";
-  const leave = rvAllLeaves.find((l) => l.id === rvCurrentId);
-  if (leave && leave.type === "sick") {
-    payStatus = "with_pay";
+  let payStatus = 'without_pay';
+  const leave = rvAllLeaves.find(l => l.id === rvCurrentId);
+  if (leave && leave.type === 'sick') {
+    payStatus = 'with_pay';
   }
 
   const fd = new FormData();
@@ -468,9 +485,9 @@ async function rvSubmitDecision(decision) {
   fd.append("id", rvCurrentId);
   fd.append("decision", decision);
   fd.append("remarks", remarks);
-
+  
   if (decision === "approved") {
-    fd.append("pay_status", payStatus);
+      fd.append("pay_status", payStatus);
   }
 
   showLoading(

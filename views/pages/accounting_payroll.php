@@ -28,7 +28,7 @@ if (($stmt->fetchColumn() ?: '') !== 'Accounting Section') {
 // ============================================
 $searchQuery = trim($_GET['q'] ?? '');
 $searchQuery = substr($searchQuery, 0, 100);
-$statusFilter = $_GET['settlement_status'] ?? '';
+$statusFilter = $_GET['settlement_status'] ?? ''; // URL param kept as settlement_status for backwards compatibility
 $categoryFilter = $_GET['category'] ?? '';
 
 $whereClauses = ["e.category IN ('faculty', 'staff')"];
@@ -146,7 +146,7 @@ foreach ($employees as $e) {
     $dailyRate        = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
     $lwopDeduction    = $dailyRate * $lwopDays;
     
-    // NEW CALCULATION: Leave Pay Value = Remaining SICK credits (cap 7.5) × Leave Pay Rate
+    // Leave Pay Value = Remaining SICK credits (cap 7.5) × Leave Pay Rate
     $sickCap          = 7.5;
     $sickRemaining    = max(0, $sickCap - $sickUsed);
     $leavePayValue    = $leavePayRate * $sickRemaining;
@@ -224,7 +224,6 @@ foreach ($agg as $a) {
     $dailyRate     = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
     $lwopDeduction = $dailyRate * $lwopDays;
     
-    // NEW CALCULATION: Leave Pay Value = Remaining SICK credits (cap 7.5) × Leave Pay Rate
     $sickCap          = 7.5;
     $sickRemaining    = max(0, $sickCap - $sickUsed);
     $leavePayValue    = $leavePayRate * $sickRemaining;
@@ -251,7 +250,7 @@ $totalActiveEmployees = $settledCount + $outstandingCount + $pendingCount;
 
 $activePage = 'accounting_payroll';
 $pageTitle  = 'Payroll';
-$pageSubtitle = 'Leave liability settlements across faculty & staff';
+$pageSubtitle = 'Leave liability payments across faculty & staff';
 $pageIcon   = 'receipt';
 ?>
 <!DOCTYPE html>
@@ -305,24 +304,24 @@ $pageIcon   = 'receipt';
 
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <div class="flex items-start justify-between gap-2 mb-2">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Settled</p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Paid</p>
                             <div class="w-7 h-7 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
                                 <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
                             </div>
                         </div>
                         <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($totalSettled, 2) ?></p>
-                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5"><?= $settledCount ?> settlement(s) recorded</p>
+                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5"><?= $settledCount ?> payment(s) recorded</p>
                     </div>
 
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <div class="flex items-start justify-between gap-2 mb-2">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Outstanding</p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Unpaid</p>
                             <div class="w-7 h-7 rounded-md bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
                                 <i data-lucide="clock" class="w-3.5 h-3.5"></i>
                             </div>
                         </div>
                         <p class="text-xl font-bold text-amber-600">₱<?= number_format($totalOutstanding, 2) ?></p>
-                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5"><?= $outstandingCount ?> awaiting settlement<?= $pendingCount > 0 ? ' · ' . $pendingCount . ' not yet recorded' : '' ?></p>
+                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5"><?= $outstandingCount ?> awaiting payment<?= $pendingCount > 0 ? ' · ' . $pendingCount . ' not yet recorded' : '' ?></p>
                     </div>
                 </div>
 
@@ -333,8 +332,8 @@ $pageIcon   = 'receipt';
                             <select name="settlement_status" onchange="this.form.submit()"
                                 class="px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                                 <option value="">All Statuses</option>
-                                <option value="settled" <?= $statusFilter === 'settled' ? 'selected' : '' ?>>Settled</option>
-                                <option value="outstanding" <?= $statusFilter === 'outstanding' ? 'selected' : '' ?>>Outstanding</option>
+                                <option value="settled" <?= $statusFilter === 'settled' ? 'selected' : '' ?>>Paid</option>
+                                <option value="outstanding" <?= $statusFilter === 'outstanding' ? 'selected' : '' ?>>Unpaid</option>
                                 <option value="none" <?= $statusFilter === 'none' ? 'selected' : '' ?>>Not Yet Recorded</option>
                             </select>
 
@@ -377,7 +376,7 @@ $pageIcon   = 'receipt';
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Credits</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">LWOP Deduction</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay Value</th>
-                                        <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Settlement</th>
+                                        <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Payment Status</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Action</th>
                                     </tr>
                                 </thead>
@@ -385,8 +384,8 @@ $pageIcon   = 'receipt';
                                     <?php foreach ($rows as $r):
                                         $statusKey = $r['settlement_status'] ?? 'none';
                                         $statusLabel = [
-                                            'settled'     => 'Settled',
-                                            'outstanding' => 'Outstanding',
+                                            'settled'     => 'Paid',
+                                            'outstanding' => 'Unpaid',
                                             'none'        => 'Not Yet Recorded',
                                         ][$statusKey] ?? ucfirst($statusKey);
                                         $statusClass = [
@@ -487,7 +486,7 @@ $pageIcon   = 'receipt';
                                         </td>
                                         <td class="px-4 py-0">
                                             <span class="text-xs text-[#2C3E50]/50">
-                                                <?= $settledCount ?> settled · <?= $outstandingCount ?> outstanding
+                                                <?= $settledCount ?> paid · <?= $outstandingCount ?> unpaid
                                             </span>
                                         </td>
                                         <td class="px-4 py-0 text-right"></td>
@@ -500,7 +499,7 @@ $pageIcon   = 'receipt';
                         <div id="payrollMobileCards" class="md:hidden divide-y divide-[#E0E0E0]">
                             <?php foreach ($rows as $r):
                                 $statusKey = $r['settlement_status'] ?? 'none';
-                                $statusLabel = ['settled' => 'Settled', 'outstanding' => 'Outstanding', 'none' => 'Not Recorded'][$statusKey] ?? ucfirst($statusKey);
+                                $statusLabel = ['settled' => 'Paid', 'outstanding' => 'Unpaid', 'none' => 'Not Recorded'][$statusKey] ?? ucfirst($statusKey);
                                 $statusClass = ['settled' => 'text-[#0F5E3D] bg-[#F1FDF6]', 'outstanding' => 'text-amber-700 bg-amber-50', 'none' => 'text-slate-600 bg-slate-100'][$statusKey] ?? 'text-slate-600 bg-slate-100';
                             ?>
                                 <div class="p-4 payroll-row"
@@ -670,7 +669,7 @@ $pageIcon   = 'receipt';
 
                     <!-- Status Block -->
                     <div class="p-6">
-                        <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">Settlement Status</p>
+                        <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">Payment Status</p>
                         <div id="pvStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-600 bg-slate-100 mb-4">
                             —
                         </div>
@@ -805,7 +804,7 @@ $pageIcon   = 'receipt';
     </div>
 
     <!-- ============================================ -->
-    <!-- SETTLEMENT MODAL                               -->
+    <!-- PAYMENT MODAL                               -->
     <!-- ============================================ -->
     <div id="settleModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95" id="settleCard">
@@ -815,7 +814,7 @@ $pageIcon   = 'receipt';
                         <i data-lucide="check-circle-2" id="settleIcon" class="w-4 h-4"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-bold text-[#2C3E50]" id="settleTitle">Record Settlement</h3>
+                        <h3 class="text-base font-bold text-[#2C3E50]" id="settleTitle">Record Payment</h3>
                         <p class="text-xs text-[#2C3E50]/50" id="settleSubtitle">—</p>
                     </div>
                 </div>
@@ -836,7 +835,7 @@ $pageIcon   = 'receipt';
                 </div>
 
                 <div>
-                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Amount Settled (₱) *</label>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Amount Paid (₱) *</label>
                     <input type="number" step="0.01" min="0" name="amount" id="settleAmount" required
                         class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
                 </div>

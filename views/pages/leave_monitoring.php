@@ -69,10 +69,12 @@ $sql = "
         emp.category, emp.sub_category, emp.year_level, emp.position,
         emp.employment_type,
         emp.leave_credits AS total_allocated_credits,
-        approver.username AS approver_username
+        approver.username AS approver_username,
+        dean.username AS dean_username
     FROM leave_requests lr
     INNER JOIN employees emp ON lr.employee_id = emp.id
     LEFT JOIN users approver ON lr.approved_by = approver.id
+    LEFT JOIN users dean ON lr.dean_approved_by = dean.id
     WHERE {$whereSql}
     ORDER BY lr.created_at DESC
 ";
@@ -241,7 +243,11 @@ switch ($myPosition) {
                         </p>
                         <p class="text-[#2C3E50]/60 mt-0.5">
                             Scope: <strong><?= htmlspecialchars($scopeLabel) ?></strong>
-                            · HR and Admin are the only ones who can approve or reject requests.
+                            <?php if ($myPosition === 'Academic Dean'): ?>
+                                · You must endorse pending requests before HR can approve them.
+                            <?php else: ?>
+                                · HR and Admin are the only ones who can approve or reject requests.
+                            <?php endif; ?>
                         </p>
                     </div>
                 </div>
@@ -349,6 +355,11 @@ switch ($myPosition) {
                                                     class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
                                                     <?= $sLabel ?>
                                                 </span>
+                                                <?php if ($l['status'] === 'pending' && empty($l['dean_approved_at'])): ?>
+                                                    <p class="text-[9px] text-amber-600 mt-0.5">Needs Dean Endorsement</p>
+                                                <?php elseif ($l['status'] === 'pending' && !empty($l['dean_approved_at'])): ?>
+                                                    <p class="text-[9px] text-[#0F5E3D] mt-0.5">Endorsed by Dean</p>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="px-4">
                                                 <div class="flex items-center justify-end">
@@ -371,6 +382,9 @@ switch ($myPosition) {
                                                         "created" => $l["created_at"],
                                                         "approver" => $l["approver_username"] ?? "",
                                                         "approved" => $l["approved_at"] ?? "",
+                                                        "dean_approved" => $l["dean_approved_at"] ?? "",
+                                                        "dean_name" => $l["dean_username"] ?? "",
+                                                        "user_position" => $myPosition,
                                                         "credits" => $credit,
                                                     ]) ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
@@ -429,6 +443,11 @@ switch ($myPosition) {
                                             <?php endif; ?>
                                         </span>
                                     </div>
+                                    <?php if ($l['status'] === 'pending' && empty($l['dean_approved_at'])): ?>
+                                        <p class="text-[10px] text-amber-600 font-medium">Needs Dean Endorsement</p>
+                                    <?php elseif ($l['status'] === 'pending' && !empty($l['dean_approved_at'])): ?>
+                                        <p class="text-[10px] text-[#0F5E3D] font-medium">Endorsed by Dean</p>
+                                    <?php endif; ?>
                                     <button onclick='openViewFacultyLeave(<?= json_encode([
                                         "id" => (int) $l["id"],
                                         "name" => $empName,
@@ -448,6 +467,9 @@ switch ($myPosition) {
                                         "created" => $l["created_at"],
                                         "approver" => $l["approver_username"] ?? "",
                                         "approved" => $l["approved_at"] ?? "",
+                                        "dean_approved" => $l["dean_approved_at"] ?? "",
+                                        "dean_name" => $l["dean_username"] ?? "",
+                                        "user_position" => $myPosition,
                                         "credits" => $credit,
                                     ]) ?>)'
                                         class="mt-3 w-full text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
@@ -571,9 +593,15 @@ switch ($myPosition) {
                             <p id="flvReason" class="text-sm text-[#2C3E50] leading-relaxed whitespace-pre-wrap">—</p>
                         </div>
 
+                        <!-- Dean Endorsement Status -->
+                        <div id="flvDeanWrap" class="hidden py-5 border-b border-[#F0F0F0]">
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-2">Dean Endorsement</p>
+                            <p id="flvDeanSummary" class="text-sm text-[#2C3E50] font-medium">—</p>
+                        </div>
+
                         <!-- Decision -->
                         <div id="flvDecisionWrap" class="hidden py-5">
-                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">Decision
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">HR Decision
                             </p>
                             <p class="text-sm text-[#2C3E50]">
                                 <span id="flvDecisionSummary" class="font-medium">—</span>
@@ -585,15 +613,57 @@ switch ($myPosition) {
 
                     </div>
 
-                    <div class="border-t border-[#E0E0E0] bg-white px-8 py-3 shrink-0">
-                        <button onclick="closeViewFacultyLeave()"
-                            class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-md transition text-sm">
-                            Close
-                        </button>
+                    <div class="border-t border-[#E0E0E0] bg-white px-8 py-3 shrink-0" id="flvActionBar">
+                        <!-- Buttons populated by JS -->
                     </div>
 
                 </section>
 
+            </div>
+        </div>
+    </div>
+
+        <!-- Success Modal -->
+    <div id="successModal"
+        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="successCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
+            <div class="relative mx-auto mb-5 w-16 h-16">
+                <div class="absolute inset-0 rounded-full bg-[#F1FDF6] animate-ping opacity-40"></div>
+                <div class="relative w-16 h-16 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D]">
+                    <i data-lucide="check-circle" class="w-8 h-8"></i>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-[#2C3E50] mb-2" id="successTitle">Done</h3>
+            <p class="text-sm text-[#2C3E50]/60 mb-6" id="successMessage">—</p>
+            <button onclick="location.reload()"
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">
+                Done
+            </button>
+        </div>
+    </div>
+
+        <!-- Confirmation Modal -->
+    <div id="confirmModal"
+        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="confirmCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all duration-200 scale-95">
+            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-amber-50 mx-auto mb-4">
+                <i data-lucide="help-circle" class="w-6 h-6 text-amber-600"></i>
+            </div>
+            <h3 class="text-lg font-bold text-[#2C3E50] text-center mb-2">Endorse Request</h3>
+            <p class="text-sm text-[#2C3E50]/70 text-center mb-6">
+                Are you sure you want to endorse this leave request? This will forward it to HR for final approval.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="button" onclick="closeConfirmModal()"
+                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
+                    Cancel
+                </button>
+                <button type="button" id="confirmEndorseBtn"
+                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">
+                    Endorse
+                </button>
             </div>
         </div>
     </div>

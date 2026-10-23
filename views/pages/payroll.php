@@ -644,7 +644,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                     <tr class="h-11">
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Employee</th>
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Category</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Salary</th>
+                                        <!-- <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Salary</th> -->
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Used</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Remaining</th>
@@ -667,7 +667,7 @@ $avgSalary      = $totalEmployees > 0 ? $totalSalaryPool / $totalEmployees : 0;
                                             data-year=""
                                             data-saved="<?= (float) $r['saved'] ?>"
                                             data-convertible="<?= (float) $r['convertible'] ?>"
-                                            data-salary="<?= (float) $r['basic_salary'] ?>">
+                                            >
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center gap-2.5">
                                                     <div class="w-8 h-8 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">

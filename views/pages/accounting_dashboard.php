@@ -131,7 +131,6 @@ $sickCap       = 7.5;
 $sickUsed      = (float) ($typeUsed['sick'] ?? 0);
 $sickRemaining = max(0, $sickCap - $sickUsed);
 
-// This is the exact amount you requested: (Remaining Sick Leave) * Leave Pay
 $convertibleLeavePay = $leavePayRate * $sickRemaining; 
 $leaveDeduction      = $leavePayRate * $lwopDays;
 
@@ -252,33 +251,54 @@ $statusLabels = [
                     <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3 mb-2">
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total Payroll Liability</p>
-                            <div class="w-8 h-8 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                                <i data-lucide="landmark" class="w-4 h-4"></i>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button type="button" onclick="toggleAmountVisibility()"
+                                    class="w-8 h-8 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] hover:bg-[#e8faf0] transition amount-toggle-btn"
+                                    title="Show / hide amount" aria-label="Toggle amount visibility">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                </button>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-[#2C3E50]">₱<?= number_format($payrollTotalLiability, 2) ?></p>
+                        <p id="payrollLiability" class="text-2xl font-bold text-[#2C3E50] transition-colors"
+                           data-amount="<?= number_format($payrollTotalLiability, 2, '.', '') ?>">
+                            ₱<?= number_format($payrollTotalLiability, 2) ?>
+                        </p>
                         <p class="text-[11px] text-[#2C3E50]/50 mt-1">Convertible from unused sick credits (cap 7.5)</p>
                     </div>
 
                     <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3 mb-2">
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Settled This Month</p>
-                            <div class="w-8 h-8 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                                <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button type="button" onclick="toggleAmountVisibility()"
+                                    class="w-8 h-8 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] hover:bg-[#e8faf0] transition amount-toggle-btn"
+                                    title="Show / hide amount" aria-label="Toggle amount visibility">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                </button>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-[#0F5E3D]">₱<?= number_format($payrollSettledThisMonth, 2) ?></p>
+                        <p id="payrollSettledMonth" class="text-2xl font-bold text-[#0F5E3D] transition-colors"
+                           data-amount="<?= number_format($payrollSettledThisMonth, 2, '.', '') ?>">
+                            ₱<?= number_format($payrollSettledThisMonth, 2) ?>
+                        </p>
                         <p class="text-[11px] text-[#2C3E50]/50 mt-1"><?= $payrollSettledCount ?> settlement(s) total</p>
                     </div>
 
                     <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3 mb-2">
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Pending Settlement</p>
-                            <div class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                                <i data-lucide="clock" class="w-4 h-4"></i>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button type="button" onclick="toggleAmountVisibility()"
+                                    class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"
+                                    title="Show / hide amount" aria-label="Toggle amount visibility">
+                                    <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                </button>
                             </div>
                         </div>
-                        <p class="text-2xl font-bold text-amber-600">₱<?= number_format($payrollTotalPending, 2) ?></p>
+                        <p id="payrollPending" class="text-2xl font-bold text-amber-600 transition-colors"
+                           data-amount="<?= number_format($payrollTotalPending, 2, '.', '') ?>">
+                            ₱<?= number_format($payrollTotalPending, 2) ?>
+                        </p>
                         <p class="text-[11px] text-[#2C3E50]/50 mt-1"><?= $payrollPendingCount ?> awaiting settlement</p>
                     </div>
                 </div>
@@ -404,25 +424,40 @@ $statusLabels = [
                     </div>
 
                     <div class="flex flex-col gap-3 sm:gap-4 h-full">
+                        <!-- Convertible Leave Pay — with show/hide -->
                         <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Convertible Leave Pay</p>
-                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                                    <i data-lucide="banknote" class="w-4 h-4"></i>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <button type="button" onclick="toggleAmountVisibility()"
+                                        class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"
+                                        title="Show / hide amount" aria-label="Toggle amount visibility">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-amber-600">₱<?= number_format($convertibleLeavePay, 2) ?></span>
-                            
+                            <span id="convertiblePayAmount" class="text-2xl sm:text-3xl font-bold text-amber-600 transition-colors"
+                                data-amount="<?= number_format($convertibleLeavePay, 2, '.', '') ?>">
+                                ₱<?= number_format($convertibleLeavePay, 2) ?>
+                            </span>
                         </div>
 
+                        <!-- My Leave Deduction — with show/hide -->
                         <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">My Leave Deduction</p>
-                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                                    <i data-lucide="receipt" class="w-4 h-4"></i>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <button type="button" onclick="toggleAmountVisibility()"
+                                        class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"
+                                        title="Show / hide amount" aria-label="Toggle amount visibility">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-[#2C3E50]">₱<?= number_format($leaveDeduction, 2) ?></span>
+                            <span id="deductionPayAmount" class="text-2xl sm:text-3xl font-bold text-[#2C3E50] transition-colors"
+                                data-amount="<?= number_format($leaveDeduction, 2, '.', '') ?>">
+                                ₱<?= number_format($leaveDeduction, 2) ?>
+                            </span>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
                                 <?php if ($leavePayRate > 0 && $lwopDays > 0): ?>
                                     <?= fmt_credits($lwopDays) ?> day(s) × ₱<?= number_format($leavePayRate, 2) ?>/credit
@@ -626,6 +661,85 @@ $statusLabels = [
             liability: <?= (float) $payrollTotalLiability ?>
         }
     };
+
+    // ============================================
+    // Show / hide monetary amounts (banking-app style)
+    // Persists via localStorage; toggles all 5 amounts together.
+    // ============================================
+    (function () {
+        const STORAGE_KEY = 'dammc_amounts_hidden';
+        const MASK = '₱••••••';
+
+        // All amount elements on this page (aggregate + personal)
+        const AMOUNT_IDS = [
+            'payrollLiability',      // Total Payroll Liability
+            'payrollSettledMonth',   // Settled This Month
+            'payrollPending',        // Pending Settlement
+            'convertiblePayAmount',  // Convertible Leave Pay
+            'deductionPayAmount'     // My Leave Deduction
+        ];
+
+        function isHidden() {
+            return localStorage.getItem(STORAGE_KEY) === '1';
+        }
+
+        function setHidden(hidden) {
+            localStorage.setItem(STORAGE_KEY, hidden ? '1' : '0');
+            apply();
+        }
+
+        function apply() {
+            const hidden = isHidden();
+
+            AMOUNT_IDS.forEach((id) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const real = el.dataset.amount || '0';
+
+                if (hidden) {
+                    el.textContent = MASK;
+                    el.classList.add('text-[#2C3E50]/40');
+                    el.classList.remove('text-amber-600', 'text-[#2C3E50]', 'text-[#0F5E3D]');
+                } else {
+                    const formatted = parseFloat(real).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    el.textContent = '₱' + formatted;
+                    el.classList.remove('text-[#2C3E50]/40');
+
+                    // Restore original color per element
+                    if (id === 'payrollLiability') {
+                        el.classList.add('text-[#2C3E50]');
+                    } else if (id === 'payrollSettledMonth') {
+                        el.classList.add('text-[#0F5E3D]');
+                    } else if (id === 'payrollPending') {
+                        el.classList.add('text-amber-600');
+                    } else if (id === 'convertiblePayAmount') {
+                        el.classList.add('text-amber-600');
+                    } else {
+                        el.classList.add('text-[#2C3E50]');
+                    }
+                }
+            });
+
+            // Swap all toggle button icons
+            document.querySelectorAll('.amount-toggle-btn').forEach((btn) => {
+                btn.innerHTML = hidden
+                    ? '<i data-lucide="eye-off" class="w-3.5 h-3.5"></i>'
+                    : '<i data-lucide="eye" class="w-3.5 h-3.5"></i>';
+                btn.title = hidden ? 'Show amounts' : 'Hide amounts';
+            });
+
+            if (typeof initIcons === 'function') initIcons();
+        }
+
+        window.toggleAmountVisibility = function () {
+            setHidden(!isHidden());
+        };
+
+        document.addEventListener('DOMContentLoaded', apply);
+    })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>

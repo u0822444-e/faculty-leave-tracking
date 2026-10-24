@@ -29,6 +29,16 @@ function fmtNum(v) {
   });
 }
 
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[c]));
+}
+
 // ============================================
 // Server-side Search
 // ============================================
@@ -49,12 +59,12 @@ function openPayrollView(row) {
   const d = row.dataset;
   const num = (v) => parseFloat(v) || 0;
 
-  // --- SIDEBAR ---
+  // --- SIDEBAR (Profile) ---
   document.getElementById("pvInitials").textContent = d.initials || "—";
   document.getElementById("pvName").textContent = d.fullName || "—";
   document.getElementById("pvProfileSubtitle").textContent = `Employee ID #${d.id || "—"}`;
   document.getElementById("pvPosition").textContent = d.position || "N/A";
-  
+
   let deptStr = "";
   if (d.category && d.sub) deptStr = `${ucfirst(d.category)} · ${d.sub}`;
   else if (d.category) deptStr = ucfirst(d.category);
@@ -62,7 +72,7 @@ function openPayrollView(row) {
   document.getElementById("pvDepartment").textContent = deptStr || "—";
   document.getElementById("pvEmail").textContent = d.email || "—";
 
-  // --- STATUS ---
+  // --- STATUS BLOCK ---
   const status = d.status || "none";
   const badge = document.getElementById("pvStatusBadge");
   const settleDetails = document.getElementById("pvSettlementDetails");
@@ -70,21 +80,29 @@ function openPayrollView(row) {
 
   if (status === "settled") {
     badge.textContent = "Paid";
-    badge.className = "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-[#0F5E3D] bg-[#F1FDF6] mb-4";
+    badge.className =
+      "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-[#0F5E3D] bg-[#F1FDF6] mb-4";
     settleDetails.classList.remove("hidden");
   } else if (status === "outstanding") {
     badge.textContent = "Unpaid";
-    badge.className = "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-amber-700 bg-amber-50 mb-4";
+    badge.className =
+      "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-amber-700 bg-amber-50 mb-4";
     settleDetails.classList.remove("hidden");
   } else {
     badge.textContent = "Not Yet Recorded";
-    badge.className = "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-600 bg-slate-100 mb-4";
+    badge.className =
+      "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-slate-600 bg-slate-100 mb-4";
     settleDetails.classList.add("hidden");
   }
 
-  document.getElementById("pvSettledAmount").textContent = num(d.settlementAmount) > 0 ? fmtPeso(d.settlementAmount) : "—";
-  document.getElementById("pvSettledAt").textContent = d.settledAt 
-    ? new Date(d.settledAt.replace(" ", "T")).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) 
+  document.getElementById("pvSettledAmount").textContent =
+    num(d.settlementAmount) > 0 ? fmtPeso(d.settlementAmount) : "—";
+  document.getElementById("pvSettledAt").textContent = d.settledAt
+    ? new Date(d.settledAt.replace(" ", "T")).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
     : "—";
 
   if (d.remarks && d.remarks.trim() !== "") {
@@ -94,23 +112,42 @@ function openPayrollView(row) {
     remarksWrap.classList.add("hidden");
   }
 
-  // --- HEADER CARDS ---
+  // --- MAIN AREA (Numbers) ---
   const salary = num(d.salary);
   document.getElementById("pvSalary").textContent = salary > 0 ? fmtPeso(salary) : "—";
 
-  // Leave Pay Rate — the per-credit rate
-  const leavePayRate = num(d.leavePayRate);
-  document.getElementById("pvLeavePayRate").textContent = fmtPeso(leavePayRate) + "";
+  document.getElementById("pvLeavePayRate").textContent =
+    fmtPeso(num(d.leavePayRate)) + " / credit";
 
-  // --- BREAKDOWN TABLE ---
   document.getElementById("pvAllocated").textContent = fmtNum(d.allocated) + " day(s)";
   document.getElementById("pvApproved").textContent = fmtNum(d.approved) + " day(s)";
   document.getElementById("pvRemaining").textContent = fmtNum(d.remaining) + " day(s)";
   document.getElementById("pvSickRemaining").textContent = fmtNum(d.sickRemaining) + " day(s)";
-  document.getElementById("pvLeavePayRateRow").textContent = fmtPeso(leavePayRate) + "";
-  document.getElementById("pvConvertible").textContent = fmtPeso(d.convertible);
-  document.getElementById("pvLwopDays").textContent = num(d.lwopDays) > 0 ? fmtNum(d.lwopDays) + " day(s)" : "0 day(s)";
-  document.getElementById("pvLwopAmount").textContent = num(d.lwopDeduction) > 0 ? "−" + fmtPeso(d.lwopDeduction) : "—";
+  document.getElementById("pvLeavePayRateRow").textContent =
+    fmtPeso(num(d.leavePayRate)) + " / credit";
+
+  // Convertible Leave Pay — show 0 (green) if fully settled
+  const pvConvertibleEl = document.getElementById("pvConvertible");
+  if (pvConvertibleEl) {
+    const isSettled = d.isSettled === "1";
+    if (isSettled) {
+      pvConvertibleEl.textContent = fmtPeso(0);
+      pvConvertibleEl.className =
+        "px-4 py-0 text-sm font-bold text-[#0F5E3D] text-right";
+    } else {
+      pvConvertibleEl.textContent = fmtPeso(d.convertible);
+      pvConvertibleEl.className =
+        "px-4 py-0 text-sm font-bold text-amber-600 text-right";
+    }
+  }
+
+  document.getElementById("pvLwopDays").textContent =
+    num(d.lwopDays) > 0 ? fmtNum(d.lwopDays) + " day(s)" : "0 day(s)";
+  document.getElementById("pvLwopAmount").textContent =
+    num(d.lwopDeduction) > 0 ? "−" + fmtPeso(d.lwopDeduction) : "—";
+
+  // --- PAYROLL HISTORY ---
+  renderPayrollHistory(d.history);
 
   // --- ACTION BAR ---
   const actionBar = document.getElementById("pvActionBar");
@@ -120,28 +157,33 @@ function openPayrollView(row) {
   const employeeConvertible = num(d.convertible);
   const employeeId = parseInt(d.id) || null;
   const employeeSalary = num(d.salary);
+  const employeeLeavePayRate = num(d.leavePayRate);
   pvCurrentEmployeeId = employeeId;
 
-  // Edit Salary
+  // Edit Salary Button
   const btnEditSalary = document.createElement("button");
   btnEditSalary.type = "button";
-  btnEditSalary.className = "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5 mr-auto";
-  btnEditSalary.innerHTML = '<i data-lucide="pencil" class="w-4 h-4"></i><span>Edit Salary</span>';
+  btnEditSalary.className =
+    "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5 mr-auto";
+  btnEditSalary.innerHTML =
+    '<i data-lucide="pencil" class="w-4 h-4"></i><span>Edit Salary</span>';
   btnEditSalary.onclick = () => {
     openEditSalaryModal({ id: employeeId, name: employeeName, salary: employeeSalary });
   };
   actionBar.appendChild(btnEditSalary);
 
-  // Edit Leave Pay Rate
+  // Edit Leave Pay Rate Button
   const btnEditLeavePay = document.createElement("button");
   btnEditLeavePay.type = "button";
-  btnEditLeavePay.className = "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
-  btnEditLeavePay.innerHTML = '<i data-lucide="banknote" class="w-4 h-4"></i><span>Edit Leave Pay Rate</span>';
+  btnEditLeavePay.className =
+    "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
+  btnEditLeavePay.innerHTML =
+    '<i data-lucide="banknote" class="w-4 h-4"></i><span>Edit Leave Pay Rate</span>';
   btnEditLeavePay.onclick = () => {
     openEditLeavePayModal({
       id: employeeId,
       name: employeeName,
-      leavePayRate: leavePayRate,
+      leavePayRate: employeeLeavePayRate,
     });
   };
   actionBar.appendChild(btnEditLeavePay);
@@ -149,11 +191,18 @@ function openPayrollView(row) {
   if (status !== "settled") {
     const btnSettle = document.createElement("button");
     btnSettle.type = "button";
-    btnSettle.className = "px-4 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
-    btnSettle.innerHTML = '<i data-lucide="check-circle-2" class="w-4 h-4"></i><span>Mark as Paid</span>';
+    btnSettle.className =
+      "px-4 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
+    btnSettle.innerHTML =
+      '<i data-lucide="check-circle-2" class="w-4 h-4"></i><span>Mark as Paid</span>';
     btnSettle.onclick = () => {
       closePayrollView();
-      openSettleModal({ id: employeeId, name: employeeName, amount: employeeConvertible, status: "settled" });
+      openSettleModal({
+        id: employeeId,
+        name: employeeName,
+        amount: employeeConvertible,
+        status: "settled",
+      });
     };
     actionBar.appendChild(btnSettle);
   }
@@ -161,11 +210,18 @@ function openPayrollView(row) {
   if (status !== "outstanding") {
     const btnOut = document.createElement("button");
     btnOut.type = "button";
-    btnOut.className = "px-4 border border-amber-300 text-amber-700 hover:bg-amber-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
-    btnOut.innerHTML = '<i data-lucide="clock" class="w-4 h-4"></i><span>Mark as Unpaid</span>';
+    btnOut.className =
+      "px-4 border border-amber-300 text-amber-700 hover:bg-amber-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
+    btnOut.innerHTML =
+      '<i data-lucide="clock" class="w-4 h-4"></i><span>Mark as Unpaid</span>';
     btnOut.onclick = () => {
       closePayrollView();
-      openSettleModal({ id: employeeId, name: employeeName, amount: employeeConvertible, status: "outstanding" });
+      openSettleModal({
+        id: employeeId,
+        name: employeeName,
+        amount: employeeConvertible,
+        status: "outstanding",
+      });
     };
     actionBar.appendChild(btnOut);
   }
@@ -180,13 +236,89 @@ function closePayrollView() {
 }
 
 // ============================================
-// Edit Salary
+// Payroll History Renderer
+// ============================================
+function renderPayrollHistory(rawHistory) {
+  const listEl  = document.getElementById("pvHistoryList");
+  const emptyEl = document.getElementById("pvHistoryEmpty");
+  const countEl = document.getElementById("pvHistoryCount");
+
+  if (!listEl || !emptyEl || !countEl) return;
+
+  listEl.innerHTML = "";
+
+  let history = [];
+  try {
+    history = JSON.parse(rawHistory || "[]");
+  } catch (e) {
+    history = [];
+  }
+
+  if (!Array.isArray(history) || history.length === 0) {
+    emptyEl.classList.remove("hidden");
+    countEl.textContent = "0 records";
+    return;
+  }
+
+  emptyEl.classList.add("hidden");
+  countEl.textContent =
+    history.length + (history.length === 1 ? " record" : " records");
+
+  const statusMeta = {
+    settled:     { label: "Paid",    cls: "text-[#0F5E3D] bg-[#F1FDF6]" },
+    outstanding: { label: "Unpaid",  cls: "text-amber-700 bg-amber-50" },
+    pending:     { label: "Pending", cls: "text-slate-600 bg-slate-100" },
+  };
+
+  history.forEach((h) => {
+    const meta = statusMeta[h.status] || {
+      label: ucfirst(h.status || "unknown"),
+      cls: "text-slate-600 bg-slate-100",
+    };
+
+    const amount = Number(h.amount || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    const dateStr = h.settled_at
+      ? new Date(h.settled_at.replace(" ", "T")).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+      : "—";
+
+    const item = document.createElement("div");
+    item.className = "px-4 py-3 flex items-start gap-3";
+    item.innerHTML = `
+      <div class="w-8 h-8 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+        <i data-lucide="receipt" class="w-4 h-4"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-sm font-semibold text-[#2C3E50]">₱${amount}</p>
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${meta.cls}">${meta.label}</span>
+        </div>
+        <p class="text-[11px] text-[#2C3E50]/50 mt-0.5">${dateStr}</p>
+        ${h.remarks ? `<p class="text-[11px] text-[#2C3E50]/60 italic mt-1 leading-snug">${escapeHtml(h.remarks)}</p>` : ""}
+      </div>
+    `;
+    listEl.appendChild(item);
+  });
+}
+
+// ============================================
+// Edit Salary Modal
 // ============================================
 function openEditSalaryModal(employee) {
   editSalaryEmployeeId = employee.id;
+
   document.getElementById("editSalaryName").textContent = employee.name;
   document.getElementById("editSalaryEmployeeId").value = employee.id;
-  document.getElementById("editSalaryInput").value = employee.salary > 0 ? employee.salary.toFixed(2) : "0.00";
+  document.getElementById("editSalaryInput").value =
+    employee.salary > 0 ? employee.salary.toFixed(2) : "0.00";
+
   showModal("editSalaryModal", "editSalaryCard");
   if (typeof initIcons === "function") initIcons();
 }
@@ -198,8 +330,12 @@ function closeEditSalaryModal() {
 
 async function confirmEditSalary() {
   if (!editSalaryEmployeeId) return;
+
   const amount = parseFloat(document.getElementById("editSalaryInput").value) || 0;
-  if (amount < 0) { showError("Invalid amount", "Salary cannot be negative."); return; }
+  if (amount < 0) {
+    showError("Invalid amount", "Salary cannot be negative.");
+    return;
+  }
 
   const fd = new FormData();
   fd.append("action", "update_salary");
@@ -213,17 +349,21 @@ async function confirmEditSalary() {
     const res = await fetch("/api/accounting/payroll", { method: "POST", body: fd });
     const text = await res.text();
     let data;
-    try { data = JSON.parse(text); } catch (e) {
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
       hideLoading();
       showError("Server error", "The server returned a non-JSON response.");
       return;
     }
+
     await new Promise((r) => setTimeout(r, 400));
     hideLoading();
 
     if (data.success) {
       document.getElementById("successTitle").textContent = "Salary Updated";
-      document.getElementById("successMessage").textContent = "The employee's monthly salary has been successfully updated.";
+      document.getElementById("successMessage").textContent =
+        "The employee's monthly salary has been successfully updated.";
       showModal("successModal", "successCard");
       if (typeof initIcons === "function") initIcons();
     } else {
@@ -237,14 +377,16 @@ async function confirmEditSalary() {
 }
 
 // ============================================
-// Edit Leave Pay Rate
+// Edit Leave Pay Rate Modal
 // ============================================
 function openEditLeavePayModal(employee) {
   editLeavePayEmployeeId = employee.id;
+
   document.getElementById("editLeavePayName").textContent = employee.name;
   document.getElementById("editLeavePayEmployeeId").value = employee.id;
   document.getElementById("editLeavePayInput").value =
     employee.leavePayRate > 0 ? Number(employee.leavePayRate).toFixed(2) : "0.00";
+
   showModal("editLeavePayModal", "editLeavePayCard");
   if (typeof initIcons === "function") initIcons();
 }
@@ -256,8 +398,12 @@ function closeEditLeavePayModal() {
 
 async function confirmEditLeavePay() {
   if (!editLeavePayEmployeeId) return;
+
   const rate = parseFloat(document.getElementById("editLeavePayInput").value) || 0;
-  if (rate < 0) { showError("Invalid rate", "Leave pay rate cannot be negative."); return; }
+  if (rate < 0) {
+    showError("Invalid rate", "Leave pay rate cannot be negative.");
+    return;
+  }
 
   const fd = new FormData();
   fd.append("action", "update_leave_pay");
@@ -271,17 +417,21 @@ async function confirmEditLeavePay() {
     const res = await fetch("/api/accounting/payroll", { method: "POST", body: fd });
     const text = await res.text();
     let data;
-    try { data = JSON.parse(text); } catch (e) {
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
       hideLoading();
       showError("Server error", "The server returned a non-JSON response.");
       return;
     }
+
     await new Promise((r) => setTimeout(r, 400));
     hideLoading();
 
     if (data.success) {
       document.getElementById("successTitle").textContent = "Leave Pay Rate Updated";
-      document.getElementById("successMessage").textContent = "The employee's per-credit leave pay rate has been successfully updated.";
+      document.getElementById("successMessage").textContent =
+        "The employee's per-credit leave pay rate has been successfully updated.";
       showModal("successModal", "successCard");
       if (typeof initIcons === "function") initIcons();
     } else {
@@ -295,7 +445,7 @@ async function confirmEditLeavePay() {
 }
 
 // ============================================
-// Settle Modal
+// Settle Modal (Mark as Paid / Unpaid)
 // ============================================
 function openSettleModal(employee) {
   settleEmployeeId = employee.id;
@@ -304,7 +454,9 @@ function openSettleModal(employee) {
 
   const isSettle = employee.status === "settled";
 
-  document.getElementById("settleTitle").textContent = isSettle ? "Mark as Paid" : "Mark as Unpaid";
+  document.getElementById("settleTitle").textContent = isSettle
+    ? "Mark as Paid"
+    : "Mark as Unpaid";
   document.getElementById("settleSubtitle").textContent = employee.name;
   document.getElementById("settleEmployeeId").value = employee.id;
   document.getElementById("settleStatus").value = employee.status;
@@ -316,10 +468,12 @@ function openSettleModal(employee) {
   const iconWrap = document.getElementById("settleIconWrap");
   const icon = document.getElementById("settleIcon");
   if (isSettle) {
-    iconWrap.className = "w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0";
+    iconWrap.className =
+      "w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0";
     icon.setAttribute("data-lucide", "check-circle-2");
   } else {
-    iconWrap.className = "w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0";
+    iconWrap.className =
+      "w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0";
     icon.setAttribute("data-lucide", "clock");
   }
 
@@ -341,8 +495,12 @@ function closeSettleModal() {
 
 async function confirmSettle() {
   if (!settleEmployeeId || !settleStatus) return;
+
   const amount = parseFloat(document.getElementById("settleAmount").value) || 0;
-  if (amount < 0) { showError("Invalid amount", "Amount cannot be negative."); return; }
+  if (amount < 0) {
+    showError("Invalid amount", "Amount cannot be negative.");
+    return;
+  }
 
   const fd = new FormData();
   fd.append("action", "settle_payroll");
@@ -353,24 +511,40 @@ async function confirmSettle() {
 
   const isSettle = settleStatus === "settled";
   closeSettleModal();
-  showLoading(isSettle ? "Recording payment..." : "Marking unpaid...", isSettle ? "Recording the paid amount." : "Marking as unpaid.");
+  showLoading(
+    isSettle ? "Recording payment..." : "Marking unpaid...",
+    isSettle ? "Recording the paid amount." : "Marking as unpaid."
+  );
 
   try {
     const res = await fetch("/api/accounting/payroll", { method: "POST", body: fd });
+
     const text = await res.text();
     let data;
-    try { data = JSON.parse(text); } catch (e) {
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
       hideLoading();
-      console.error("Non-JSON response:", text.slice(0, 200));
-      showError("Server error", res.status === 404 ? "Endpoint not routed." : "Non-JSON response.");
+      console.error("Non-JSON response from /api/accounting/payroll:", text.slice(0, 200));
+      showError(
+        "Server error",
+        res.status === 404
+          ? "The endpoint /api/accounting/payroll is not routed. Check router.php."
+          : "The server returned a non-JSON response."
+      );
       return;
     }
+
     await new Promise((r) => setTimeout(r, 400));
     hideLoading();
 
     if (data.success) {
-      document.getElementById("successTitle").textContent = isSettle ? "Marked as Paid" : "Marked as Unpaid";
-      document.getElementById("successMessage").textContent = isSettle ? "The convertible leave pay has been settled." : "The liability is now marked as unpaid.";
+      document.getElementById("successTitle").textContent = isSettle
+        ? "Marked as Paid"
+        : "Marked as Unpaid";
+      document.getElementById("successMessage").textContent = isSettle
+        ? "The convertible leave pay has been settled."
+        : "The liability is now marked as unpaid.";
       showModal("successModal", "successCard");
       if (typeof initIcons === "function") initIcons();
     } else {
@@ -389,7 +563,7 @@ function closeSuccess() {
 }
 
 // ============================================
-// Show / Hide Payroll Amounts
+// Show / Hide payroll amounts
 // ============================================
 (function () {
   const STORAGE_KEY = "dammc_payroll_amounts_hidden";
@@ -408,25 +582,33 @@ function closeSuccess() {
     const hidden = isHidden();
 
     document.querySelectorAll(".payroll-amount").forEach((el) => {
-      const real   = parseFloat(el.dataset.amount) || 0;
+      const real = parseFloat(el.dataset.amount) || 0;
       const prefix = el.dataset.prefix || "₱";
-      const empty  = el.dataset.empty || null;
+      const empty = el.dataset.empty || null;
 
       if (hidden) {
         el.textContent = empty && real === 0 ? empty : MASK;
         el.classList.add("text-[#2C3E50]/40", "blur-sm", "select-none");
-        el.classList.remove("text-[#2C3E50]", "text-[#0F5E3D]", "text-red-600", "text-amber-600");
+        el.classList.remove(
+          "text-[#2C3E50]",
+          "text-[#0F5E3D]",
+          "text-red-600",
+          "text-amber-600"
+        );
       } else {
         if (empty && real === 0) {
           el.textContent = empty;
         } else {
-          el.textContent = prefix + real.toLocaleString("en-PH", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
+          el.textContent =
+            prefix +
+            real.toLocaleString("en-PH", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
         }
         el.classList.remove("text-[#2C3E50]/40", "blur-sm", "select-none");
 
+        // Restore colour based on prefix
         if (prefix === "−₱") {
           el.classList.add("text-red-600");
         } else {
@@ -454,15 +636,22 @@ function closeSuccess() {
 })();
 
 // ============================================
-// Keyboard shortcut
+// Keyboard shortcut — "/" focuses search
 // ============================================
 document.addEventListener("keydown", (e) => {
-  if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
+  if (
+    e.key === "/" &&
+    document.activeElement.tagName !== "INPUT" &&
+    document.activeElement.tagName !== "TEXTAREA"
+  ) {
     e.preventDefault();
     document.getElementById("searchInput")?.focus();
   }
 });
 
+// ============================================
+// Init
+// ============================================
 document.addEventListener("DOMContentLoaded", () => {
   if (typeof initIcons === "function") initIcons();
-});
+}); 

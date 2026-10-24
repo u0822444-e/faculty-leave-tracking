@@ -142,10 +142,28 @@ foreach ($employees as $e) {
     $dailyRate     = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
     $lwopDeduction = $dailyRate * $lwopDays;
 
-    // Convertible Leave Pay = remaining SICK credits (cap 7.5) × Leave Pay Rate
+    // Potential convertible = remaining SICK credits × Leave Pay Rate
     $sickCap             = 7.5;
     $sickRemaining       = max(0, $sickCap - $sickUsed);
-    $convertibleLeavePay = $leavePayRate * $sickRemaining;
+    $potentialConvertible = $leavePayRate * $sickRemaining;
+
+    // Adjust convertible based on settlement:
+    // - Not settled → show full potential
+    // - Settled fully → show 0
+    // - Partially settled → show balance
+    $statusKey = $e['settlement_status'] ?? 'none';
+    $settledAmount = (float) ($e['settlement_amount'] ?? 0);
+    $convertibleLeavePay = $potentialConvertible;
+    $isFullySettled = false;
+
+    if ($statusKey === 'settled') {
+        if ($settledAmount >= $potentialConvertible && $potentialConvertible > 0) {
+            $convertibleLeavePay = 0;
+            $isFullySettled = true;
+        } else {
+            $convertibleLeavePay = max(0, $potentialConvertible - $settledAmount);
+        }
+    }
 
     $rows[] = [
         'employee_id'           => (int) $e['employee_id'],
@@ -164,13 +182,46 @@ foreach ($employees as $e) {
         'lwop_days'             => $lwopDays,
         'lwop_deduction'        => $lwopDeduction,
         'leave_pay_rate'        => $leavePayRate,
+        'potential_convertible' => $potentialConvertible,
         'convertible_leave_pay' => $convertibleLeavePay,
+        'is_fully_settled'      => $isFullySettled,
         'settlement_status'     => $e['settlement_status'],
-        'settlement_amount'     => (float) ($e['settlement_amount'] ?? 0),
+        'settlement_amount'     => $settledAmount,
         'settled_at'            => $e['settled_at'] ?? null,
         'settlement_remarks'    => $e['settlement_remarks'] ?? '',
     ];
 }
+
+// ============================================
+// Fetch settlement history for employees on this page
+// ============================================
+$employeeIds = array_column($rows, 'employee_id');
+$settlementHistory = [];
+
+if (!empty($employeeIds)) {
+    $placeholders = implode(',', array_fill(0, count($employeeIds), '?'));
+    $stmt = $pdo->prepare("
+        SELECT employee_id, status, amount, settled_at, remarks
+        FROM payroll_settlements
+        WHERE employee_id IN ($placeholders)
+        ORDER BY settled_at DESC
+    ");
+    $stmt->execute($employeeIds);
+
+    foreach ($stmt->fetchAll() as $h) {
+        $settlementHistory[(int) $h['employee_id']][] = [
+            'status'     => $h['status'],
+            'amount'     => (float) $h['amount'],
+            'settled_at' => $h['settled_at'],
+            'remarks'    => $h['remarks'] ?? '',
+        ];
+    }
+}
+
+foreach ($rows as &$r) {
+    $r['settlement_history'] = $settlementHistory[$r['employee_id']] ?? [];
+}
+unset($r);
 
 // ============================================
 // Global aggregates
@@ -219,22 +270,31 @@ foreach ($agg as $a) {
     $dailyRate     = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
     $lwopDeduction = $dailyRate * $lwopDays;
 
-    $sickCap             = 7.5;
-    $sickRemaining       = max(0, $sickCap - $sickUsed);
-    $convertibleLeavePay = $leavePayRate * $sickRemaining;
+    $sickCap              = 7.5;
+    $sickRemaining        = max(0, $sickCap - $sickUsed);
+    $potentialConvertible = $leavePayRate * $sickRemaining;
+
+    $statusKey     = $a['settlement_status'];
+    $settledAmount = (float) ($a['settlement_amount'] ?? 0);
+    $convertibleLeavePay = $potentialConvertible;
+
+    if ($statusKey === 'settled') {
+        if ($settledAmount >= $potentialConvertible && $potentialConvertible > 0) {
+            $convertibleLeavePay = 0;
+        } else {
+            $convertibleLeavePay = max(0, $potentialConvertible - $settledAmount);
+        }
+    }
 
     $totalSalaryPool          += $salary;
     $totalLwopDeduction       += $lwopDeduction;
     $totalConvertibleLeavePay += $convertibleLeavePay;
 
-    $status = $a['settlement_status'];
-    $amount = (float) ($a['settlement_amount'] ?? 0);
-
-    if ($status === 'settled') {
-        $totalSettled += $amount;
+    if ($statusKey === 'settled') {
+        $totalSettled += $settledAmount;
         $settledCount++;
-    } elseif ($status === 'outstanding') {
-        $totalOutstanding += $amount;
+    } elseif ($statusKey === 'outstanding') {
+        $totalOutstanding += $settledAmount;
         $outstandingCount++;
     } else {
         $pendingCount++;
@@ -283,7 +343,6 @@ $pageIcon   = 'receipt';
                             </div>
                         </div>
                         <p class="text-xl font-bold text-[#2C3E50]">₱<?= number_format($totalSalaryPool, 2) ?></p>
-                        
                     </div>
 
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
@@ -393,6 +452,7 @@ $pageIcon   = 'receipt';
                                             'outstanding' => 'text-amber-700 bg-amber-50',
                                             'none'        => 'text-slate-600 bg-slate-100',
                                         ][$statusKey] ?? 'text-slate-600 bg-slate-100';
+                                        $historyJson = json_encode($r['settlement_history']);
                                     ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-16 payroll-row"
                                             data-id="<?= (int)$r['employee_id'] ?>"
@@ -413,10 +473,13 @@ $pageIcon   = 'receipt';
                                             data-lwop-days="<?= (float)$r['lwop_days'] ?>"
                                             data-lwop-deduction="<?= (float)$r['lwop_deduction'] ?>"
                                             data-leave-pay-rate="<?= (float)$r['leave_pay_rate'] ?>"
+                                            data-potential-convertible="<?= (float)$r['potential_convertible'] ?>"
                                             data-convertible="<?= (float)$r['convertible_leave_pay'] ?>"
+                                            data-is-settled="<?= $r['is_fully_settled'] ? '1' : '0' ?>"
                                             data-settlement-amount="<?= (float)$r['settlement_amount'] ?>"
                                             data-settled-at="<?= htmlspecialchars($r['settled_at'] ?? '') ?>"
-                                            data-remarks="<?= htmlspecialchars($r['settlement_remarks']) ?>">
+                                            data-remarks="<?= htmlspecialchars($r['settlement_remarks']) ?>"
+                                            data-history="<?= htmlspecialchars($historyJson, ENT_QUOTES, 'UTF-8') ?>">
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center gap-2.5">
                                                     <div class="w-8 h-8 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
@@ -451,11 +514,18 @@ $pageIcon   = 'receipt';
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="payroll-amount text-sm font-semibold text-amber-600"
-                                                      data-amount="<?= (float)$r['convertible_leave_pay'] ?>"
-                                                      data-prefix="₱">
-                                                    ₱<?= number_format($r['convertible_leave_pay'], 2) ?>
-                                                </span>
+                                                <?php if ($r['is_fully_settled']): ?>
+                                                    <span class="payroll-amount block text-sm font-semibold text-[#0F5E3D] mt-0.5"
+                                                          data-amount="0" data-prefix="₱">
+                                                        ₱0.00
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="payroll-amount text-sm font-semibold text-amber-600"
+                                                          data-amount="<?= (float)$r['convertible_leave_pay'] ?>"
+                                                          data-prefix="₱">
+                                                        ₱<?= number_format($r['convertible_leave_pay'], 2) ?>
+                                                    </span>
+                                                <?php endif; ?>
                                             </td>
                                             <td class="px-4 py-0 text-right">
                                                 <span class="payroll-amount text-sm text-red-600 font-medium"
@@ -466,9 +536,6 @@ $pageIcon   = 'receipt';
                                             </td>
                                             <td class="px-4 py-0">
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $statusClass ?>"><?= $statusLabel ?></span>
-                                                <?php if ($statusKey === 'settled' && !empty($r['settled_at'])): ?>
-                                                    
-                                                <?php endif; ?>
                                             </td>
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
@@ -529,6 +596,7 @@ $pageIcon   = 'receipt';
                                 $statusKey = $r['settlement_status'] ?? 'none';
                                 $statusLabel = ['settled' => 'Paid', 'outstanding' => 'Unpaid', 'none' => 'Not Recorded'][$statusKey] ?? ucfirst($statusKey);
                                 $statusClass = ['settled' => 'text-[#0F5E3D] bg-[#F1FDF6]', 'outstanding' => 'text-amber-700 bg-amber-50', 'none' => 'text-slate-600 bg-slate-100'][$statusKey] ?? 'text-slate-600 bg-slate-100';
+                                $historyJson = json_encode($r['settlement_history']);
                             ?>
                                 <div class="p-4 payroll-row"
                                     data-id="<?= (int)$r['employee_id'] ?>"
@@ -549,10 +617,13 @@ $pageIcon   = 'receipt';
                                     data-lwop-days="<?= (float)$r['lwop_days'] ?>"
                                     data-lwop-deduction="<?= (float)$r['lwop_deduction'] ?>"
                                     data-leave-pay-rate="<?= (float)$r['leave_pay_rate'] ?>"
+                                    data-potential-convertible="<?= (float)$r['potential_convertible'] ?>"
                                     data-convertible="<?= (float)$r['convertible_leave_pay'] ?>"
+                                    data-is-settled="<?= $r['is_fully_settled'] ? '1' : '0' ?>"
                                     data-settlement-amount="<?= (float)$r['settlement_amount'] ?>"
                                     data-settled-at="<?= htmlspecialchars($r['settled_at'] ?? '') ?>"
-                                    data-remarks="<?= htmlspecialchars($r['settlement_remarks']) ?>">
+                                    data-remarks="<?= htmlspecialchars($r['settlement_remarks']) ?>"
+                                    data-history="<?= htmlspecialchars($historyJson, ENT_QUOTES, 'UTF-8') ?>">
                                     <div class="flex items-start justify-between gap-2 mb-2">
                                         <div class="flex items-center gap-2 min-w-0">
                                             <div class="w-8 h-8 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-[10px] shrink-0">
@@ -597,11 +668,18 @@ $pageIcon   = 'receipt';
                                         </div>
                                         <div class="col-span-2">
                                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Convertible Leave Pay</p>
-                                            <p class="payroll-amount text-amber-600 font-bold"
-                                               data-amount="<?= (float)$r['convertible_leave_pay'] ?>"
-                                               data-prefix="₱">
-                                                ₱<?= number_format($r['convertible_leave_pay'], 2) ?>
-                                            </p>
+                                            <?php if ($r['is_fully_settled']): ?>
+                                                <p class="text-[#0F5E3D] font-bold inline-flex items-center gap-1">
+                                                    <i data-lucide="check" class="w-3 h-3"></i>
+                                                    Settled · ₱0.00
+                                                </p>
+                                            <?php else: ?>
+                                                <p class="payroll-amount text-amber-600 font-bold"
+                                                   data-amount="<?= (float)$r['convertible_leave_pay'] ?>"
+                                                   data-prefix="₱">
+                                                    ₱<?= number_format($r['convertible_leave_pay'], 2) ?>
+                                                </p>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
 
@@ -737,7 +815,6 @@ $pageIcon   = 'receipt';
                 <section class="flex-1 flex flex-col min-h-0 bg-white">
                     <div class="flex-1 overflow-y-auto px-8 py-6 space-y-6">
 
-                        <!-- HEADER CARDS: Monthly Salary + Leave Pay (the RATE) -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
                                 <div class="flex items-center gap-2 mb-2">
@@ -760,7 +837,6 @@ $pageIcon   = 'receipt';
                             </div>
                         </div>
 
-                        <!-- BREAKDOWN TABLE -->
                         <div class="border border-[#E0E0E0] rounded-lg overflow-hidden">
                             <table class="w-full">
                                 <thead class="bg-[#F9FAFB] border-b border-[#E0E0E0]">
@@ -792,7 +868,7 @@ $pageIcon   = 'receipt';
                                     </tr>
                                     <tr class="h-12 bg-amber-50/30">
                                         <td class="px-4 py-0 text-sm font-medium text-amber-700">Convertible Leave Pay</td>
-                                        <td class="px-4 py-0 text-sm font-bold text-amber-600 text-right" id="pvConvertible">—</td>
+                                        <td class="px-4 py-0 text-sm font-bold text-right" id="pvConvertible">—</td>
                                     </tr>
                                     <tr class="h-12">
                                         <td class="px-4 py-0 text-sm text-[#2C3E50]">LWOP Days</td>
@@ -806,11 +882,31 @@ $pageIcon   = 'receipt';
                             </table>
                         </div>
 
+                        <!-- ============================================ -->
+                        <!-- SETTLEMENT RECORD                            -->
+                        <!-- ============================================ -->
+                        <div class="border border-[#E0E0E0] rounded-lg overflow-hidden">
+                            <div class="bg-[#F9FAFB] border-b border-[#E0E0E0] px-4 py-3 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-md bg-white shadow-sm flex items-center justify-center text-[#0F5E3D] shrink-0">
+                                        <i data-lucide="history" class="w-3.5 h-3.5"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-semibold text-[#2C3E50]">Settlement Record</p>
+                                        <p class="text-[10px] text-[#2C3E50]/50">Current payroll settlement</p>
+                                    </div>
+                                </div>
+                                <span id="pvHistoryCount" class="text-[10px] font-medium text-[#2C3E50]/60 bg-white border border-[#E0E0E0] px-2 py-0.5 rounded-full">No record</span>
+                            </div>
+                            <div id="pvHistoryList" class="divide-y divide-[#F0F0F0] max-h-72 overflow-y-auto"></div>
+                            <div id="pvHistoryEmpty" class="hidden p-6 text-center">
+                                <p class="text-xs text-[#2C3E50]/50">No settlement recorded for this employee yet.</p>
+                            </div>
+                        </div>
+
                     </div>
 
-                    <div class="border-t border-[#E0E0E0] bg-white px-8 py-4 shrink-0 flex items-center justify-end gap-3" id="pvActionBar">
-                        <!-- Actions injected by JS -->
-                    </div>
+                    <div class="border-t border-[#E0E0E0] bg-white px-8 py-4 shrink-0 flex items-center justify-end gap-3" id="pvActionBar"></div>
                 </section>
             </div>
         </div>

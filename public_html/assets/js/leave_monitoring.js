@@ -1,6 +1,6 @@
 // ============================================
 // Leave Monitoring — Faculty leadership view
-// Filters + pagination + search
+// Filters + pagination + search + attachment viewer
 // ============================================
 
 const PER_PAGE = 10;
@@ -340,6 +340,44 @@ function openViewFacultyLeave(data) {
     } else {
         deanWrap.classList.add("hidden");
     }
+
+    // ============================================
+    // Attachment
+    // ============================================
+    (function renderAttachment() {
+        const wrap  = $("flvAttachmentWrap");
+        const link  = $("flvAttachmentLink");
+        const nameEl = $("flvAttachmentName");
+        const sizeEl = $("flvAttachmentSize");
+        const thumb = $("flvAttachmentThumb");
+        if (!wrap || !link) return;
+
+        if (data.attachment_path) {
+            wrap.classList.remove("hidden");
+            link.href = "/" + data.attachment_path;
+            nameEl.textContent = data.attachment_name || "Attachment";
+
+            const bytes = Number(data.attachment_size || 0);
+            if (bytes > 0) {
+                sizeEl.textContent = bytes >= 1024 * 1024
+                    ? (bytes / (1024 * 1024)).toFixed(2) + " MB"
+                    : (bytes / 1024).toFixed(1) + " KB";
+            } else {
+                sizeEl.textContent = "";
+            }
+
+            const isImage = (data.attachment_mime || "").startsWith("image/");
+            thumb.innerHTML = isImage
+                ? `<img src="/${data.attachment_path}" alt="" class="w-full h-full object-cover">`
+                : `<i data-lucide="file-text" class="w-4 h-4"></i>`;
+        } else {
+            wrap.classList.add("hidden");
+            link.href = "#";
+            nameEl.textContent = "";
+            sizeEl.textContent = "";
+            thumb.innerHTML = `<i data-lucide="file-text" class="w-4 h-4"></i>`;
+        }
+    })();
 
     // HR Decision
     const decisionWrap = $("flvDecisionWrap");

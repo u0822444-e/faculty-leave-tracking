@@ -14,7 +14,6 @@ if (!function_exists('fmt_credits')) {
     }
 }
 
-// leave_pay is the per-credit rate, NOT salary
 $stmt = $pdo->prepare("
     SELECT 
         e.id AS employee_id,
@@ -55,6 +54,33 @@ $typeUsed = [
 $lwopDays = 0;
 $statusCounts = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'cancelled' => 0];
 
+// ============================================
+// Payroll settlement — how much convertible has been paid
+// ============================================
+$settlementStatus  = null;   // 'settled' | 'outstanding' | null
+$settlementAmount  = 0.0;
+$settledAt         = null;
+$settlementRemarks = '';
+
+if ($employeeId > 0) {
+    $stmt = $pdo->prepare("
+        SELECT status, amount, settled_at, remarks
+        FROM payroll_settlements
+        WHERE employee_id = ?
+        ORDER BY settled_at DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$employeeId]);
+    $settlement = $stmt->fetch();
+
+    if ($settlement) {
+        $settlementStatus  = $settlement['status'];
+        $settlementAmount  = (float) $settlement['amount'];
+        $settledAt         = $settlement['settled_at'] ?? null;
+        $settlementRemarks = $settlement['remarks'] ?? '';
+    }
+}
+
 if ($employeeId > 0) {
     $stmt = $pdo->prepare("
         SELECT 
@@ -72,7 +98,6 @@ if ($employeeId > 0) {
     $rejectedCount = (int) ($stats['rejected_count'] ?? 0);
     $creditsUsed   = (float) ($stats['credits_used'] ?? 0);
 
-    // LWOP days — approved + no-pay leaves
     $stmt = $pdo->prepare("
         SELECT COALESCE(SUM(days_count), 0)
         FROM leave_requests
@@ -137,9 +162,31 @@ $sickCap       = 7.5;
 $sickUsed      = (float) ($typeUsed['sick'] ?? 0);
 $sickRemaining = max(0, $sickCap - $sickUsed);
 
-$totalLeavePay       = $leavePayRate * $totalCredits;         // full allocated value
-$remainingLeavePay   = $leavePayRate * $sickRemaining;        // sick-only convertible
-$leaveDeduction      = $leavePayRate * $lwopDays;             // LWOP × rate
+$totalLeavePay     = $leavePayRate * $totalCredits;
+
+// Full potential convertible
+$potentialConvertible = $leavePayRate * $sickRemaining;
+
+// ============================================
+// Adjust based on settlement
+// ============================================
+// ============================================
+// Adjust based on settlement
+// — If Accounting marked this employee as 'settled' (Paid),
+//   the convertible amount is fully consumed → show ₱0.00.
+// — If 'outstanding' (Unpaid), the full convertible is still owed.
+// ============================================
+$remainingLeavePay = $potentialConvertible;
+$isFullySettled    = false;
+
+if ($settlementStatus === 'settled') {
+    $remainingLeavePay = 0;
+    $isFullySettled    = true;
+} elseif ($settlementStatus === 'outstanding') {
+    $remainingLeavePay = $potentialConvertible;
+}
+
+$leaveDeduction = $leavePayRate * $lwopDays;
 
 $trendLabels = [];
 $trendValues = [];
@@ -362,12 +409,11 @@ $statusLabels = [
 
                     <div class="flex flex-col gap-3 sm:gap-4 h-full">
 
-                        <!-- Convertible Leave Pay — with show/hide toggle -->
+                        <!-- Convertible Leave Pay -->
                         <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Convertible Leave Pay</p>
                                 <div class="flex items-center gap-1.5 shrink-0">
-                                    <!-- Eye toggle for Convertible Leave Pay -->
                                     <button type="button" onclick="toggleAmountVisibility()"
                                         class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"
                                         title="Show / hide amount" aria-label="Toggle amount visibility">
@@ -375,18 +421,34 @@ $statusLabels = [
                                     </button>
                                 </div>
                             </div>
-                            <span id="convertiblePayAmount" class="text-2xl sm:text-3xl font-bold text-amber-600 transition-colors"
+                            <span id="convertiblePayAmount"
+                                class="text-2xl sm:text-3xl font-bold <?= $isFullySettled ? 'text-[#0F5E3D]' : 'text-amber-600' ?> transition-colors"
                                 data-amount="<?= number_format($remainingLeavePay, 2, '.', '') ?>">
                                 ₱<?= number_format($remainingLeavePay, 2) ?>
                             </span>
+
+                            <?php if ($isFullySettled): ?>
+                                <p class="text-[10px] text-[#0F5E3D] mt-1.5 inline-flex items-center gap-1">
+                                    <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+                                    <span>Fully settled<?= $settledAt ? ' · ' . date('M j, Y', strtotime($settledAt)) : '' ?></span>
+                                </p>
+                            <?php elseif ($settlementStatus === 'settled' && $settlementAmount > 0): ?>
+                                <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
+                                    ₱<?= number_format($settlementAmount, 2) ?> already paid · balance shown above
+                                </p>
+                            <?php elseif ($settlementStatus === 'outstanding'): ?>
+                                <p class="text-[10px] text-amber-600 mt-1.5 inline-flex items-center gap-1">
+                                    <i data-lucide="clock" class="w-3 h-3"></i>
+                                    <span>Marked unpaid by Accounting</span>
+                                </p>
+                            <?php endif; ?>
                         </div>
 
-                        <!-- Leave Deduction (LWOP) — with show/hide toggle -->
+                        <!-- Leave Deduction (LWOP) -->
                         <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Leave Deduction (LWOP)</p>
                                 <div class="flex items-center gap-1.5 shrink-0">
-                                    <!-- Eye toggle for Leave Deduction -->
                                     <button type="button" onclick="toggleAmountVisibility()"
                                         class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"
                                         title="Show / hide amount" aria-label="Toggle amount visibility">
@@ -394,7 +456,8 @@ $statusLabels = [
                                     </button>
                                 </div>
                             </div>
-                            <span id="deductionPayAmount" class="text-2xl sm:text-3xl font-bold text-[#2C3E50] transition-colors"
+                            <span id="deductionPayAmount"
+                                class="text-2xl sm:text-3xl font-bold text-[#2C3E50] transition-colors"
                                 data-amount="<?= number_format($leaveDeduction, 2, '.', '') ?>">
                                 ₱<?= number_format($leaveDeduction, 2) ?>
                             </span>
@@ -626,8 +689,7 @@ $statusLabels = [
     };
 
     // ============================================
-    // Show / hide monetary amounts (like banking apps)
-    // State persisted in localStorage so it survives reloads.
+    // Show / hide monetary amounts
     // ============================================
     (function () {
         const STORAGE_KEY = 'dammc_amounts_hidden';
@@ -650,7 +712,7 @@ $statusLabels = [
                 if (hidden) {
                     el.textContent = MASK;
                     el.classList.add('text-[#2C3E50]/40');
-                    el.classList.remove('text-amber-600', 'text-[#2C3E50]');
+                    el.classList.remove('text-amber-600', 'text-[#0F5E3D]', 'text-[#2C3E50]');
                 } else {
                     const formatted = parseFloat(real).toLocaleString('en-PH', {
                         minimumFractionDigits: 2,
@@ -658,11 +720,15 @@ $statusLabels = [
                     });
                     el.textContent = '₱' + formatted;
                     el.classList.remove('text-[#2C3E50]/40');
-                    el.classList.add(el.id === 'convertiblePayAmount' ? 'text-amber-600' : 'text-[#2C3E50]');
+                    if (el.id === 'convertiblePayAmount') {
+                        const isSettled = parseFloat(real) === 0;
+                        el.classList.add(isSettled ? 'text-[#0F5E3D]' : 'text-amber-600');
+                    } else {
+                        el.classList.add('text-[#2C3E50]');
+                    }
                 }
             });
 
-            // Swap all toggle buttons' icons
             document.querySelectorAll('.amount-toggle-btn').forEach((btn) => {
                 btn.innerHTML = hidden
                     ? '<i data-lucide="eye-off" class="w-4 h-4"></i>'

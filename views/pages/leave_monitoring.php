@@ -465,6 +465,10 @@ switch ($myPosition) {
                                                         "dean_name" => $l["dean_username"] ?? "",
                                                         "user_position" => $myPosition,
                                                         "credits" => $credit,
+                                                        "attachment_path" => $l["attachment_path"] ?? null,
+                                                        "attachment_name" => $l["attachment_name"] ?? null,
+                                                        "attachment_size" => isset($l["attachment_size"]) ? (int) $l["attachment_size"] : 0,
+                                                        "attachment_mime" => $l["attachment_mime"] ?? null,
                                                     ]) ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View details">
@@ -493,7 +497,6 @@ switch ($myPosition) {
                                 $tClass = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
 
                                 $credit = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
-                                $empCategoryLabel = ucfirst($l['category'] ?? 'staff');
 
                                 $haystack = strtolower(
                                     $empName . ' ' .
@@ -567,6 +570,10 @@ switch ($myPosition) {
                                         "dean_name" => $l["dean_username"] ?? "",
                                         "user_position" => $myPosition,
                                         "credits" => $credit,
+                                        "attachment_path" => $l["attachment_path"] ?? null,
+                                        "attachment_name" => $l["attachment_name"] ?? null,
+                                        "attachment_size" => isset($l["attachment_size"]) ? (int) $l["attachment_size"] : 0,
+                                        "attachment_mime" => $l["attachment_mime"] ?? null,
                                     ]) ?>)'
                                         class="mt-3 w-full text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
                                         View Details
@@ -688,6 +695,22 @@ switch ($myPosition) {
                         <div id="flvDeanWrap" class="hidden py-5 border-b border-[#F0F0F0]">
                             <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-2">Dean Endorsement</p>
                             <p id="flvDeanSummary" class="text-sm text-[#2C3E50] font-medium">—</p>
+                        </div>
+
+                        <!-- Attachment -->
+                        <div id="flvAttachmentWrap" class="hidden py-5 border-b border-[#F0F0F0]">
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-2">Attachment</p>
+                            <a id="flvAttachmentLink" href="#" target="_blank" rel="noopener"
+                                class="flex items-center gap-2 p-2 bg-white border border-[#E0E0E0] rounded-lg hover:border-[#0F5E3D]/40 hover:bg-[#F1FDF6]/40 transition">
+                                <div id="flvAttachmentThumb" class="w-10 h-10 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0 overflow-hidden">
+                                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p id="flvAttachmentName" class="text-xs font-medium text-[#2C3E50] truncate">Attachment</p>
+                                    <p id="flvAttachmentSize" class="text-[10px] text-[#2C3E50]/50"></p>
+                                </div>
+                                <i data-lucide="external-link" class="w-3.5 h-3.5 text-[#2C3E50]/40 shrink-0"></i>
+                            </a>
                         </div>
 
                         <div id="flvDecisionWrap" class="hidden py-5">

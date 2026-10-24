@@ -50,6 +50,15 @@ function groupType(dbType) {
   return "others";
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 const TYPE_DETAIL_LABELS = {
   vacation: "Vacation",
   sick: "Sick",
@@ -85,7 +94,7 @@ const STATUS_CLASSES = {
 // ============================================
 // State
 // ============================================
-let rvAllLeaves = []; 
+let rvAllLeaves = [];
 let rvCurrentId = null;
 let rvEmployeeData = null;
 let rvFilteredHistory = [];
@@ -101,6 +110,7 @@ function filterLeaves() {
   ).toLowerCase();
   const status = document.getElementById("statusFilter")?.value || "";
   const type = document.getElementById("typeFilter")?.value || "";
+  const position = document.getElementById("positionFilter")?.value || "";
 
   const rows = document.querySelectorAll(
     "tbody tr[data-name], .md\\:hidden > div[data-name]"
@@ -111,11 +121,13 @@ function filterLeaves() {
     const name = row.dataset.name || "";
     const s = row.dataset.status || "";
     const t = row.dataset.type || "";
+    const p = row.dataset.position || "";
 
     const matches =
       (!search || name.includes(search)) &&
       (!status || s === status) &&
-      (!type || t === type);
+      (!type || t === type) &&
+      (!position || p === position);
     row.classList.toggle("hidden", !matches);
     if (matches) visible++;
   });
@@ -123,6 +135,15 @@ function filterLeaves() {
   document
     .getElementById("emptyState")
     ?.classList.toggle("hidden", visible > 0);
+}
+
+function clearSearch() {
+  const s = document.getElementById("searchInput");
+  if (s) {
+    s.value = "";
+    filterLeaves();
+    s.focus();
+  }
 }
 
 // ============================================
@@ -245,10 +266,10 @@ function renderReview(leave) {
       const barColor =
         pct > 50 ? "bg-[#0F5E3D]" : pct > 20 ? "bg-amber-500" : "bg-red-500";
       bar = `
-                <div class="mt-1.5 h-1 bg-[#E0E0E0] rounded-full overflow-hidden">
-                    <div class="${barColor} h-full" style="width: ${pct}%"></div>
-                </div>
-            `;
+        <div class="mt-1.5 h-1 bg-[#E0E0E0] rounded-full overflow-hidden">
+          <div class="${barColor} h-full" style="width: ${pct}%"></div>
+        </div>
+      `;
     } else {
       bar = `<div class="mt-1.5 h-1 bg-[#F0F0F0] rounded-full"></div>`;
     }
@@ -265,16 +286,16 @@ function renderReview(leave) {
           )}</span></span>`;
 
     creditRows.push(`
-            <div>
-                <div class="flex items-baseline justify-between gap-2">
-                    <span class="text-sm text-[#2C3E50]">${
-                      TYPE_DETAIL_LABELS[t] || t
-                    }</span>
-                    ${rightLabel}
-                </div>
-                ${bar}
-            </div>
-        `);
+      <div>
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="text-sm text-[#2C3E50]">${
+            TYPE_DETAIL_LABELS[t] || t
+          }</span>
+          ${rightLabel}
+        </div>
+        ${bar}
+      </div>
+    `);
   });
   document.getElementById("rvCredits").innerHTML = creditRows.join("");
 
@@ -323,17 +344,21 @@ function renderReview(leave) {
 
   // ── Dean Endorsement ──
   const deanSection = document.getElementById("rvDeanSection");
-  const myDeanInfo = rvAllLeaves.find(l => l.id === rvCurrentId);
-  
+  const myDeanInfo = rvAllLeaves.find((l) => l.id === rvCurrentId);
+
   if (status === "pending" && myDeanInfo) {
     if (myDeanInfo.dean_approved) {
       deanSection.classList.remove("hidden");
-      document.getElementById("rvDeanSummary").textContent = "Endorsed by Academic Dean";
-      document.getElementById("rvDeanSummary").className = "text-sm text-[#0F5E3D] font-medium";
+      document.getElementById("rvDeanSummary").textContent =
+        "Endorsed by Academic Dean";
+      document.getElementById("rvDeanSummary").className =
+        "text-sm text-[#0F5E3D] font-medium";
     } else {
       deanSection.classList.remove("hidden");
-      document.getElementById("rvDeanSummary").textContent = "Awaiting endorsement from Academic Dean";
-      document.getElementById("rvDeanSummary").className = "text-sm text-amber-600 font-medium italic";
+      document.getElementById("rvDeanSummary").textContent =
+        "Awaiting endorsement from Academic Dean";
+      document.getElementById("rvDeanSummary").className =
+        "text-sm text-amber-600 font-medium italic";
     }
   } else {
     deanSection.classList.add("hidden");
@@ -362,11 +387,13 @@ function renderReview(leave) {
     decisionSection.classList.add("hidden");
   }
 
+  // ── Attachment ──
+  renderLeaveAttachment(full);
+
   // Hide decide bar if not pending OR if pending but not endorsed by dean
-  const canDecide = (status === 'pending' && myDeanInfo && myDeanInfo.dean_approved);
-  document
-    .getElementById("rvDecideBar")
-    .classList.toggle("hidden", !canDecide);
+  const canDecide =
+    status === "pending" && myDeanInfo && myDeanInfo.dean_approved;
+  document.getElementById("rvDecideBar").classList.toggle("hidden", !canDecide);
 }
 
 // ============================================
@@ -400,12 +427,12 @@ function rvRenderHistory(page) {
 
   if (slice.length === 0) {
     listEl.innerHTML = `
-            <tr>
-                <td colspan="4" class="px-4 py-6 text-center text-sm text-[#2C3E50]/50">
-                    No previous leave records.
-                </td>
-            </tr>
-        `;
+      <tr>
+        <td colspan="4" class="px-4 py-6 text-center text-sm text-[#2C3E50]/50">
+          No previous leave records.
+        </td>
+      </tr>
+    `;
   } else {
     listEl.innerHTML = slice
       .map((h) => {
@@ -417,27 +444,27 @@ function rvRenderHistory(page) {
           startStr === endStr ? startStr : `${startStr} – ${endStr}`;
 
         return `
-                <tr class="h-10">
-                    <td class="px-4 py-0">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                          TYPE_CLASSES[typeKey] || TYPE_CLASSES.other
-                        }">
-                            ${TYPE_DETAIL_LABELS[typeKey] || h.type}
-                        </span>
-                    </td>
-                    <td class="px-4 py-0 text-sm text-[#2C3E50]/70">${dateRange}</td>
-                    <td class="px-4 py-0 text-sm text-[#2C3E50]/70">${fmtDaysShort(
-                      h.days
-                    )}</td>
-                    <td class="px-4 py-0">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
-                          STATUS_CLASSES[statusKey] || STATUS_CLASSES.cancelled
-                        }">
-                            ${STATUS_LABELS[statusKey] || h.status}
-                        </span>
-                    </td>
-                </tr>
-            `;
+          <tr class="h-10">
+            <td class="px-4 py-0">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                TYPE_CLASSES[typeKey] || TYPE_CLASSES.other
+              }">
+                ${TYPE_DETAIL_LABELS[typeKey] || h.type}
+              </span>
+            </td>
+            <td class="px-4 py-0 text-sm text-[#2C3E50]/70">${dateRange}</td>
+            <td class="px-4 py-0 text-sm text-[#2C3E50]/70">${fmtDaysShort(
+              h.days
+            )}</td>
+            <td class="px-4 py-0">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
+                STATUS_CLASSES[statusKey] || STATUS_CLASSES.cancelled
+              }">
+                ${STATUS_LABELS[statusKey] || h.status}
+              </span>
+            </td>
+          </tr>
+        `;
       })
       .join("");
   }
@@ -453,8 +480,7 @@ function rvRenderHistory(page) {
   }
   document.getElementById("rvHistoryPageNum").textContent = rvHistoryPage;
   document.getElementById("rvHistoryPrev").disabled = rvHistoryPage <= 1;
-  document.getElementById("rvHistoryNext").disabled =
-    rvHistoryPage >= totalPages;
+  document.getElementById("rvHistoryNext").disabled = rvHistoryPage >= totalPages;
 }
 
 function rvHistoryPrev() {
@@ -474,10 +500,10 @@ async function rvSubmitDecision(decision) {
 
   const remarks = document.getElementById("rvRemarksInput").value.trim();
 
-  let payStatus = 'without_pay';
-  const leave = rvAllLeaves.find(l => l.id === rvCurrentId);
-  if (leave && leave.type === 'sick') {
-    payStatus = 'with_pay';
+  let payStatus = "without_pay";
+  const leave = rvAllLeaves.find((l) => l.id === rvCurrentId);
+  if (leave && leave.type === "sick") {
+    payStatus = "with_pay";
   }
 
   const fd = new FormData();
@@ -485,9 +511,9 @@ async function rvSubmitDecision(decision) {
   fd.append("id", rvCurrentId);
   fd.append("decision", decision);
   fd.append("remarks", remarks);
-  
+
   if (decision === "approved") {
-      fd.append("pay_status", payStatus);
+    fd.append("pay_status", payStatus);
   }
 
   showLoading(
@@ -527,6 +553,44 @@ async function rvSubmitDecision(decision) {
 function closeSuccess() {
   hideModal("successModal", "successCard");
   setTimeout(() => location.reload(), 200);
+}
+
+// ============================================
+// Render attachment in the review modal
+// ============================================
+function renderLeaveAttachment(leave) {
+  const wrap = document.getElementById("rvAttachmentWrap");
+  const link = document.getElementById("rvAttachmentLink");
+  const name = document.getElementById("rvAttachmentName");
+  const size = document.getElementById("rvAttachmentSize");
+  const thumb = document.getElementById("rvAttachmentThumb");
+  if (!wrap || !link) return;
+
+  if (leave.attachment && leave.attachment.path) {
+    wrap.classList.remove("hidden");
+    link.href = "/" + leave.attachment.path;
+    name.textContent = leave.attachment.name || "Attachment";
+
+    const sizeLabel = leave.attachment.size
+      ? leave.attachment.size >= 1024 * 1024
+        ? (leave.attachment.size / (1024 * 1024)).toFixed(2) + " MB"
+        : (leave.attachment.size / 1024).toFixed(1) + " KB"
+      : "";
+    size.textContent = sizeLabel;
+
+    const isImage = (leave.attachment.mime || "").startsWith("image/");
+    thumb.innerHTML = isImage
+      ? `<img src="/${leave.attachment.path}" alt="" class="w-full h-full object-cover">`
+      : `<i data-lucide="file-text" class="w-4 h-4"></i>`;
+
+    if (typeof initIcons === "function") initIcons();
+  } else {
+    wrap.classList.add("hidden");
+    link.href = "#";
+    name.textContent = "";
+    size.textContent = "";
+    thumb.innerHTML = `<i data-lucide="file-text" class="w-4 h-4"></i>`;
+  }
 }
 
 // ============================================

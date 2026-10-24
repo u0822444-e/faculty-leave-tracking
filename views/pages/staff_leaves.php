@@ -53,16 +53,16 @@ $creditsLeft = max(0, (float) ($me['leave_credits'] ?? 0) - $creditsUsed);
 
 $typeCaps = [
     'vacation' => 7.5,
-    'sick'     => 7.5,
+    'sick' => 7.5,
 ];
 
 $typeUsed = [
-    'vacation'  => 0,
-    'sick'      => 0,
+    'vacation' => 0,
+    'sick' => 0,
     'maternity' => 0,
     'paternity' => 0,
-    'terminal'  => 0,
-    'other'     => 0,
+    'terminal' => 0,
+    'other' => 0,
 ];
 
 if ($employeeId > 0) {
@@ -87,11 +87,13 @@ $today = date('Y-m-d');
 
 $existingRanges = [];
 foreach ($leaves as $l) {
-    if (!in_array($l['status'], ['pending', 'approved'], true)) continue;
-    if ($l['end_date'] < $today) continue;
+    if (!in_array($l['status'], ['pending', 'approved'], true))
+        continue;
+    if ($l['end_date'] < $today)
+        continue;
     $existingRanges[] = [
-        'start'  => $l['start_date'],
-        'end'    => $l['end_date'],
+        'start' => $l['start_date'],
+        'end' => $l['end_date'],
         'status' => $l['status'],
     ];
 }
@@ -113,24 +115,24 @@ for ($i = 0; $i < 365; $i++) {
 }
 
 $statusStyles = [
-    'pending'   => 'text-amber-700 bg-amber-50',
-    'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'rejected'  => 'text-red-700 bg-red-50',
+    'pending' => 'text-amber-700 bg-amber-50',
+    'approved' => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'rejected' => 'text-red-700 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
 ];
 $statusLabels = [
-    'pending'   => 'Pending',
-    'approved'  => 'Approved',
-    'rejected'  => 'Rejected',
+    'pending' => 'Pending',
+    'approved' => 'Approved',
+    'rejected' => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
 $leaveTypes = [
-    'vacation'  => 'Vacation',
-    'sick'      => 'Sick',
+    'vacation' => 'Vacation',
+    'sick' => 'Sick',
     'maternity' => 'Maternity',
     'paternity' => 'Paternity',
-    'terminal'  => 'Terminal',
-    'other'     => 'Other',
+    'terminal' => 'Terminal',
+    'other' => 'Other',
 ];
 
 $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
@@ -158,48 +160,23 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
             -moz-appearance: none;
             appearance: none;
         }
-
-        .flatpickr-calendar {
-            font-family: 'Inter', sans-serif;
-            border-radius: 10px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-            border: 1px solid #E0E0E0;
-            width: 260px;
-            padding: 6px 0;
-        }
+        .flatpickr-calendar { font-family: 'Inter', sans-serif; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1); border: 1px solid #E0E0E0; width: 260px; padding: 6px 0; }
         .flatpickr-months { padding: 4px 0; }
         .flatpickr-months .flatpickr-month { height: 28px; }
         .flatpickr-current-month { font-size: 13px; font-weight: 600; padding: 4px 0; }
-        .flatpickr-current-month .flatpickr-monthDropdown-months,
-        .flatpickr-current-month input.cur-year { font-weight: 600; font-size: 13px; }
+        .flatpickr-current-month .flatpickr-monthDropdown-months, .flatpickr-current-month input.cur-year { font-weight: 600; font-size: 13px; }
         .flatpickr-weekdays { height: 22px; }
         span.flatpickr-weekday { font-size: 10px; font-weight: 600; color: #2C3E50; opacity: 0.5; }
         .flatpickr-days { width: 260px; }
         .dayContainer { width: 260px; min-width: 260px; max-width: 260px; padding: 0 4px; }
-        .flatpickr-day {
-            max-width: 32px; height: 32px; line-height: 30px;
-            font-size: 12px; border-radius: 6px; margin: 0;
-        }
-        .flatpickr-day.selected,
-        .flatpickr-day.startRange,
-        .flatpickr-day.endRange,
-        .flatpickr-day.selected:hover {
-            background: #0F5E3D; border-color: #0F5E3D; color: #fff;
-        }
+        .flatpickr-day { max-width: 32px; height: 32px; line-height: 30px; font-size: 12px; border-radius: 6px; margin: 0; }
+        .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange, .flatpickr-day.selected:hover { background: #0F5E3D; border-color: #0F5E3D; color: #fff; }
         .flatpickr-day.today { border-color: #0F5E3D; }
-        .flatpickr-day.today:hover {
-            background: #F1FDF6; color: #0F5E3D; border-color: #0F5E3D;
-        }
-        .flatpickr-day.flatpickr-disabled,
-        .flatpickr-day.flatpickr-disabled:hover {
-            color: #cbd5e1; text-decoration: line-through;
-            cursor: not-allowed; background: transparent;
-        }
-        .flatpickr-prev-month svg,
-        .flatpickr-next-month svg { fill: #2C3E50; width: 12px; height: 12px; }
+        .flatpickr-day.today:hover { background: #F1FDF6; color: #0F5E3D; border-color: #0F5E3D; }
+        .flatpickr-day.flatpickr-disabled, .flatpickr-day.flatpickr-disabled:hover { color: #cbd5e1; text-decoration: line-through; cursor: not-allowed; background: transparent; }
+        .flatpickr-prev-month svg, .flatpickr-next-month svg { fill: #2C3E50; width: 12px; height: 12px; }
         .flatpickr-prev-month, .flatpickr-next-month { padding: 8px; }
-        .flatpickr-prev-month:hover svg,
-        .flatpickr-next-month:hover svg { fill: #0F5E3D; }
+        .flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg { fill: #0F5E3D; }
     </style>
 </head>
 
@@ -239,7 +216,6 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                     </div>
                 <?php endif; ?>
 
-                <!-- Toolbar -->
                 <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
                     <div class="relative flex-1 sm:max-w-sm">
                         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
@@ -261,7 +237,6 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                     <?php endif; ?>
                 </div>
 
-                <!-- Leaves table -->
                 <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <div class="hidden md:block overflow-x-auto">
@@ -304,57 +279,59 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                             </td>
                                             <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
                                             <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
-                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= rtrim(rtrim(number_format((float)$l['days_count'], 2, '.', ''), '0'), '.') ?></td>
+                                            <td class="px-4 text-sm text-[#2C3E50]/70"><?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?></td>
 
-                                            <!-- Leave Pay column -->
                                             <td class="px-4">
                                                 <?php if ($payStatus === 'with_pay'): ?>
-                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#0F5E3D] bg-[#F1FDF6]">
-                                                        
-                                                        With Pay
-                                                    </span>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#0F5E3D] bg-[#F1FDF6]">With Pay</span>
                                                 <?php elseif ($payStatus === 'without_pay'): ?>
-                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-600 bg-rose-50">
-                                                        
-                                                        Without Pay
-                                                    </span>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-600 bg-rose-50">Without Pay</span>
                                                 <?php elseif ($l['status'] === 'approved'): ?>
-                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100"
-                                                        title="HR approved but has not set pay status">
-                                                        Not decided
-                                                    </span>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100" title="HR approved but has not set pay status">Not decided</span>
                                                 <?php else: ?>
                                                     <span class="text-[#2C3E50]/30 text-xs">—</span>
                                                 <?php endif; ?>
                                             </td>
 
                                             <td class="px-4">
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
-                                                    <?= $sLabel ?>
-                                                </span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>"><?= $sLabel ?></span>
                                             </td>
                                             <td class="px-4">
                                                 <div class="flex items-center justify-end gap-1">
+                                                    <?php if (!empty($l['attachment_path'])): ?>
+                                                        <a href="/<?= htmlspecialchars($l['attachment_path']) ?>"
+                                                           target="_blank" rel="noopener"
+                                                           class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
+                                                           title="View attachment">
+                                                            <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                                                        </a>
+                                                    <?php endif; ?>
                                                     <button onclick='openViewLeave(<?= json_encode([
-                                                        "id"         => (int) $l["id"],
-                                                        "name"       => $meName,
-                                                        "email"      => $me["email"] ?? "—",
-                                                        "category"   => ucfirst($me["category"] ?? "—"),
-                                                        "subcat"     => $me["sub_category"] ?? "—",
+                                                        "id" => (int) $l["id"],
+                                                        "name" => $meName,
+                                                        "email" => $me["email"] ?? "—",
+                                                        "category" => ucfirst($me["category"] ?? "—"),
+                                                        "subcat" => $me["sub_category"] ?? "—",
                                                         "year_level" => $me["year_level"] ?? "—",
-                                                        "position"   => $me["position"] ?? "—",
+                                                        "position" => $me["position"] ?? "—",
                                                         "employment" => ucfirst($me["employment_type"] ?? "—"),
-                                                        "type"       => $tLabel,
-                                                        "start"      => $l["start_date"],
-                                                        "end"        => $l["end_date"],
-                                                        "days"       => $l["days_count"],
-                                                        "reason"     => $l["reason"] ?? "",
-                                                        "status"     => $l["status"],
-                                                        "remarks"    => $l["remarks"] ?? "",
-                                                        "created"    => $l["created_at"],
-                                                        "approver"   => $l["approver_username"] ?? "",
-                                                        "approved"   => $l["approved_at"] ?? "",
+                                                        "type" => $tLabel,
+                                                        "start" => $l["start_date"],
+                                                        "end" => $l["end_date"],
+                                                        "days" => $l["days_count"],
+                                                        "reason" => $l["reason"] ?? "",
+                                                        "status" => $l["status"],
+                                                        "remarks" => $l["remarks"] ?? "",
+                                                        "created" => $l["created_at"],
+                                                        "approver" => $l["approver_username"] ?? "",
+                                                        "approved" => $l["approved_at"] ?? "",
                                                         "pay_status" => $payStatus,
+                                                        "attachment" => !empty($l['attachment_path']) ? [
+                                                            "path" => $l['attachment_path'],
+                                                            "name" => $l['attachment_name'],
+                                                            "size" => (int) ($l['attachment_size'] ?? 0),
+                                                            "mime" => $l['attachment_mime'],
+                                                        ] : null,
                                                     ]) ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View details">
@@ -395,53 +372,58 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                 <div class="p-4 leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>">
                                     <div class="flex items-start justify-between gap-2 mb-2">
                                         <span class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($tLabel) ?></span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0">
-                                            <?= $sLabel ?>
-                                        </span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?> shrink-0"><?= $sLabel ?></span>
                                     </div>
                                     <p class="text-xs text-[#2C3E50]/60">
                                         <?= date('M j, Y', strtotime($l['start_date'])) ?> → <?= date('M j, Y', strtotime($l['end_date'])) ?>
                                     </p>
-                                    <p class="text-xs text-[#2C3E50]/40 mt-1"><?= rtrim(rtrim(number_format((float)$l['days_count'], 2, '.', ''), '0'), '.') ?> day(s)</p>
+                                    <p class="text-xs text-[#2C3E50]/40 mt-1"><?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?> day(s)</p>
 
-                                    <!-- Leave Pay badge (mobile) -->
                                     <div class="mt-2">
                                         <?php if ($payStatus === 'with_pay'): ?>
-                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#0F5E3D] bg-[#F1FDF6]">
-                                                <i data-lucide="plus" class="w-2.5 h-2.5"></i> With Pay
-                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#0F5E3D] bg-[#F1FDF6]"><i data-lucide="plus" class="w-2.5 h-2.5"></i> With Pay</span>
                                         <?php elseif ($payStatus === 'without_pay'): ?>
-                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-600 bg-rose-50">
-                                                <i data-lucide="minus" class="w-2.5 h-2.5"></i> Without Pay
-                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-600 bg-rose-50"><i data-lucide="minus" class="w-2.5 h-2.5"></i> Without Pay</span>
                                         <?php elseif ($l['status'] === 'approved'): ?>
-                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100">
-                                                <i data-lucide="circle-dashed" class="w-2.5 h-2.5"></i> Not decided
-                                            </span>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100"><i data-lucide="circle-dashed" class="w-2.5 h-2.5"></i> Not decided</span>
                                         <?php endif; ?>
                                     </div>
 
                                     <div class="flex items-center gap-1 mt-3">
+                                        <?php if (!empty($l['attachment_path'])): ?>
+                                            <a href="/<?= htmlspecialchars($l['attachment_path']) ?>"
+                                               target="_blank" rel="noopener"
+                                               class="flex-1 flex items-center justify-center gap-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#0F5E3D] bg-[#F1FDF6] hover:bg-[#e8faf0] transition">
+                                                <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                                                <span>File</span>
+                                            </a>
+                                        <?php endif; ?>
                                         <button onclick='openViewLeave(<?= json_encode([
-                                            "id"         => (int) $l["id"],
-                                            "name"       => $meName,
-                                            "email"      => $me["email"] ?? "—",
-                                            "category"   => ucfirst($me["category"] ?? "—"),
-                                            "subcat"     => $me["sub_category"] ?? "—",
+                                            "id" => (int) $l["id"],
+                                            "name" => $meName,
+                                            "email" => $me["email"] ?? "—",
+                                            "category" => ucfirst($me["category"] ?? "—"),
+                                            "subcat" => $me["sub_category"] ?? "—",
                                             "year_level" => $me["year_level"] ?? "—",
-                                            "position"   => $me["position"] ?? "—",
+                                            "position" => $me["position"] ?? "—",
                                             "employment" => ucfirst($me["employment_type"] ?? "—"),
-                                            "type"       => $tLabel,
-                                            "start"      => $l["start_date"],
-                                            "end"        => $l["end_date"],
-                                            "days"       => $l["days_count"],
-                                            "reason"     => $l["reason"] ?? "",
-                                            "status"     => $l["status"],
-                                            "remarks"    => $l["remarks"] ?? "",
-                                            "created"    => $l["created_at"],
-                                            "approver"   => $l["approver_username"] ?? "",
-                                            "approved"   => $l["approved_at"] ?? "",
+                                            "type" => $tLabel,
+                                            "start" => $l["start_date"],
+                                            "end" => $l["end_date"],
+                                            "days" => $l["days_count"],
+                                            "reason" => $l["reason"] ?? "",
+                                            "status" => $l["status"],
+                                            "remarks" => $l["remarks"] ?? "",
+                                            "created" => $l["created_at"],
+                                            "approver" => $l["approver_username"] ?? "",
+                                            "approved" => $l["approved_at"] ?? "",
                                             "pay_status" => $payStatus,
+                                            "attachment" => !empty($l['attachment_path']) ? [
+                                                "path" => $l['attachment_path'],
+                                                "name" => $l['attachment_name'],
+                                                "size" => (int) ($l['attachment_size'] ?? 0),
+                                                "mime" => $l['attachment_mime'],
+                                            ] : null,
                                         ]) ?>)'
                                             class="flex-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
                                             View
@@ -502,8 +484,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1">Start Date *</label>
-                        <input type="text" name="start_date" id="leaveStart" required readonly
-                            placeholder="Select start date"
+                        <input type="text" name="start_date" id="leaveStart" required readonly placeholder="Select start date"
                             class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer bg-white">
                     </div>
                     <div>
@@ -517,9 +498,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                     <label class="flex items-start gap-2.5 p-3 rounded-lg border border-[#0F5E3D]/15 bg-[#F1FDF6] cursor-pointer select-none hover:bg-[#e8faf0] transition">
                         <input type="checkbox" name="is_half_day" id="isHalfDay" value="1"
                             class="mt-0.5 w-4 h-4 rounded border-gray-300 accent-[#0F5E3D] cursor-pointer">
-                        <span class="text-xs text-[#2C3E50] leading-relaxed">
-                            <span class="font-medium">Half day</span>
-                        </span>
+                        <span class="text-xs text-[#2C3E50] leading-relaxed"><span class="font-medium">Half day</span></span>
                     </label>
                 </div>
 
@@ -536,6 +515,25 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                         class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition resize-none"
                         placeholder="Briefly explain the reason for your leave..."></textarea>
                 </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1">
+                        Supporting Document <span class="text-[#2C3E50]/40">(optional · JPG, PNG, WEBP, PDF · max 5 MB)</span>
+                    </label>
+
+                    <label for="leaveAttachment" id="leaveAttachmentDrop"
+                        class="flex flex-col items-center justify-center gap-1.5 w-full px-3 py-4 border-2 border-dashed border-[#E0E0E0] rounded-lg cursor-pointer bg-[#F1FDF6]/40 hover:bg-[#F1FDF6] hover:border-[#0F5E3D]/40 transition text-center">
+                        <div class="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-[#0F5E3D]">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                        </div>
+                        <p class="text-xs font-medium text-[#2C3E50]" id="leaveAttachmentLabel">Click to upload a file</p>
+                        <p class="text-[10px] text-[#2C3E50]/50" id="leaveAttachmentHint">Medical certificate, letter, etc.</p>
+                        <input type="file" id="leaveAttachment" name="attachment"
+                            accept="image/jpeg,image/png,image/webp,application/pdf" class="hidden">
+                    </label>
+
+                    <div id="leaveAttachmentPreview" class="hidden mt-2"></div>
+                </div>
             </form>
 
             <div class="flex gap-2 px-5 py-3.5 border-t border-[#E0E0E0]">
@@ -551,9 +549,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- View leave modal — rich details                -->
-    <!-- ============================================ -->
+    <!-- View leave modal -->
     <div id="viewLeaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div id="viewLeaveCard"
             class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-200 scale-95 overflow-hidden max-h-[90vh] flex flex-col">
@@ -581,9 +577,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Status</p>
                         <p id="vlStatus" class="text-sm font-semibold text-[#2C3E50]">—</p>
                     </div>
-                    <span id="vlStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-600 bg-slate-100">
-                        —
-                    </span>
+                    <span id="vlStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium text-slate-600 bg-slate-100">—</span>
                 </div>
 
                 <div>
@@ -595,21 +589,11 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                 <p id="vlName" class="text-sm font-semibold text-[#2C3E50] truncate">—</p>
                                 <p id="vlEmail" class="text-xs text-[#2C3E50]/50 truncate mt-0.5">—</p>
                                 <div class="flex flex-wrap gap-1.5 mt-2">
-                                    <span id="vlCategoryChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="layers" class="w-2.5 h-2.5"></i><span id="vlCategory">—</span>
-                                    </span>
-                                    <span id="vlSubCatChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="building-2" class="w-2.5 h-2.5"></i><span id="vlSubCat">—</span>
-                                    </span>
-                                    <span id="vlYearChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="graduation-cap" class="w-2.5 h-2.5"></i><span id="vlYear">—</span>
-                                    </span>
-                                    <span id="vlPositionChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="badge-check" class="w-2.5 h-2.5"></i><span id="vlPosition">—</span>
-                                    </span>
-                                    <span id="vlEmploymentChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]">
-                                        <i data-lucide="clock" class="w-2.5 h-2.5"></i><span id="vlEmployment">—</span>
-                                    </span>
+                                    <span id="vlCategoryChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]"><i data-lucide="layers" class="w-2.5 h-2.5"></i><span id="vlCategory">—</span></span>
+                                    <span id="vlSubCatChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]"><i data-lucide="building-2" class="w-2.5 h-2.5"></i><span id="vlSubCat">—</span></span>
+                                    <span id="vlYearChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]"><i data-lucide="graduation-cap" class="w-2.5 h-2.5"></i><span id="vlYear">—</span></span>
+                                    <span id="vlPositionChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]"><i data-lucide="badge-check" class="w-2.5 h-2.5"></i><span id="vlPosition">—</span></span>
+                                    <span id="vlEmploymentChip" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#2C3E50]/70 bg-white border border-[#E0E0E0]"><i data-lucide="clock" class="w-2.5 h-2.5"></i><span id="vlEmployment">—</span></span>
                                 </div>
                             </div>
                         </div>
@@ -678,6 +662,8 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                     </div>
                 </div>
 
+                <div id="vlAttachmentWrap" class="hidden"></div>
+
             </div>
 
             <div class="px-6 py-4 border-t border-[#E0E0E0] bg-white shrink-0">
@@ -703,47 +689,27 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
         </div>
     </div>
 
-        <!-- ============================================ -->
-    <!-- Cancel Leave — Confirmation Modal             -->
-    <!-- ============================================ -->
-    <div id="cancelLeaveModal"
-        class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="cancelLeaveCard"
-            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all duration-200 scale-95">
-
+    <!-- Cancel Leave — Confirmation Modal -->
+    <div id="cancelLeaveModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="cancelLeaveCard" class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all duration-200 scale-95">
             <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-50 mx-auto mb-4">
                 <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
             </div>
-
             <h3 class="text-lg font-bold text-[#2C3E50] text-center mb-2">Cancel Leave Request</h3>
-
-            <p class="text-sm text-[#2C3E50]/70 text-center mb-1">
-                Are you sure you want to cancel this leave request?
-            </p>
-            <p class="text-xs text-[#2C3E50]/50 text-center mb-6" id="cancelLeaveSummary">
-                This action cannot be undone.
-            </p>
-
+            <p class="text-sm text-[#2C3E50]/70 text-center mb-1">Are you sure you want to cancel this leave request?</p>
+            <p class="text-xs text-[#2C3E50]/50 text-center mb-6" id="cancelLeaveSummary">This action cannot be undone.</p>
             <div class="flex flex-col sm:flex-row gap-3">
                 <button type="button" onclick="closeCancelLeaveModal()"
-                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
-                    Keep Request
-                </button>
+                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Keep Request</button>
                 <button type="button" id="cancelLeaveConfirmBtn"
-                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition text-sm">
-                    Cancel Leave
-                </button>
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition text-sm">Cancel Leave</button>
             </div>
         </div>
     </div>
 
-        <!-- ============================================ -->
-    <!-- Cancel Success Modal                          -->
-    <!-- ============================================ -->
-    <div id="cancelSuccessModal"
-        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div id="cancelSuccessCard"
-            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
+    <!-- Cancel Success Modal -->
+    <div id="cancelSuccessModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="cancelSuccessCard" class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
             <div class="relative mx-auto mb-5 w-16 h-16">
                 <div class="absolute inset-0 rounded-full bg-red-50 animate-ping opacity-40"></div>
                 <div class="relative w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-600">
@@ -751,13 +717,9 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                 </div>
             </div>
             <h3 class="text-lg font-bold text-[#2C3E50] mb-2">Leave Cancelled</h3>
-            <p class="text-sm text-[#2C3E50]/60 mb-6">
-                Your leave request has been successfully cancelled and removed from the pending queue.
-            </p>
+            <p class="text-sm text-[#2C3E50]/60 mb-6">Your leave request has been successfully cancelled and removed from the pending queue.</p>
             <button type="button" onclick="finishCancelLeave()"
-                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">
-                Done
-            </button>
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">Done</button>
         </div>
     </div>
 
@@ -770,9 +732,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
             <h3 class="text-lg font-bold text-[#2C3E50] mb-2" id="errorTitle">Something went wrong</h3>
             <p class="text-sm text-[#2C3E50]/60 mb-6" id="errorMessage">—</p>
             <button onclick="closeErrorModal()"
-                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">
-                Got it
-            </button>
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Got it</button>
         </div>
     </div>
 
@@ -788,9 +748,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
             <h3 class="text-lg font-bold text-[#2C3E50] mb-2" id="successTitle">Success</h3>
             <p class="text-sm text-[#2C3E50]/60 mb-6" id="successMessage">—</p>
             <button onclick="closeSuccessModal()"
-                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">
-                Done
-            </button>
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Done</button>
         </div>
     </div>
 

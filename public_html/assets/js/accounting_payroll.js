@@ -107,6 +107,12 @@ function openPayrollView(row) {
   document.getElementById("pvLwopDays").textContent = num(d.lwopDays) > 0 ? fmtNum(d.lwopDays) + " day(s)" : "0 day(s)";
   document.getElementById("pvLwopAmount").textContent = num(d.lwopDeduction) > 0 ? "−" + fmtPeso(d.lwopDeduction) : "—";
 
+  // Convertible Leave Pay
+  const pvConvertibleEl = document.getElementById("pvConvertible");
+  if (pvConvertibleEl) {
+    pvConvertibleEl.textContent = fmtPeso(d.convertible);
+  }
+
   // --- DECISION BAR (Actions) ---
   const actionBar = document.getElementById("pvActionBar");
   actionBar.innerHTML = "";
@@ -131,7 +137,7 @@ function openPayrollView(row) {
   // Edit Leave Pay Button
   const btnEditLeavePay = document.createElement("button");
   btnEditLeavePay.type = "button";
-  btnEditLeavePay.className = "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5 mr-auto";
+  btnEditLeavePay.className = "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5";
   btnEditLeavePay.innerHTML = '<i data-lucide="banknote" class="w-4 h-4"></i><span>Edit Leave Pay</span>';
   btnEditLeavePay.onclick = () => {
     openEditLeavePayModal({

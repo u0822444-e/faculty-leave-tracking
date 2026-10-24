@@ -544,6 +544,22 @@ $leaveLabels = [
                             </div>
                         </div>
 
+                                                <!-- Attachment -->
+                        <div id="rvAttachmentWrap" class="hidden py-5 border-b border-[#F0F0F0]">
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-2">Attachment</p>
+                            <a id="rvAttachmentLink" href="#" target="_blank" rel="noopener"
+                                class="flex items-center gap-2 p-2 bg-white border border-[#E0E0E0] rounded-lg hover:border-[#0F5E3D]/40 hover:bg-[#F1FDF6]/40 transition">
+                                <div id="rvAttachmentThumb" class="w-10 h-10 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0 overflow-hidden">
+                                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p id="rvAttachmentName" class="text-xs font-medium text-[#2C3E50] truncate">Attachment</p>
+                                    <p id="rvAttachmentSize" class="text-[10px] text-[#2C3E50]/50"></p>
+                                </div>
+                                <i data-lucide="external-link" class="w-3.5 h-3.5 text-[#2C3E50]/40 shrink-0"></i>
+                            </a>
+                        </div>
+
                         <!-- Leave History -->
                         <div class="pt-5">
 
@@ -668,6 +684,8 @@ $leaveLabels = [
         </div>
     </div>
 
+    
+
     <!-- Error modal -->
     <div id="errorModal"
         class="fixed inset-0 z-[80] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -715,7 +733,7 @@ $leaveLabels = [
     <script src="/assets/js/leaves.js"></script>
     <script>
         // Pass leaves to JS for the review modal history
-        rvAllLeaves = <?= json_encode(array_map(function ($l) {
+                rvAllLeaves = <?= json_encode(array_map(function ($l) {
             return [
                 'id' => (int) $l['id'],
                 'employee_id' => (int) ($l['employee_id'] ?? 0),
@@ -727,6 +745,12 @@ $leaveLabels = [
                 'days' => (float) $l['days_count'],
                 'pay_status' => $l['pay_status'] ?? null,
                 'dean_approved' => $l['dean_approved_at'] ?? null,
+                'attachment' => !empty($l['attachment_path']) ? [
+                    'path' => $l['attachment_path'],
+                    'name' => $l['attachment_name'],
+                    'size' => (int) ($l['attachment_size'] ?? 0),
+                    'mime' => $l['attachment_mime'],
+                ] : null,
             ];
         }, $leaves)) ?>;
 

@@ -59,10 +59,10 @@ function navClass($key, $activePage)
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>
                 <span>Leave Requests</span>
             </a>
-            <a href="/hr/payroll" class="<?= navClass('hr_payroll', $activePage) ?>">
+            <!-- <a href="/hr/payroll" class="<?= navClass('hr_payroll', $activePage) ?>">
                 <i data-lucide="wallet" class="w-5 h-5"></i>
                 <span>Payroll</span>
-            </a>
+            </a> -->
             <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
                 <i data-lucide="history" class="w-5 h-5"></i>
                 <span>Activity Logs</span>

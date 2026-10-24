@@ -187,13 +187,19 @@ try {
                         'created'    => $l['created_at'],
                         'approver'   => $l['approver_username'] ?? '',
                         'approved'   => $l['approved_at'] ?? '',
+                        'attachment' => !empty($l['attachment_path']) ? [
+                            'path' => $l['attachment_path'],
+                            'name' => $l['attachment_name'],
+                            'size' => (int) ($l['attachment_size'] ?? 0),
+                            'mime' => $l['attachment_mime'],
+                        ] : null,
                     ];
                 }, $history),
             ]);
             break;
 
         // ============================================
-        // Create leave (faculty files for self)
+        // Create leave (faculty files for self) — with attachment
         // ============================================
         case 'create':
             if ($myEmployeeId === null) {
@@ -307,12 +313,78 @@ try {
                 break;
             }
 
+            // ============================================
+            // Handle optional attachment upload
+            // ============================================
+            $attachmentPath = null;
+            $attachmentName = null;
+            $attachmentSize = null;
+            $attachmentMime = null;
+
+            if (!empty($_FILES['attachment']) && $_FILES['attachment']['error'] !== UPLOAD_ERR_NO_FILE) {
+                $file = $_FILES['attachment'];
+
+                if ($file['error'] !== UPLOAD_ERR_OK) {
+                    echo json_encode(['success' => false, 'error' => 'File upload failed. Please try again.']);
+                    break;
+                }
+
+                $maxSize = 5 * 1024 * 1024;
+                if ($file['size'] > $maxSize) {
+                    echo json_encode(['success' => false, 'error' => 'File is too large. Maximum size is 5 MB.']);
+                    break;
+                }
+
+                $allowedMimes = [
+                    'image/jpeg'      => 'jpg',
+                    'image/png'       => 'png',
+                    'image/webp'      => 'webp',
+                    'application/pdf' => 'pdf',
+                ];
+
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $detectedMime = $finfo->file($file['tmp_name']);
+
+                if (!isset($allowedMimes[$detectedMime])) {
+                    echo json_encode(['success' => false, 'error' => 'Invalid file type. Allowed: JPG, PNG, WEBP, PDF.']);
+                    break;
+                }
+
+                $ext = $allowedMimes[$detectedMime];
+
+                $uploadDir = __DIR__ . '/../../uploads/leaves/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+
+                $safeBase = preg_replace('/[^a-zA-Z0-9_-]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
+                $safeBase = substr($safeBase ?: 'file', 0, 60);
+                $filename = date('Ymd_His') . '_' . $myEmployeeId . '_' . bin2hex(random_bytes(4)) . '_' . $safeBase . '.' . $ext;
+
+                $dest = $uploadDir . $filename;
+
+                if (!move_uploaded_file($file['tmp_name'], $dest)) {
+                    echo json_encode(['success' => false, 'error' => 'Could not save the uploaded file.']);
+                    break;
+                }
+
+                $attachmentPath = 'uploads/leaves/' . $filename;
+                $attachmentName = substr($file['name'], 0, 255);
+                $attachmentSize = (int) $file['size'];
+                $attachmentMime = $detectedMime;
+            }
+
+            // Insert leave with attachment metadata
             $stmt = $pdo->prepare("
                 INSERT INTO leave_requests 
-                    (employee_id, leave_type, start_date, end_date, days_count, reason, status)
-                VALUES (?, ?, ?, ?, ?, ?, 'pending')
+                    (employee_id, leave_type, start_date, end_date, days_count, reason, status,
+                     attachment_path, attachment_name, attachment_size, attachment_mime)
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
             ");
-            $stmt->execute([$myEmployeeId, $type, $start, $end, $days, $reason]);
+            $stmt->execute([
+                $myEmployeeId, $type, $start, $end, $days, $reason,
+                $attachmentPath, $attachmentName, $attachmentSize, $attachmentMime
+            ]);
             $newId = (int) $pdo->lastInsertId();
 
             if (class_exists('ActivityLogger')) {
@@ -334,13 +406,14 @@ try {
                        . ($start !== $end ? ' – ' . date('M j, Y', strtotime($end)) : '');
 
                 $halfLabel = $isHalfDay ? ' — half day' : '';
+                $attachLabel = $attachmentPath ? ' · 📎 attachment' : '';
 
                 NotificationService::notifyAdmins(
                     $pdo,
                     'leave_filed',
                     "New leave request",
                     "{$facultyName} filed {$typeLabel} leave ({$range}, "
-                        . fmt_days($days) . " day(s){$halfLabel})",
+                        . fmt_days($days) . " day(s){$halfLabel}{$attachLabel})",
                     '/leaves'
                 );
             }

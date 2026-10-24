@@ -352,7 +352,7 @@ try {
 
                 $ext = $allowedMimes[$detectedMime];
 
-                $uploadDir = __DIR__ . '/../../uploads/leaves/';
+                $uploadDir = __DIR__ . '/../../public_html/uploads/leaves/';
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }

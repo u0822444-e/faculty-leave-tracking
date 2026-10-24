@@ -46,28 +46,23 @@ $params = [];
 $where[] = "lr.employee_id <> ?";
 $params[] = $myEmployeeId;
 
-$where[] = "emp.category = 'faculty'";
-
-// Apply specific rules per role
 if ($myPosition === 'Academic Dean') {
-    // Academic Dean sees ALL requests (pending and approved)
+    $where[] = "emp.category IN ('faculty', 'staff')";
     $where[] = "lr.status IN ('pending', 'approved')";
-    
-} elseif ($myPosition === 'College Dean') {
-    // College Dean sees ONLY approved requests from their specific department
+} else {
+    $where[] = "emp.category = 'faculty'";
+}
+
+if ($myPosition === 'College Dean') {
     $where[] = "lr.status = 'approved'";
     if ($myYearLevel !== '') {
         $where[] = "emp.year_level = ?";
         $params[] = $myYearLevel;
     }
-    
 } elseif ($myPosition === 'Elementary Principal') {
-    // Elementary Principal sees ONLY approved Elementary requests
     $where[] = "lr.status = 'approved'";
     $where[] = "emp.sub_category = 'Elementary'";
-    
 } elseif ($myPosition === 'High School Principal') {
-    // High School Principal sees ONLY approved High School requests
     $where[] = "lr.status = 'approved'";
     $where[] = "emp.sub_category = 'High School'";
 }
@@ -97,6 +92,22 @@ $stmt->execute($params);
 $leaves = $stmt->fetchAll();
 
 // ============================================
+// Distinct positions for the filter dropdown
+// (only positions that appear in the visible scope)
+// ============================================
+$positionsStmt = $pdo->prepare("
+    SELECT DISTINCT emp.position
+    FROM leave_requests lr
+    INNER JOIN employees emp ON lr.employee_id = emp.id
+    WHERE {$whereSql}
+      AND emp.position IS NOT NULL
+      AND emp.position <> ''
+    ORDER BY emp.position ASC
+");
+$positionsStmt->execute($params);
+$positions = $positionsStmt->fetchAll(PDO::FETCH_COLUMN);
+
+// ============================================
 // Precompute detailed credits per employee for the view modal
 // ============================================
 $TYPE_CAPS = ['vacation' => 7.5, 'sick' => 7.5];
@@ -117,7 +128,7 @@ foreach ($stmt->fetchAll() as $row) {
 foreach ($leaves as $l) {
     $empId = (int) $l['employee_id'];
     if (isset($employeeCredits[$empId]))
-        continue; // already processed
+        continue;
 
     $totalAllocated = (float) $l['total_allocated_credits'];
     $usedByType = $usageData[$empId] ?? [];
@@ -169,7 +180,6 @@ $statusLabels = [
     'cancelled' => 'Cancelled',
 ];
 
-// Group the DB type into the 3 presentation categories for the main table
 function groupTypeKey($dbType)
 {
     $t = strtolower($dbType ?? '');
@@ -205,7 +215,7 @@ switch ($myPosition) {
         $scopeLabel = 'High School';
         break;
     case 'Academic Dean':
-        $scopeLabel = 'All Faculty';
+        $scopeLabel = 'All Faculty & Staff';
         break;
     default:
         $scopeLabel = 'Faculty';
@@ -257,7 +267,7 @@ switch ($myPosition) {
                         <p class="text-[#2C3E50]/60 mt-0.5">
                             Scope: <strong><?= htmlspecialchars($scopeLabel) ?></strong>
                             <?php if ($myPosition === 'Academic Dean'): ?>
-                                · You must endorse pending requests before HR can approve them.
+                                · You must endorse pending requests (faculty and staff) before HR can approve them.
                             <?php else: ?>
                                 · You are viewing approved leaves in your department only.
                             <?php endif; ?>
@@ -284,22 +294,56 @@ switch ($myPosition) {
                     <?php endif; ?>
                 </div>
 
-                <!-- Toolbar -->
+                <!-- ============================================ -->
+                <!-- Toolbar — Status / Type / Position / Search  -->
+                <!-- ============================================ -->
                 <div
-                    class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                    class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-3 sm:p-4 shadow-sm flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+
+                    <div class="flex flex-wrap items-center gap-2">
+
+                        <!-- Status -->
+                        <select id="flStatus" onchange="applyFilters()"
+                            class="px-3 py-2 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                            <option value="">All Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                        </select>
+
+                        <!-- Leave type (grouped) -->
+                        <select id="flType" onchange="applyFilters()"
+                            class="px-3 py-2 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                            <option value="">All Types</option>
+                            <option value="sick">Sick</option>
+                            <option value="vacation">Mandatory / Vacation</option>
+                            <option value="others">Others</option>
+                        </select>
+
+                        <!-- Position / Designation -->
+                        <select id="flPosition" onchange="applyFilters()"
+                            class="px-3 py-2 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer max-w-[220px] truncate">
+                            <option value="">All Positions</option>
+                            <?php foreach ($positions as $pos): ?>
+                                <option value="<?= htmlspecialchars($pos) ?>"><?= htmlspecialchars($pos) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+
+                    </div>
+
+                    <!-- Global search -->
                     <div class="relative flex-1 sm:max-w-sm">
                         <i data-lucide="search"
                             class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
-                        <input type="text" id="flSearch" oninput="filterFacultyLeaves()"
-                            placeholder="Search name or type"
-                            class="w-full pl-10 pr-4 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
+                        <input type="text" id="flSearch" oninput="applyFilters()"
+                            placeholder="Search name, position, dept, type"
+                            class="w-full pl-10 pr-10 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
+                        <button type="button" onclick="clearFilters()"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[#2C3E50]/40 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition"
+                            title="Clear filters">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </button>
                     </div>
-                    <select id="flStatus" onchange="filterFacultyLeaves()"
-                        class="px-3 py-2 rounded-lg text-xs font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
-                        <option value="">All Status</option>
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                    </select>
+
                 </div>
 
                 <!-- Table -->
@@ -324,7 +368,7 @@ switch ($myPosition) {
                                     <tr>
                                         <td colspan="7" class="text-center text-sm text-[#2C3E50]/50 py-12">
                                             <i data-lucide="calendar-x" class="w-6 h-6 mx-auto mb-2 text-[#2C3E50]/30"></i>
-                                            No faculty leave requests to show.
+                                            No leave requests to show.
                                         </td>
                                     </tr>
                                 <?php else:
@@ -338,14 +382,34 @@ switch ($myPosition) {
                                         $tClass = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
 
                                         $credit = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
+                                        $empCategoryLabel = ucfirst($l['category'] ?? 'staff');
+
+                                        // Build the search haystack
+                                        $haystack = strtolower(
+                                            $empName . ' ' .
+                                            ($l['position'] ?? '') . ' ' .
+                                            ($l['year_level'] ?? '') . ' ' .
+                                            ($l['sub_category'] ?? '') . ' ' .
+                                            $groupLabel . ' ' .
+                                            $sLabel
+                                        );
                                         ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12 faculty-leave-row"
-                                            data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
-                                            data-status="<?= htmlspecialchars($l['status']) ?>">
+                                            data-search="<?= htmlspecialchars($haystack) ?>"
+                                            data-status="<?= htmlspecialchars($l['status']) ?>"
+                                            data-type="<?= htmlspecialchars($groupKey) ?>"
+                                            data-position="<?= htmlspecialchars($l['position'] ?? '') ?>">
                                             <td class="px-4">
                                                 <div class="flex flex-col">
-                                                    <span
-                                                        class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($empName) ?></span>
+                                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                                        <span
+                                                            class="text-sm font-medium text-[#2C3E50]"><?= htmlspecialchars($empName) ?></span>
+                                                        <?php if (($l['category'] ?? '') === 'staff'): ?>
+                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-slate-600 bg-slate-100 uppercase tracking-wide">Staff</span>
+                                                        <?php elseif (($l['category'] ?? '') === 'faculty'): ?>
+                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-[#0F5E3D] bg-[#F1FDF6] uppercase tracking-wide">Faculty</span>
+                                                        <?php endif; ?>
+                                                    </div>
                                                     <span class="text-[10px] text-[#2C3E50]/50">
                                                         <?= htmlspecialchars($l['year_level'] ?: $l['sub_category'] ?: '—') ?>
                                                         <?= $l['position'] ? '· ' . htmlspecialchars($l['position']) : '' ?>
@@ -417,7 +481,7 @@ switch ($myPosition) {
                     <!-- Mobile cards -->
                     <div id="flMobileCards" class="md:hidden divide-y divide-[#E0E0E0]">
                         <?php if (empty($leaves)): ?>
-                            <div class="p-10 text-center text-sm text-[#2C3E50]/50">No faculty leave requests.</div>
+                            <div class="p-10 text-center text-sm text-[#2C3E50]/50">No leave requests.</div>
                         <?php else:
                             foreach ($leaves as $l):
                                 $empName = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? ''));
@@ -429,14 +493,31 @@ switch ($myPosition) {
                                 $tClass = $typeStyles[$groupKey] ?? 'text-slate-700 bg-slate-100';
 
                                 $credit = $employeeCredits[(int) $l['employee_id']] ?? ['total' => 0, 'used' => 0, 'remaining' => 0];
+                                $empCategoryLabel = ucfirst($l['category'] ?? 'staff');
+
+                                $haystack = strtolower(
+                                    $empName . ' ' .
+                                    ($l['position'] ?? '') . ' ' .
+                                    ($l['year_level'] ?? '') . ' ' .
+                                    ($l['sub_category'] ?? '') . ' ' .
+                                    $groupLabel . ' ' .
+                                    $sLabel
+                                );
                                 ?>
                                 <div class="p-4 faculty-leave-row"
-                                    data-search="<?= strtolower($empName . ' ' . $groupLabel . ' ' . $sLabel) ?>"
-                                    data-status="<?= htmlspecialchars($l['status']) ?>">
+                                    data-search="<?= htmlspecialchars($haystack) ?>"
+                                    data-status="<?= htmlspecialchars($l['status']) ?>"
+                                    data-type="<?= htmlspecialchars($groupKey) ?>"
+                                    data-position="<?= htmlspecialchars($l['position'] ?? '') ?>">
                                     <div class="flex items-start justify-between gap-2 mb-1">
                                         <div class="min-w-0">
-                                            <p class="text-sm font-medium text-[#2C3E50] truncate">
-                                                <?= htmlspecialchars($empName) ?></p>
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <p class="text-sm font-medium text-[#2C3E50] truncate">
+                                                    <?= htmlspecialchars($empName) ?></p>
+                                                <?php if (($l['category'] ?? '') === 'staff'): ?>
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold text-slate-600 bg-slate-100 uppercase tracking-wide">Staff</span>
+                                                <?php endif; ?>
+                                            </div>
                                             <p class="text-[10px] text-[#2C3E50]/50 truncate">
                                                 <?= htmlspecialchars($l['year_level'] ?: $l['sub_category'] ?: '—') ?>
                                             </p>
@@ -494,13 +575,27 @@ switch ($myPosition) {
                             <?php endforeach; endif; ?>
                     </div>
 
+                    <!-- Empty state (shown when filters return nothing) -->
                     <div id="flEmpty" class="hidden p-12 text-center">
                         <div
                             class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
                         <p class="text-sm font-medium text-[#2C3E50]">No matching leaves</p>
-                        <p class="text-xs text-[#2C3E50]/50 mt-1">Try a different search or status.</p>
+                        <p class="text-xs text-[#2C3E50]/50 mt-1">Try a different search or filter.</p>
+                    </div>
+
+                    <!-- ============================================ -->
+                    <!-- Pagination footer                              -->
+                    <!-- ============================================ -->
+                    <div class="px-4 sm:px-6 py-3 border-t border-[#E0E0E0] flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p class="text-sm text-[#2C3E50]/50" id="flPaginationInfo">
+                            Showing <span class="font-medium text-[#2C3E50]">0</span> of
+                            <span class="font-medium text-[#2C3E50]">0</span> requests
+                        </p>
+                        <div class="flex items-center gap-1" id="flPaginationNav">
+                            <!-- populated by JS -->
+                        </div>
                     </div>
                 </div>
 
@@ -516,7 +611,6 @@ switch ($myPosition) {
         <div id="flViewCard"
             class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] transform transition-all duration-200 scale-95 overflow-hidden flex flex-col">
 
-            <!-- Top bar with leave type -->
             <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0] shrink-0 bg-white">
                 <div class="flex items-center gap-3">
                     <div
@@ -538,12 +632,8 @@ switch ($myPosition) {
                 </button>
             </div>
 
-            <!-- Content -->
             <div class="flex-1 flex min-h-0">
-
-                <!-- SIDEBAR -->
                 <aside class="w-72 border-r border-[#E0E0E0] bg-[#F9FAFB] flex flex-col shrink-0 overflow-y-auto">
-
                     <div class="p-6">
                         <div id="flvInitials"
                             class="w-16 h-16 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xl mb-4">
@@ -552,7 +642,6 @@ switch ($myPosition) {
                         <p id="flvPosition" class="text-sm text-[#2C3E50]/60 mt-1 leading-snug">—</p>
                         <p id="flvDepartment" class="text-sm text-[#2C3E50]/60 leading-snug">—</p>
                         <p id="flvEmail" class="text-xs text-[#2C3E50]/40 mt-2 truncate">—</p>
-
                         <div class="flex flex-wrap gap-1.5 mt-3">
                             <span id="flvSidebarType"
                                 class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-slate-700 bg-white border border-[#E0E0E0]">
@@ -561,29 +650,18 @@ switch ($myPosition) {
                             </span>
                         </div>
                     </div>
-
                     <div class="border-t border-[#E0E0E0]"></div>
-
                     <div class="p-6">
                         <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-1">Credits</p>
                         <p class="text-base font-semibold text-[#2C3E50] mb-4">
                             <span id="flvCreditTotal">—</span>
                         </p>
-
-                        <!-- Per-type credits list -->
-                        <div id="flvCreditsList" class="space-y-4">
-                            <!-- populated by JS -->
-                        </div>
+                        <div id="flvCreditsList" class="space-y-4"></div>
                     </div>
-
                 </aside>
 
-                <!-- MAIN -->
                 <section class="flex-1 flex flex-col min-h-0 bg-white">
-
                     <div class="flex-1 overflow-y-auto px-8 py-6">
-
-                        <!-- Status + dates -->
                         <div class="pb-5 border-b border-[#F0F0F0]">
                             <div class="flex items-center gap-2 flex-wrap mb-3">
                                 <span id="flvStatusBadge"
@@ -602,22 +680,18 @@ switch ($myPosition) {
                             </p>
                         </div>
 
-                        <!-- Reason -->
                         <div class="py-5 border-b border-[#F0F0F0]">
                             <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-2">Reason</p>
                             <p id="flvReason" class="text-sm text-[#2C3E50] leading-relaxed whitespace-pre-wrap">—</p>
                         </div>
 
-                        <!-- Dean Endorsement Status -->
                         <div id="flvDeanWrap" class="hidden py-5 border-b border-[#F0F0F0]">
                             <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-2">Dean Endorsement</p>
                             <p id="flvDeanSummary" class="text-sm text-[#2C3E50] font-medium">—</p>
                         </div>
 
-                        <!-- Decision -->
                         <div id="flvDecisionWrap" class="hidden py-5">
-                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">HR Decision
-                            </p>
+                            <p class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold mb-3">HR Decision</p>
                             <p class="text-sm text-[#2C3E50]">
                                 <span id="flvDecisionSummary" class="font-medium">—</span>
                             </p>
@@ -625,15 +699,10 @@ switch ($myPosition) {
                                 <p id="flvRemarks" class="text-sm text-[#2C3E50]/70 italic leading-relaxed">—</p>
                             </div>
                         </div>
-
                     </div>
 
-                    <div class="border-t border-[#E0E0E0] bg-white px-8 py-3 shrink-0" id="flvActionBar">
-                        <!-- Buttons populated by JS -->
-                    </div>
-
+                    <div class="border-t border-[#E0E0E0] bg-white px-8 py-3 shrink-0" id="flvActionBar"></div>
                 </section>
-
             </div>
         </div>
     </div>

@@ -273,6 +273,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4">Start</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4">End</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4">Days</th>
+                                    <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4">Leave Pay</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4">Status</th>
                                     <th class="w-20 px-4 text-right text-xs font-medium text-[#2C3E50]/50">Actions</th>
                                 </tr>
@@ -280,7 +281,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                             <tbody id="leavesTableBody" class="divide-y divide-[#E0E0E0]">
                                 <?php if (empty($leaves)): ?>
                                     <tr>
-                                        <td colspan="6" class="text-center text-sm text-[#2C3E50]/50 py-12">
+                                        <td colspan="7" class="text-center text-sm text-[#2C3E50]/50 py-12">
                                             <i data-lucide="calendar-x" class="w-6 h-6 mx-auto mb-2 text-[#2C3E50]/30"></i>
                                             <?php if ($isPartTime): ?>
                                                 Part-time employees are not eligible for leave.
@@ -295,6 +296,9 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                         $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
                                         $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
                                         $isPending = $l['status'] === 'pending';
+
+                                        // Actual leave pay disposition (HR's decision)
+                                        $payStatus = $l['pay_status'] ?? null;
                                         ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12 leave-row"
                                             data-search="<?= strtolower($tLabel . ' ' . $sLabel . ' ' . ($l['reason'] ?? '')) ?>">
@@ -304,6 +308,29 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                             <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['start_date'])) ?></td>
                                             <td class="px-4 text-sm text-[#2C3E50]/70"><?= date('M j, Y', strtotime($l['end_date'])) ?></td>
                                             <td class="px-4 text-sm text-[#2C3E50]/70"><?= rtrim(rtrim(number_format((float)$l['days_count'], 2, '.', ''), '0'), '.') ?></td>
+
+                                            <!-- Leave Pay column -->
+                                            <td class="px-4">
+                                                <?php if ($payStatus === 'with_pay'): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#0F5E3D] bg-[#F1FDF6]">
+                                                        
+                                                        With Pay
+                                                    </span>
+                                                <?php elseif ($payStatus === 'without_pay'): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-600 bg-rose-50">
+                                                        
+                                                        Without Pay
+                                                    </span>
+                                                <?php elseif ($l['status'] === 'approved'): ?>
+                                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100"
+                                                        title="HR approved but has not set pay status">
+                                                        Not decided
+                                                    </span>
+                                                <?php else: ?>
+                                                    <span class="text-[#2C3E50]/30 text-xs">—</span>
+                                                <?php endif; ?>
+                                            </td>
+
                                             <td class="px-4">
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $sClass ?>">
                                                     <?= $sLabel ?>
@@ -330,6 +357,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                                         "created"    => $l["created_at"],
                                                         "approver"   => $l["approver_username"] ?? "",
                                                         "approved"   => $l["approved_at"] ?? "",
+                                                        "pay_status" => $payStatus,
                                                     ]) ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View details">
@@ -365,6 +393,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                 $sLabel = $statusLabels[$l['status']] ?? ucfirst($l['status']);
                                 $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
                                 $isPending = $l['status'] === 'pending';
+                                $payStatus = $l['pay_status'] ?? null;
                                 ?>
                                 <div class="p-4 leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>">
                                     <div class="flex items-start justify-between gap-2 mb-2">
@@ -377,6 +406,24 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                         <?= date('M j, Y', strtotime($l['start_date'])) ?> → <?= date('M j, Y', strtotime($l['end_date'])) ?>
                                     </p>
                                     <p class="text-xs text-[#2C3E50]/40 mt-1"><?= rtrim(rtrim(number_format((float)$l['days_count'], 2, '.', ''), '0'), '.') ?> day(s)</p>
+
+                                    <!-- Leave Pay badge (mobile) -->
+                                    <div class="mt-2">
+                                        <?php if ($payStatus === 'with_pay'): ?>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-[#0F5E3D] bg-[#F1FDF6]">
+                                                <i data-lucide="plus" class="w-2.5 h-2.5"></i> With Pay
+                                            </span>
+                                        <?php elseif ($payStatus === 'without_pay'): ?>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-600 bg-rose-50">
+                                                <i data-lucide="minus" class="w-2.5 h-2.5"></i> Without Pay
+                                            </span>
+                                        <?php elseif ($l['status'] === 'approved'): ?>
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100">
+                                                <i data-lucide="circle-dashed" class="w-2.5 h-2.5"></i> Not decided
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+
                                     <div class="flex items-center gap-1 mt-3">
                                         <button onclick='openViewLeave(<?= json_encode([
                                             "id"         => (int) $l["id"],
@@ -397,6 +444,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                             "created"    => $l["created_at"],
                                             "approver"   => $l["approver_username"] ?? "",
                                             "approved"   => $l["approved_at"] ?? "",
+                                            "pay_status" => $payStatus,
                                         ]) ?>)'
                                             class="flex-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
                                             View

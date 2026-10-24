@@ -1,6 +1,10 @@
 // ============================================
 // Leave Monitoring — Faculty leadership view
+// Filters + pagination + search
 // ============================================
+
+const PER_PAGE = 10;
+let currentPage = 1;
 
 // ============================================
 // Helpers
@@ -8,33 +12,169 @@
 function getTypeClasses(typeStr) {
     const t = (typeStr || "").toLowerCase();
     if (t.includes('sick')) return 'text-rose-700 bg-rose-50';
-    if (t.includes('vacation')) return 'text-blue-700 bg-blue-50';
+    if (t.includes('vacation') || t.includes('mandatory')) return 'text-blue-700 bg-blue-50';
     return 'text-slate-700 bg-slate-100';
 }
 
 // ============================================
-// Filter
+// Apply filters + pagination
+// Called by: status/type/position selects, search input
 // ============================================
+function applyFilters(resetPage = true) {
+    if (resetPage) currentPage = 1;
+    renderPage();
+}
+
+// Backwards-compat alias (old code calls filterFacultyLeaves)
 function filterFacultyLeaves() {
-    const search = (document.getElementById("flSearch")?.value || "").toLowerCase();
-    const status = document.getElementById("flStatus")?.value || "";
+    applyFilters(true);
+}
 
-    const rows = document.querySelectorAll(".faculty-leave-row");
-    let visible = 0;
+// ============================================
+// Compute the filtered set of rows
+// ============================================
+function getFilteredRows() {
+    const status   = (document.getElementById("flStatus")?.value   || "").trim();
+    const type     = (document.getElementById("flType")?.value     || "").trim();
+    const position = (document.getElementById("flPosition")?.value || "").trim();
+    const search   = (document.getElementById("flSearch")?.value   || "").toLowerCase().trim();
 
-    rows.forEach((row) => {
-        const dataSearch = row.dataset.search || "";
-        const dataStatus = row.dataset.status || "";
+    const rows = Array.from(document.querySelectorAll(".faculty-leave-row"));
 
-        const matchesSearch = !search || dataSearch.includes(search);
-        const matchesStatus = !status || dataStatus === status;
+    return rows.filter((row) => {
+        const rSearch   = row.dataset.search   || "";
+        const rStatus   = row.dataset.status   || "";
+        const rType     = row.dataset.type     || "";
+        const rPosition = row.dataset.position || "";
 
-        const matches = matchesSearch && matchesStatus;
-        row.classList.toggle("hidden", !matches);
-        if (matches) visible++;
+        const matchStatus   = !status   || rStatus   === status;
+        const matchType     = !type     || rType     === type;
+        const matchPosition = !position || rPosition === position;
+        const matchSearch   = !search   || rSearch.includes(search);
+
+        return matchStatus && matchType && matchPosition && matchSearch;
     });
+}
 
-    document.getElementById("flEmpty")?.classList.toggle("hidden", visible > 0);
+// ============================================
+// Render current page
+// ============================================
+function renderPage() {
+    const allRows = Array.from(document.querySelectorAll(".faculty-leave-row"));
+    const filtered = getFilteredRows();
+
+    // Hide everything first
+    allRows.forEach((r) => r.classList.add("hidden"));
+
+    // Slice for pagination
+    const total       = filtered.length;
+    const totalPages  = Math.max(1, Math.ceil(total / PER_PAGE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * PER_PAGE;
+    const end   = Math.min(start + PER_PAGE, total);
+
+    filtered.slice(start, end).forEach((r) => r.classList.remove("hidden"));
+
+    // Empty state
+    document.getElementById("flEmpty")?.classList.toggle("hidden", total > 0);
+
+    // Info text
+    const info = document.getElementById("flPaginationInfo");
+    if (info) {
+        if (total === 0) {
+            info.innerHTML = `Showing <span class="font-medium text-[#2C3E50]">0</span> of <span class="font-medium text-[#2C3E50]">0</span> requests`;
+        } else {
+            info.innerHTML = `Showing <span class="font-medium text-[#2C3E50]">${start + 1}–${end}</span> of <span class="font-medium text-[#2C3E50]">${total}</span> requests`;
+        }
+    }
+
+    // Render pagination nav
+    renderPagination(totalPages);
+}
+
+// ============================================
+// Render Prev / Pages / Next
+// ============================================
+function renderPagination(totalPages) {
+    const nav = document.getElementById("flPaginationNav");
+    if (!nav) return;
+
+    if (totalPages <= 1) {
+        nav.innerHTML = "";
+        return;
+    }
+
+    const btnBase =
+        "w-8 h-8 rounded-md flex items-center justify-center text-[#2C3E50]/70 border border-[#E0E0E0] transition";
+    const btnEnabled = " hover:bg-[#F1FDF6] hover:text-[#0F5E3D]";
+    const btnDisabled = " opacity-30 cursor-not-allowed";
+
+    let html = "";
+
+    // Prev
+    if (currentPage > 1) {
+        html += `<button type="button" onclick="goToPage(${currentPage - 1})" class="${btnBase}${btnEnabled}" title="Previous">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                 </button>`;
+    } else {
+        html += `<button type="button" disabled class="${btnBase}${btnDisabled}">
+                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                 </button>`;
+    }
+
+    // Numbered pages (window of 5)
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage   = Math.min(totalPages, startPage + 4);
+    startPage     = Math.max(1, endPage - 4);
+
+    for (let p = startPage; p <= endPage; p++) {
+        if (p === currentPage) {
+            html += `<span class="w-8 h-8 rounded-md bg-[#0F5E3D] text-white text-xs font-medium flex items-center justify-center">${p}</span>`;
+        } else {
+            html += `<button type="button" onclick="goToPage(${p})" class="w-8 h-8 rounded-md flex items-center justify-center text-[#2C3E50]/70 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition text-xs font-medium">${p}</button>`;
+        }
+    }
+
+    // Next
+    if (currentPage < totalPages) {
+        html += `<button type="button" onclick="goToPage(${currentPage + 1})" class="${btnBase}${btnEnabled}" title="Next">
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                 </button>`;
+    } else {
+        html += `<button type="button" disabled class="${btnBase}${btnDisabled}">
+                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                 </button>`;
+    }
+
+    nav.innerHTML = html;
+    if (typeof initIcons === "function") initIcons();
+}
+
+// ============================================
+// Page navigation
+// ============================================
+function goToPage(p) {
+    currentPage = p;
+    renderPage();
+    // Scroll the table into view for good UX
+    document.querySelector("table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ============================================
+// Clear all filters
+// ============================================
+function clearFilters() {
+    const s = document.getElementById("flStatus");
+    const t = document.getElementById("flType");
+    const p = document.getElementById("flPosition");
+    const q = document.getElementById("flSearch");
+    if (s) s.value = "";
+    if (t) t.value = "";
+    if (p) p.value = "";
+    if (q) q.value = "";
+    applyFilters(true);
+    q?.focus();
 }
 
 // ============================================
@@ -45,7 +185,7 @@ function openViewFacultyLeave(data) {
 
     $("flvRequestId").textContent = data.id ? `Request #${data.id}` : "—";
 
-    // ── Sidebar: employee ──
+    // Sidebar: employee
     const name = data.name || "—";
     const initials = name
         .split(/\s+/)
@@ -68,7 +208,7 @@ function openViewFacultyLeave(data) {
     $("flvDepartment").textContent = dept || "—";
     $("flvEmail").textContent = data.email || "—";
 
-    // ── Leave type (header + sidebar) ──
+    // Leave type
     const typeClasses = getTypeClasses(data.type);
     const typeLabel = data.type || "—";
 
@@ -86,7 +226,7 @@ function openViewFacultyLeave(data) {
             typeClasses;
     }
 
-    // ── Sidebar: detailed credits ──
+    // Credits
     const credits = data.credits || { total: 0, used: 0, remaining: 0, by_type: {} };
     
     const fmtShort = (n) => {
@@ -137,7 +277,7 @@ function openViewFacultyLeave(data) {
 
     $("flvCreditsList").innerHTML = creditRows.join('');
 
-    // ── Status pill ──
+    // Status
     const statusKey = (data.status || "").toLowerCase();
     const statusClasses = {
         pending: "text-amber-700 bg-amber-50",
@@ -157,7 +297,7 @@ function openViewFacultyLeave(data) {
         "inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium " +
         (statusClasses[statusKey] || statusClasses.cancelled);
 
-    // ── Dates ──
+    // Dates
     const fmtDate = (iso) => {
         if (!iso) return "—";
         const d = new Date(iso + "T00:00:00");
@@ -185,10 +325,10 @@ function openViewFacultyLeave(data) {
     $("flvHalfDayTag").classList.toggle("hidden", days !== 0.5);
     $("flvCreated").textContent = fmtDateTime(data.created);
 
-    // ── Reason ──
+    // Reason
     $("flvReason").textContent = data.reason || "—";
 
-    // ── Dean Endorsement ──
+    // Dean Endorsement
     const deanWrap = $("flvDeanWrap");
     if (statusKey === "pending" && data.dean_approved) {
         deanWrap.classList.remove("hidden");
@@ -201,7 +341,7 @@ function openViewFacultyLeave(data) {
         deanWrap.classList.add("hidden");
     }
 
-    // ── HR Decision ──
+    // HR Decision
     const decisionWrap = $("flvDecisionWrap");
     if (statusKey === "approved" || statusKey === "rejected") {
         decisionWrap.classList.remove("hidden");
@@ -222,7 +362,7 @@ function openViewFacultyLeave(data) {
         decisionWrap.classList.add("hidden");
     }
 
-    // ── Action Bar (Endorse Button) ──
+    // Action Bar (Endorse Button)
     const actionBar = $("flvActionBar");
     actionBar.innerHTML = `
         <button onclick="closeViewFacultyLeave()" class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-md transition text-sm">
@@ -243,7 +383,6 @@ function openViewFacultyLeave(data) {
         `;
     }
 
-    // ── Show ──
     showModal("flViewModal", "flViewCard");
     if (typeof initIcons === "function") initIcons();
 }
@@ -252,12 +391,9 @@ function closeViewFacultyLeave() {
     hideModal("flViewModal", "flViewCard");
 }
 
-// 1. Called by the "Endorse to HR" button inside the View Modal
+// Endorse flow
 function promptEndorse(id) {
-    // Store the ID so the confirmation button knows which leave to process
     document.getElementById("confirmEndorseBtn").onclick = () => executeEndorse(id);
-    
-    // Show the custom confirmation modal
     showModal("confirmModal", "confirmCard");
     if (typeof initIcons === "function") initIcons();
 }
@@ -266,9 +402,8 @@ function closeConfirmModal() {
     hideModal("confirmModal", "confirmCard");
 }
 
-// 2. The actual fetch request
 async function executeEndorse(id) {
-    closeConfirmModal(); // Close the confirm modal immediately
+    closeConfirmModal();
     
     const fd = new FormData();
     fd.append("action", "endorse_dean");
@@ -285,10 +420,7 @@ async function executeEndorse(id) {
         if (typeof hideLoading === 'function') hideLoading();
         
         if (data.success) {
-            // Close the view modal in the background
             closeViewFacultyLeave(); 
-            
-            // Show the custom success modal
             document.getElementById('successTitle').textContent = "Endorsed Successfully";
             document.getElementById('successMessage').textContent = "The leave request has been forwarded to HR for final approval.";
             showModal('successModal', 'successCard');
@@ -304,8 +436,20 @@ async function executeEndorse(id) {
 }
 
 // ============================================
+// Keyboard shortcut: "/" focuses search
+// ============================================
+document.addEventListener("keydown", (e) => {
+    const tag = (document.activeElement?.tagName || "").toLowerCase();
+    if (e.key === "/" && tag !== "input" && tag !== "textarea" && tag !== "select") {
+        e.preventDefault();
+        document.getElementById("flSearch")?.focus();
+    }
+});
+
+// ============================================
 // Init
 // ============================================
 document.addEventListener("DOMContentLoaded", () => {
     if (typeof initIcons === "function") initIcons();
+    renderPage();
 });

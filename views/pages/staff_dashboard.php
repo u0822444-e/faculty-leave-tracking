@@ -362,26 +362,40 @@ $statusLabels = [
 
                     <div class="flex flex-col gap-3 sm:gap-4 h-full">
 
+                        <!-- Convertible Leave Pay — with show/hide toggle -->
                         <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Convertible Leave Pay</p>
-                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                                    <i data-lucide="banknote" class="w-4 h-4"></i>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <!-- Eye toggle for Convertible Leave Pay -->
+                                    <button type="button" onclick="toggleAmountVisibility()"
+                                        class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"
+                                        title="Show / hide amount" aria-label="Toggle amount visibility">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-amber-600">
+                            <span id="convertiblePayAmount" class="text-2xl sm:text-3xl font-bold text-amber-600 transition-colors"
+                                data-amount="<?= number_format($remainingLeavePay, 2, '.', '') ?>">
                                 ₱<?= number_format($remainingLeavePay, 2) ?>
                             </span>
                         </div>
 
+                        <!-- Leave Deduction (LWOP) — with show/hide toggle -->
                         <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col flex-1 justify-center">
                             <div class="flex items-start justify-between gap-4 mb-3">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Leave Deduction (LWOP)</p>
-                                <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                                    <i data-lucide="receipt" class="w-4 h-4"></i>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <!-- Eye toggle for Leave Deduction -->
+                                    <button type="button" onclick="toggleAmountVisibility()"
+                                        class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"
+                                        title="Show / hide amount" aria-label="Toggle amount visibility">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <span class="text-2xl sm:text-3xl font-bold text-[#2C3E50]">
+                            <span id="deductionPayAmount" class="text-2xl sm:text-3xl font-bold text-[#2C3E50] transition-colors"
+                                data-amount="<?= number_format($leaveDeduction, 2, '.', '') ?>">
                                 ₱<?= number_format($leaveDeduction, 2) ?>
                             </span>
                             <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
@@ -610,6 +624,61 @@ $statusLabels = [
             values: <?= json_encode($trendValues) ?>
         }
     };
+
+    // ============================================
+    // Show / hide monetary amounts (like banking apps)
+    // State persisted in localStorage so it survives reloads.
+    // ============================================
+    (function () {
+        const STORAGE_KEY = 'dammc_amounts_hidden';
+        const MASK = '₱••••••';
+
+        function isHidden() {
+            return localStorage.getItem(STORAGE_KEY) === '1';
+        }
+
+        function setHidden(hidden) {
+            localStorage.setItem(STORAGE_KEY, hidden ? '1' : '0');
+            apply();
+        }
+
+        function apply() {
+            const hidden = isHidden();
+
+            document.querySelectorAll('#convertiblePayAmount, #deductionPayAmount').forEach((el) => {
+                const real = el.dataset.amount || '0';
+                if (hidden) {
+                    el.textContent = MASK;
+                    el.classList.add('text-[#2C3E50]/40');
+                    el.classList.remove('text-amber-600', 'text-[#2C3E50]');
+                } else {
+                    const formatted = parseFloat(real).toLocaleString('en-PH', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    el.textContent = '₱' + formatted;
+                    el.classList.remove('text-[#2C3E50]/40');
+                    el.classList.add(el.id === 'convertiblePayAmount' ? 'text-amber-600' : 'text-[#2C3E50]');
+                }
+            });
+
+            // Swap all toggle buttons' icons
+            document.querySelectorAll('.amount-toggle-btn').forEach((btn) => {
+                btn.innerHTML = hidden
+                    ? '<i data-lucide="eye-off" class="w-4 h-4"></i>'
+                    : '<i data-lucide="eye" class="w-4 h-4"></i>';
+                btn.title = hidden ? 'Show amounts' : 'Hide amounts';
+            });
+
+            if (typeof initIcons === 'function') initIcons();
+        }
+
+        window.toggleAmountVisibility = function () {
+            setHidden(!isHidden());
+        };
+
+        document.addEventListener('DOMContentLoaded', apply);
+    })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>

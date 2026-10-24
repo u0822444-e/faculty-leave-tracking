@@ -34,6 +34,18 @@ $stmt = $pdo->query("
 ");
 $leaves = $stmt->fetchAll();
 
+// ============================================
+// Distinct positions that actually appear in leave requests
+// (drives the Position/Designation dropdown — no dead options)
+// ============================================
+$positions = $pdo->query("
+    SELECT DISTINCT e.position
+    FROM leave_requests lr
+    INNER JOIN employees e ON lr.employee_id = e.id
+    WHERE e.position IS NOT NULL AND e.position <> ''
+    ORDER BY e.position ASC
+")->fetchAll(PDO::FETCH_COLUMN);
+
 $leaveStyles = [
     'vacation' => 'text-blue-700 bg-blue-50',
     'sick' => 'text-rose-700 bg-rose-50',
@@ -134,10 +146,15 @@ $leaveLabels = [
                                 <option value="">All Types</option>
                                 <option value="vacation">Vacation</option>
                                 <option value="sick">Sick</option>
-                                <option value="maternity">Maternity</option>
-                                <option value="paternity">Paternity</option>
-                                <option value="terminal">Terminal</option>
                                 <option value="other">Other</option>
+                            </select>
+
+                            <select id="positionFilter" onchange="filterLeaves()"
+                                class="px-3 py-1.5 rounded-lg text-sm font-medium text-[#2C3E50]/80 bg-[#F1FDF6] border border-[#E0E0E0] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer max-w-[200px] truncate">
+                                <option value="">All Positions</option>
+                                <?php foreach ($positions as $pos): ?>
+                                    <option value="<?= htmlspecialchars($pos) ?>"><?= htmlspecialchars($pos) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
 
@@ -146,10 +163,15 @@ $leaveLabels = [
                                 <i data-lucide="search"
                                     class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2C3E50]/40 pointer-events-none"></i>
                                 <input type="text" id="searchInput" oninput="filterLeaves()"
-                                    placeholder="Search by employee"
-                                    class="w-full pl-10 pr-10 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
+                                    placeholder="Search name, position, department"
+                                    class="w-full pl-10 pr-16 py-2 bg-[#F1FDF6]/60 border border-transparent rounded-lg text-sm text-[#2C3E50] placeholder:text-[#2C3E50]/40 focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:bg-white focus:border-transparent transition">
+                                <button type="button" onclick="clearSearch()"
+                                    class="absolute right-9 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-[#2C3E50]/40 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition"
+                                    title="Clear search">
+                                    <i data-lucide="x" class="w-3 h-3"></i>
+                                </button>
                                 <kbd
-                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-[#2C3E50]/40 bg-white px-1.5 py-0.5 rounded border border-[#E0E0E0]">/</kbd>
+                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-[#2C3E50]/40 bg-white px-1.5 py-0.5 rounded border border-[#E0E0E0] pointer-events-none">/</kbd>
                             </div>
                         </div>
 
@@ -207,10 +229,22 @@ $leaveLabels = [
                                             $payLabel = 'Without Pay';
                                             $payClass = 'text-amber-700 bg-amber-50 border border-amber-200';
                                         }
+
+                                        // Locked = pending and not endorsed by dean
+                                        $locked = ($l['status'] === 'pending' && empty($l['dean_approved_at']));
+
+                                        // Search haystack — name + position + dept
+                                        $searchHaystack = strtolower(
+                                            $fullName . ' ' .
+                                            ($l['position'] ?? '') . ' ' .
+                                            ($l['sub_category'] ?? '')
+                                        );
                                         ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12"
-                                            data-name="<?= strtolower($fullName) ?>" data-status="<?= $l['status'] ?>"
-                                            data-type="<?= $l['leave_type'] ?>">
+                                            data-name="<?= htmlspecialchars($searchHaystack) ?>"
+                                            data-status="<?= $l['status'] ?>"
+                                            data-type="<?= $l['leave_type'] ?>"
+                                            data-position="<?= htmlspecialchars($l['position'] ?? '') ?>">
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center gap-2.5">
                                                     <div
@@ -222,7 +256,7 @@ $leaveLabels = [
                                                             <?= htmlspecialchars($fullName) ?>
                                                         </p>
                                                         <p class="text-xs text-[#2C3E50]/50 truncate">
-                                                            <?= htmlspecialchars($l['sub_category'] ?? '') ?>
+                                                            <?= htmlspecialchars($l['position'] ?? $l['sub_category'] ?? '') ?>
                                                         </p>
                                                     </div>
                                                 </div>
@@ -261,9 +295,9 @@ $leaveLabels = [
                                             </td>
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
-                                                    <button onclick="openReview(<?= (int) $l['id'] ?>)" 
-                                                        class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition <?= (empty($l['dean_approved_at']) && $l['status'] === 'pending') ? 'opacity-30 cursor-not-allowed' : '' ?>"
-                                                        title="<?= (empty($l['dean_approved_at']) && $l['status'] === 'pending') ? 'Waiting for Dean endorsement' : 'Review request' ?>">
+                                                    <button <?= $locked ? 'disabled' : 'onclick="openReview(' . (int) $l['id'] . ')"' ?>
+                                                        class="w-8 h-8 rounded-lg flex items-center justify-center transition <?= $locked ? 'opacity-30 cursor-not-allowed text-[#2C3E50]/60' : 'text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D]' ?>"
+                                                        title="<?= $locked ? 'Waiting for Dean endorsement' : 'Review request' ?>">
                                                         <i data-lucide="eye" class="w-4 h-4"></i>
                                                     </button>
                                                 </div>
@@ -297,9 +331,20 @@ $leaveLabels = [
                                     $payLabel = 'Without Pay';
                                     $payClass = 'text-amber-700';
                                 }
+
+                                $locked = ($l['status'] === 'pending' && empty($l['dean_approved_at']));
+
+                                $searchHaystack = strtolower(
+                                    $fullName . ' ' .
+                                    ($l['position'] ?? '') . ' ' .
+                                    ($l['sub_category'] ?? '')
+                                );
                                 ?>
-                                <div class="p-4 hover:bg-[#F1FDF6]/40 transition" data-name="<?= strtolower($fullName) ?>"
-                                    data-status="<?= $l['status'] ?>" data-type="<?= $l['leave_type'] ?>">
+                                <div class="p-4 hover:bg-[#F1FDF6]/40 transition"
+                                    data-name="<?= htmlspecialchars($searchHaystack) ?>"
+                                    data-status="<?= $l['status'] ?>"
+                                    data-type="<?= $l['leave_type'] ?>"
+                                    data-position="<?= htmlspecialchars($l['position'] ?? '') ?>">
                                     <div class="flex items-start gap-3">
                                         <div
                                             class="w-9 h-9 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-semibold text-xs shrink-0">
@@ -315,6 +360,11 @@ $leaveLabels = [
                                                     <?= htmlspecialchars($l['status']) ?>
                                                 </span>
                                             </div>
+                                            <?php if (!empty($l['position'])): ?>
+                                                <p class="text-[10px] text-[#2C3E50]/50 truncate mb-1">
+                                                    <?= htmlspecialchars($l['position']) ?>
+                                                </p>
+                                            <?php endif; ?>
                                             <div class="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span
                                                     class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium <?= $leaveClass ?>">
@@ -341,8 +391,8 @@ $leaveLabels = [
                                                 <?php endif; ?>
                                             </div>
                                             <div class="flex items-center gap-2 mt-3">
-                                                <button onclick="openReview(<?= (int) $l['id'] ?>)"
-                                                    class="w-full text-sm py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition <?= (empty($l['dean_approved_at']) && $l['status'] === 'pending') ? 'opacity-50' : '' ?>">
+                                                <button <?= $locked ? 'disabled' : 'onclick="openReview(' . (int) $l['id'] . ')"' ?>
+                                                    class="w-full text-sm py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] transition <?= $locked ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50' ?>">
                                                     Review
                                                 </button>
                                             </div>
@@ -664,6 +714,7 @@ $leaveLabels = [
     <script src="/assets/js/profile.js"></script>
     <script src="/assets/js/leaves.js"></script>
     <script>
+        // Pass leaves to JS for the review modal history
         rvAllLeaves = <?= json_encode(array_map(function ($l) {
             return [
                 'id' => (int) $l['id'],
@@ -678,6 +729,69 @@ $leaveLabels = [
                 'dean_approved' => $l['dean_approved_at'] ?? null,
             ];
         }, $leaves)) ?>;
+
+        // ============================================
+        // Filter — status / type / position / search
+        // Overrides leaves.js's filterLeaves so this page is self-contained.
+        // Works on both desktop <tr> rows and mobile <div> cards.
+        // ============================================
+        function filterLeaves() {
+            const status   = (document.getElementById('statusFilter')?.value   || '').trim();
+            const type     = (document.getElementById('typeFilter')?.value     || '').trim();
+            const position = (document.getElementById('positionFilter')?.value || '').trim();
+            const search   = (document.getElementById('searchInput')?.value    || '').toLowerCase().trim();
+
+            // Rows carry data-name, data-status, data-type, data-position
+            const rows = document.querySelectorAll('[data-name][data-status][data-type]');
+
+            let visible = 0;
+
+            rows.forEach((row) => {
+                const rName     = row.dataset.name     || '';
+                const rStatus   = row.dataset.status   || '';
+                const rType     = row.dataset.type     || '';
+                const rPosition = row.dataset.position || '';
+
+                const matchStatus   = !status   || rStatus === status;
+                const matchType     = !type     || rType   === type;
+                const matchPosition = !position || rPosition === position;
+                const matchSearch   = !search   || rName.includes(search);
+
+                const show = matchStatus && matchType && matchPosition && matchSearch;
+
+                row.classList.toggle('hidden', !show);
+                if (show) visible++;
+            });
+
+            // Toggle "no results" empty state
+            document.getElementById('emptyState')?.classList.toggle('hidden', visible > 0);
+
+            // Live update the "Showing X of Y" footer count
+            const footer = document.querySelector('main .px-4.sm\\:px-6.py-3.border-t p');
+            if (footer) {
+                const total = rows.length;
+                footer.innerHTML = `Showing <span class="font-medium text-[#2C3E50]">${visible}</span> of <span class="font-medium text-[#2C3E50]">${total}</span> requests`;
+            }
+        }
+
+        // Clear the search input + reapply filters
+        function clearSearch() {
+            const s = document.getElementById('searchInput');
+            if (s) {
+                s.value = '';
+                filterLeaves();
+                s.focus();
+            }
+        }
+
+        // Keyboard shortcut: "/" focuses the search box
+        document.addEventListener('keydown', (e) => {
+            const tag = (document.activeElement?.tagName || '').toLowerCase();
+            if (e.key === '/' && tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+                e.preventDefault();
+                document.getElementById('searchInput')?.focus();
+            }
+        });
     </script>
 </body>
 

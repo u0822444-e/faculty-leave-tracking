@@ -41,8 +41,8 @@ $employeeId = $user['employee_id'] ?? null;
 $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: $user['username'];
 $initials = strtoupper(substr($user['first_name'] ?? $user['username'], 0, 1) . substr($user['last_name'] ?? '', 0, 1));
 
-$leavePayRate    = (float) ($user['leave_pay'] ?? 0);
-$leaveCredits    = (float) ($user['leave_credits'] ?? 0);
+$leavePayRate = (float) ($user['leave_pay'] ?? 0);
+$leaveCredits = (float) ($user['leave_credits'] ?? 0);
 
 // Leave stats
 $stmt = $pdo->prepare("
@@ -66,7 +66,7 @@ $stmt = $pdo->prepare("
     WHERE employee_id = ? AND status = 'approved' AND leave_type = 'sick'
 ");
 $stmt->execute([$employeeId]);
-$sickUsed      = (float) $stmt->fetchColumn();
+$sickUsed = (float) $stmt->fetchColumn();
 $sickRemaining = max(0, $sickCap - $sickUsed);
 $convertibleLeavePay = $leavePayRate * $sickRemaining;
 
@@ -108,7 +108,8 @@ foreach ($payrolls as $p) {
 // Index leave-pay entries by leave_request_id for badges on leave rows
 $payByLeave = [];
 foreach ($payrolls as $p) {
-    if (empty($p['leave_request_id'])) continue;
+    if (empty($p['leave_request_id']))
+        continue;
     $lid = (int) $p['leave_request_id'];
     $type = $p['adjustment_type'];
     if (!isset($payByLeave[$lid])) {
@@ -123,32 +124,41 @@ foreach ($payrolls as $p) {
 
 // Badge styles
 $leaveStyles = [
-    'vacation'  => 'text-blue-600 bg-blue-50',
-    'sick'      => 'text-rose-600 bg-rose-50',
+    'vacation' => 'text-blue-600 bg-blue-50',
+    'sick' => 'text-rose-600 bg-rose-50',
     'maternity' => 'text-purple-600 bg-purple-50',
     'paternity' => 'text-indigo-600 bg-indigo-50',
-    'terminal'  => 'text-amber-600 bg-amber-50',
-    'other'     => 'text-slate-600 bg-slate-100',
+    'terminal' => 'text-amber-600 bg-amber-50',
+    'other' => 'text-slate-600 bg-slate-100',
 ];
 $statusStyles = [
-    'pending'   => 'text-amber-600 bg-amber-50',
-    'approved'  => 'text-[#0F5E3D] bg-[#F1FDF6]',
-    'rejected'  => 'text-red-600 bg-red-50',
+    'pending' => 'text-amber-600 bg-amber-50',
+    'approved' => 'text-[#0F5E3D] bg-[#F1FDF6]',
+    'rejected' => 'text-red-600 bg-red-50',
     'cancelled' => 'text-slate-600 bg-slate-100',
 ];
 
 $roleLabels = [
-    'admin' => 'Admin', 'hr' => 'HR', 'payroll' => 'Payroll',
-    'faculty' => 'Faculty', 'staff' => 'Staff', 'timekeeper' => 'Timekeeper',
+    'admin' => 'Admin',
+    'hr' => 'HR',
+    'payroll' => 'Payroll',
+    'faculty' => 'Faculty',
+    'staff' => 'Staff',
+    'timekeeper' => 'Timekeeper',
 ];
 $roleClass = 'text-[#0F5E3D] bg-[#F1FDF6]';
 
-function timeAgoShort($ts) {
+function timeAgoShort($ts)
+{
     $diff = time() - strtotime($ts);
-    if ($diff < 60) return 'Just now';
-    if ($diff < 3600) return floor($diff / 60) . 'm ago';
-    if ($diff < 86400) return floor($diff / 3600) . 'h ago';
-    if ($diff < 604800) return floor($diff / 86400) . 'd ago';
+    if ($diff < 60)
+        return 'Just now';
+    if ($diff < 3600)
+        return floor($diff / 60) . 'm ago';
+    if ($diff < 86400)
+        return floor($diff / 3600) . 'h ago';
+    if ($diff < 604800)
+        return floor($diff / 86400) . 'd ago';
     return date('M j, Y', strtotime($ts));
 }
 ?>
@@ -189,29 +199,35 @@ function timeAgoShort($ts) {
             <main class="p-4 sm:p-6 lg:p-8 space-y-4">
 
                 <div class="animate-fade-in-up">
-                    <a href="/faculty" class="flex items-center gap-1.5 text-xs font-medium text-[#2C3E50]/60 hover:text-[#0F5E3D] transition">
+                    <a href="/faculty"
+                        class="inline-flex items-center gap-1.5 text-xs font-medium text-[#2C3E50]/70 bg-white/80 hover:bg-white hover:text-[#0F5E3D] border border-[#E0E0E0] hover:border-[#0F5E3D]/30 rounded-lg px-3 py-1.5 shadow-sm hover:shadow-md transition-all">
                         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
-                        <span>Back to Users</span>
+                        <span>Back to Faculty</span>
                     </a>
                 </div>
 
                 <!-- Profile card -->
-                <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl px-5 py-4 shadow-sm">
+                <div
+                    class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl px-5 py-4 shadow-sm">
                     <div class="flex items-start gap-4 flex-wrap">
-                        <div class="w-14 h-14 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-lg shrink-0 ring-4 ring-[#F1FDF6]">
+                        <div
+                            class="w-14 h-14 rounded-full bg-[#0F5E3D] text-white flex items-center justify-center font-bold text-lg shrink-0 ring-4 ring-[#F1FDF6]">
                             <?= $initials ?>
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex flex-wrap items-center gap-2 mb-1">
                                 <h2 class="text-lg font-bold text-[#2C3E50]"><?= htmlspecialchars($fullName) ?></h2>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $roleClass ?>">
+                                <span
+                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $roleClass ?>">
                                     <?= $roleLabels[$user['role']] ?? ucfirst($user['role']) ?>
                                 </span>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-600 bg-slate-100 capitalize">
+                                <span
+                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-600 bg-slate-100 capitalize">
                                     <?= htmlspecialchars($user['category'] ?? 'staff') ?>
                                 </span>
                                 <?php if ($user['status'] === 'inactive'): ?>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-red-600 bg-red-50">
+                                    <span
+                                        class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium text-red-600 bg-red-50">
                                         Archived
                                     </span>
                                 <?php endif; ?>
@@ -227,27 +243,33 @@ function timeAgoShort($ts) {
                     </div>
 
                     <!-- Quick facts -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-[#E0E0E0]">
+                    <div
+                        class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-4 pt-4 border-t border-[#E0E0E0]">
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Employment</p>
-                            <p class="text-sm font-semibold text-[#2C3E50] capitalize"><?= htmlspecialchars($user['employment_type'] ?? '—') ?></p>
+                            <p class="text-sm font-semibold text-[#2C3E50] capitalize">
+                                <?= htmlspecialchars($user['employment_type'] ?? '—') ?></p>
                         </div>
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Credits</p>
                             <p class="text-sm font-semibold text-[#0F5E3D]"><?= number_format($leaveCredits) ?></p>
                         </div>
                         <div>
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Convertible Leave Pay</p>
-                            <p class="text-sm font-semibold text-amber-600">₱<?= number_format($convertibleLeavePay, 2) ?></p>
-                            
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Convertible Leave
+                                Pay</p>
+                            <p class="text-sm font-semibold text-amber-600">
+                                ₱<?= number_format($convertibleLeavePay, 2) ?></p>
+
                         </div>
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Total Deduction</p>
-                            <p class="text-sm font-semibold text-rose-600">₱<?= number_format($totalLeaveDeduct, 2) ?></p>
+                            <p class="text-sm font-semibold text-rose-600">₱<?= number_format($totalLeaveDeduct, 2) ?>
+                            </p>
                         </div>
                         <div>
                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Member Since</p>
-                            <p class="text-sm font-semibold text-[#2C3E50]"><?= date('M j, Y', strtotime($user['created_at'])) ?></p>
+                            <p class="text-sm font-semibold text-[#2C3E50]">
+                                <?= date('M j, Y', strtotime($user['created_at'])) ?></p>
                         </div>
                     </div>
                 </div>
@@ -268,17 +290,21 @@ function timeAgoShort($ts) {
                     </div>
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-1">Days Used</p>
-                        <p class="text-2xl font-bold text-[#2C3E50]"><?= number_format((float) $leaveStats['days_used'], 1) ?></p>
+                        <p class="text-2xl font-bold text-[#2C3E50]">
+                            <?= number_format((float) $leaveStats['days_used'], 1) ?></p>
                     </div>
                 </div>
 
                 <!-- Leave History -->
-                <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
+                <div
+                    class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl shadow-sm overflow-hidden">
 
                     <div class="border-b border-[#E0E0E0] flex overflow-x-auto">
-                        <div class="whitespace-nowrap px-5 py-3 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D]">
+                        <div
+                            class="whitespace-nowrap px-5 py-3 text-sm font-medium text-[#0F5E3D] border-b-2 border-[#0F5E3D]">
                             Leave History
-                            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1FDF6] text-[#0F5E3D]">
+                            <span
+                                class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#F1FDF6] text-[#0F5E3D]">
                                 <?= count($leaves) ?>
                             </span>
                         </div>
@@ -286,7 +312,8 @@ function timeAgoShort($ts) {
 
                     <?php if (empty($leaves)): ?>
                         <div class="p-12 text-center">
-                            <div class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
+                            <div
+                                class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                                 <i data-lucide="calendar-x" class="w-5 h-5"></i>
                             </div>
                             <p class="text-sm font-medium text-[#2C3E50]">No leave requests yet</p>
@@ -321,7 +348,8 @@ function timeAgoShort($ts) {
                                 <div class="px-4 py-3 hover:bg-[#F1FDF6]/40 transition">
                                     <div class="flex items-center justify-between gap-3 flex-wrap">
                                         <div class="flex items-center gap-2 flex-wrap min-w-0">
-                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $leaveStyle ?>">
+                                            <span
+                                                class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $leaveStyle ?>">
                                                 <?= htmlspecialchars($l['leave_type']) ?>
                                             </span>
                                             <span class="text-sm font-medium text-[#2C3E50]">
@@ -329,25 +357,31 @@ function timeAgoShort($ts) {
                                                 <?= $l['start_date'] !== $l['end_date'] ? ' – ' . date('M j, Y', strtotime($l['end_date'])) : ', ' . date('Y', strtotime($l['start_date'])) ?>
                                             </span>
                                             <span class="text-xs text-[#2C3E50]/50">
-                                                (<?= number_format((float) $l['days_count'], 1) ?> day<?= $l['days_count'] == 1 ? '' : 's' ?>)
+                                                (<?= number_format((float) $l['days_count'], 1) ?>
+                                                day<?= $l['days_count'] == 1 ? '' : 's' ?>)
                                             </span>
 
                                             <?php if ($payBadge): ?>
-                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold <?= $payBadge['class'] ?>"
+                                                <span
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold <?= $payBadge['class'] ?>"
                                                     title="Linked leave-pay amount">
-                                                    <i data-lucide="<?= $payBadge['sign'] === '+' ? 'plus' : 'minus' ?>" class="w-2.5 h-2.5"></i>
+                                                    <i data-lucide="<?= $payBadge['sign'] === '+' ? 'plus' : 'minus' ?>"
+                                                        class="w-2.5 h-2.5"></i>
                                                     <?= $payBadge['label'] ?>
-                                                    <span class="opacity-70">· <?= $payBadge['sign'] ?>₱<?= number_format($payBadge['amount'], 2) ?></span>
+                                                    <span class="opacity-70">·
+                                                        <?= $payBadge['sign'] ?>₱<?= number_format($payBadge['amount'], 2) ?></span>
                                                 </span>
                                             <?php elseif ($l['status'] === 'approved'): ?>
-                                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100"
+                                                <span
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-500 bg-slate-100"
                                                     title="No leave-pay entry linked">
                                                     <i data-lucide="circle-dashed" class="w-2.5 h-2.5"></i>
                                                     Unpaid
                                                 </span>
                                             <?php endif; ?>
                                         </div>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $statusStyle ?>">
+                                        <span
+                                            class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize <?= $statusStyle ?>">
                                             <?= htmlspecialchars($l['status']) ?>
                                         </span>
                                     </div>
@@ -364,7 +398,8 @@ function timeAgoShort($ts) {
                                         <?php if ($l['approved_at']): ?>
                                             <span class="flex items-center gap-1">
                                                 <i data-lucide="check" class="w-3 h-3"></i>
-                                                <?= htmlspecialchars($l['approver_username'] ?? 'Admin') ?> · <?= timeAgoShort($l['approved_at']) ?>
+                                                <?= htmlspecialchars($l['approver_username'] ?? 'Admin') ?> ·
+                                                <?= timeAgoShort($l['approved_at']) ?>
                                             </span>
                                         <?php endif; ?>
                                     </div>

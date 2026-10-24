@@ -87,7 +87,7 @@ $sql = "
     FROM users u
     LEFT JOIN employees e ON u.employee_id = e.id
     {$whereSql}
-    ORDER BY u.id DESC
+    ORDER BY u.profile_edit_requested DESC, u.id DESC
     LIMIT ? OFFSET ?
 ";
 $stmt = $pdo->prepare($sql);
@@ -382,7 +382,7 @@ $statusLabelText = $statusFilter === 'inactive'
                             <button onclick="openAddUserModal()"
                                 class="flex items-center gap-1.5 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 px-4 rounded-lg transition text-xs shadow-sm hover:shadow-md whitespace-nowrap">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                                <span>Add User</span>
+                                <span>Add Faculty</span>
                             </button>
                         </div>
 
@@ -454,13 +454,13 @@ $statusLabelText = $statusFilter === 'inactive'
                                         onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'approve')"
                                         class="px-2 py-1 bg-[#F1FDF6] text-[#0F5E3D] hover:bg-[#0F5E3D] hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
                                         title="Approve Profile Update">
-                                        <i data-lucide="check" class="w-3 h-3"></i> Approve
+                                        <i data-lucide="check" class="w-3 h-3"></i>
                                     </button>
                                     <button
                                         onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'reject')"
                                         class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
                                         title="Reject Profile Update">
-                                        <i data-lucide="x" class="w-3 h-3"></i> Reject
+                                        <i data-lucide="x" class="w-3 h-3"></i>
                                     </button>
                                 <?php endif; ?>
                                 <a href="/faculty/<?= $u['user_id'] ?>"
@@ -527,8 +527,7 @@ $statusLabelText = $statusFilter === 'inactive'
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Name</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Email</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Role</th>
-                                    <!-- <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Category</th> -->
-                                    <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Salary</th>
+                                    <th class="text-center text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Profile Approval</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Credits</th>
                                     <th class="w-40 px-4 py-0 text-right text-xs font-medium text-[#2C3E50]/50">Actions
@@ -538,7 +537,7 @@ $statusLabelText = $statusFilter === 'inactive'
                             <tbody id="usersTableBody" class="divide-y divide-[#E0E0E0]">
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="8" class="text-center text-sm text-[#2C3E50]/50 py-8">No users found.
+                                        <td colspan="7" class="text-center text-sm text-[#2C3E50]/50 py-8">No users found.
                                         </td>
                                     </tr>
                                 <?php else: ?>
@@ -551,7 +550,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                         $roleLabel = $roleLabels[$u['role']] ?? ucfirst($u['role']);
                                         $avatarUrl = !empty($u['avatar']) ? '/uploads/avatars/' . htmlspecialchars($u['avatar']) : null;
                                         $creditsInt = number_format((float) ($u['leave_credits'] ?? 0), 0);
-                                        $salaryFormatted = '₱' . number_format((float) ($u['basic_salary'] ?? 0), 2);
                                         $leavePayFormatted = '₱' . number_format((float) ($u['leave_pay'] ?? 0), 2);
                                         ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12" data-id="<?= $u['user_id'] ?>"
@@ -576,12 +574,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                                         <span class="text-sm text-[#2C3E50] font-medium truncate">
                                                             <?= htmlspecialchars($fullName) ?>
                                                         </span>
-                                                        <?php if (!empty($u['profile_edit_requested'])): ?>
-                                                            <span
-                                                                class="text-[10px] font-medium text-amber-600 flex items-center gap-1 mt-0.5">
-                                                                <i data-lucide="info" class="w-3 h-3"></i> Edit Requested
-                                                            </span>
-                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             </td>
@@ -593,12 +585,26 @@ $statusLabelText = $statusFilter === 'inactive'
                                                 <span
                                                     class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium <?= $roleClass ?>"><?= $roleLabel ?></span>
                                             </td>
-                                            <!-- <td class="px-4 py-0">
-                                                <span
-                                                    class="text-sm text-[#2C3E50]/70"><?= htmlspecialchars(ucfirst($u['category'] ?? 'staff')) ?></span>
-                                            </td> -->
+                                            <!-- Profile Approval: approve/reject icon buttons -->
                                             <td class="px-4 py-0">
-                                                <span class="text-sm text-[#2C3E50]"><?= $salaryFormatted ?></span>
+                                                <div class="flex items-center justify-center gap-1">
+                                                    <?php if (!empty($u['profile_edit_requested'])): ?>
+                                                        <button
+                                                            onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'approve')"
+                                                            class="w-7 h-7 rounded-lg flex items-center justify-center bg-[#F1FDF6] text-[#0F5E3D] hover:bg-[#0F5E3D] hover:text-white transition"
+                                                            title="Approve Profile Update">
+                                                            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                        <button
+                                                            onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'reject')"
+                                                            class="w-7 h-7 rounded-lg flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition"
+                                                            title="Reject Profile Update">
+                                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                                                        </button>
+                                                    <?php else: ?>
+                                                        <span class="text-[#2C3E50]/30 text-xs">—</span>
+                                                    <?php endif; ?>
+                                                </div>
                                             </td>
                                             <td class="px-4 py-0">
                                                 <span
@@ -609,21 +615,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                             </td>
                                             <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
-                                                    <?php if (!empty($u['profile_edit_requested'])): ?>
-                                                        <button
-                                                            onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'approve')"
-                                                            class="px-2 py-1 bg-[#F1FDF6] text-[#0F5E3D] hover:bg-[#0F5E3D] hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
-                                                            title="Approve Profile Update">
-                                                            <i data-lucide="check" class="w-3 h-3"></i> Approve
-                                                        </button>
-                                                        <button
-                                                            onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'reject')"
-                                                            class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1 mr-2"
-                                                            title="Reject Profile Update">
-                                                            <i data-lucide="x" class="w-3 h-3"></i> Reject
-                                                        </button>
-                                                    <?php endif; ?>
-
                                                     <a href="/users/<?= $u['user_id'] ?>"
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View profile">
@@ -689,8 +680,8 @@ $statusLabelText = $statusFilter === 'inactive'
                             $initials = strtoupper(substr($u['first_name'] ?? $u['username'], 0, 1) . substr($u['last_name'] ?? '', 0, 1));
                             $roleClass = $roleStyles[$u['role']] ?? 'text-slate-600 bg-slate-100';
                             $roleLabel = $roleLabels[$u['role']] ?? ucfirst($u['role']);
-                            $avatarUrl = !empty($me['avatar'])
-                                ? '/uploads/avatars/' . htmlspecialchars($me['avatar'])
+                            $avatarUrl = !empty($u['avatar'])
+                                ? '/uploads/avatars/' . htmlspecialchars($u['avatar'])
                                 : null;
                             ?>
                             <div class="p-4 hover:bg-[#F1FDF6]/40 transition" data-id="<?= $u['user_id'] ?>"
@@ -715,37 +706,37 @@ $statusLabelText = $statusFilter === 'inactive'
                                                 <span class="text-sm font-medium text-[#2C3E50] truncate">
                                                     <?= htmlspecialchars($fullName) ?>
                                                 </span>
-                                                <?php if (!empty($u['profile_edit_requested'])): ?>
-                                                    <span
-                                                        class="text-[10px] font-medium text-amber-600 flex items-center gap-1 mt-0.5">
-                                                        <i data-lucide="info" class="w-3 h-3"></i> Edit Requested
-                                                    </span>
-                                                <?php endif; ?>
                                             </div>
                                             <span
                                                 class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $roleClass ?> shrink-0">
                                                 <?= $roleLabel ?>
                                             </span>
                                         </div>
-                                        <p class="text-xs text-[#2C3E50]/50 truncate">
+                                        <p class="text-xs text-[#2C3E50]/50 truncate mb-2">
                                             <?= htmlspecialchars($u['email'] ?? '—') ?>
                                         </p>
-                                        <div class="flex items-center justify-between mt-3 flex-wrap gap-2">
-                                            <span
-                                                class="text-xs text-[#2C3E50]/40 capitalize"><?= htmlspecialchars($u['category'] ?? 'staff') ?></span>
+
+                                        <div class="flex items-center justify-between mt-1 flex-wrap gap-2">
+                                            <span class="text-xs text-[#2C3E50]/40 capitalize">
+                                                <?php if (!empty($u['profile_edit_requested'])): ?>
+                                                    <span class="text-amber-600 font-medium">Pending Edit</span>
+                                                <?php else: ?>
+                                                    <?= htmlspecialchars($u['category'] ?? 'staff') ?>
+                                                <?php endif; ?>
+                                            </span>
                                             <div class="flex items-center gap-1 flex-wrap justify-end">
                                                 <?php if (!empty($u['profile_edit_requested'])): ?>
                                                     <button
                                                         onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'approve')"
                                                         class="px-2 py-1 bg-[#F1FDF6] text-[#0F5E3D] hover:bg-[#0F5E3D] hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
                                                         title="Approve Profile Update">
-                                                        <i data-lucide="check" class="w-3 h-3"></i> Approve
+                                                        <i data-lucide="check" class="w-3 h-3"></i>
                                                     </button>
                                                     <button
                                                         onclick="openProfileEditModal(<?= $u['user_id'] ?>, '<?= htmlspecialchars($fullName, ENT_QUOTES) ?>', 'reject')"
                                                         class="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded text-[10px] font-medium transition flex items-center gap-1"
                                                         title="Reject Profile Update">
-                                                        <i data-lucide="x" class="w-3 h-3"></i> Reject
+                                                        <i data-lucide="x" class="w-3 h-3"></i>
                                                     </button>
                                                 <?php endif; ?>
                                                 <a href="/faculty/<?= $u['user_id'] ?>"
@@ -1017,9 +1008,10 @@ $statusLabelText = $statusFilter === 'inactive'
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱)</label>
-                            <input type="number" step="0.01" min="0" name="basic_salary" id="addBasicSalary" value="0"
-                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                            <input type="number" step="0.01" min="0" name="basic_salary" id="addBasicSalary" value="0" readonly
+                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition bg-gray-50 text-gray-500 cursor-not-allowed"
                                 placeholder="0.00">
+                            <p class="text-[10px] text-[#2C3E50]/40 mt-1">Managed by Accounting</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1179,9 +1171,10 @@ $statusLabelText = $statusFilter === 'inactive'
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱)</label>
-                        <input type="number" step="0.01" min="0" name="basic_salary" id="editBasicSalary"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
+                        <input type="number" step="0.01" min="0" name="basic_salary" id="editBasicSalary" readonly
+                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition bg-gray-50 text-gray-500 cursor-not-allowed"
                             placeholder="0.00">
+                        <p class="text-[10px] text-[#2C3E50]/40 mt-1">Managed by Accounting</p>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

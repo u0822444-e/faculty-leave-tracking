@@ -5,9 +5,10 @@
 const SUB_CATEGORIES = {
   faculty: ["Elementary", "High School", "College"],
   staff: [
-    "Registrar's Office",
     "Accounting Section",
+    "Registrar's Office",
     "Library & Guidance",
+    "Registrar's Head",
   ],
 };
 

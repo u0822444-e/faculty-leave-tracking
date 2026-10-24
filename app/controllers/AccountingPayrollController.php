@@ -55,49 +55,78 @@ try {
         exit;
     }
 
-            // ============================================
-        // SETTLE PAYROLL (Mark as Paid / Unpaid)
-        // ============================================
-        if ($action === 'settle_payroll') {
-            $employeeId = (int) ($_POST['employee_id'] ?? 0);
-            $status = $_POST['status'] ?? '';
-            $amount = (float) ($_POST['amount'] ?? 0);
-            $remarks = trim($_POST['remarks'] ?? '');
+    // ============================================
+    // UPDATE LEAVE PAY (per-credit rate)
+    // ============================================
+    if ($action === 'update_leave_pay') {
+        $employeeId = (int) ($_POST['employee_id'] ?? 0);
+        $leavePay   = (float) ($_POST['leave_pay'] ?? 0);
 
-            if ($employeeId <= 0 || !in_array($status, ['settled', 'outstanding'])) {
-                echo json_encode(['success' => false, 'error' => 'Invalid input.']);
-                exit;
-            }
-
-            // Check if a record already exists using COUNT instead of ID
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM payroll_settlements WHERE employee_id = ?");
-            $stmt->execute([$employeeId]);
-            $exists = (int) $stmt->fetchColumn() > 0;
-
-            if ($exists) {
-                // Update existing record
-                $stmt = $pdo->prepare("
-                    UPDATE payroll_settlements 
-                    SET status = ?, amount = ?, remarks = ?, settled_at = IF(? = 'settled', NOW(), NULL)
-                    WHERE employee_id = ?
-                ");
-                $stmt->execute([$status, $amount, $remarks, $status, $employeeId]);
-            } else {
-                // Insert new record
-                $stmt = $pdo->prepare("
-                    INSERT INTO payroll_settlements (employee_id, status, amount, remarks, settled_at)
-                    VALUES (?, ?, ?, ?, IF(? = 'settled', NOW(), NULL))
-                ");
-                $stmt->execute([$employeeId, $status, $amount, $remarks, $status]);
-            }
-
-            if (class_exists('ActivityLogger')) {
-                ActivityLogger::log($pdo, 'settle_payroll', "Marked payroll as {$status} (₱" . number_format($amount, 2) . ")", 'employee', $employeeId);
-            }
-
-            echo json_encode(['success' => true, 'message' => 'Payroll updated.']);
+        if ($employeeId <= 0 || $leavePay < 0) {
+            echo json_encode(['success' => false, 'error' => 'Invalid input.']);
             exit;
         }
+
+        $stmt = $pdo->prepare("UPDATE employees SET leave_pay = ? WHERE id = ?");
+        $stmt->execute([$leavePay, $employeeId]);
+
+        if (class_exists('ActivityLogger')) {
+            ActivityLogger::log(
+                $pdo,
+                'update_leave_pay',
+                "Updated leave pay rate to ₱" . number_format($leavePay, 2) . "/credit",
+                'employee',
+                $employeeId
+            );
+        }
+
+        echo json_encode(['success' => true, 'message' => 'Leave pay updated.']);
+        exit;
+    }
+
+    // ============================================
+    // SETTLE PAYROLL (Mark as Paid / Unpaid)
+    // ============================================
+    if ($action === 'settle_payroll') {
+        $employeeId = (int) ($_POST['employee_id'] ?? 0);
+        $status = $_POST['status'] ?? '';
+        $amount = (float) ($_POST['amount'] ?? 0);
+        $remarks = trim($_POST['remarks'] ?? '');
+
+        if ($employeeId <= 0 || !in_array($status, ['settled', 'outstanding'])) {
+            echo json_encode(['success' => false, 'error' => 'Invalid input.']);
+            exit;
+        }
+
+        // Check if a record already exists using COUNT instead of ID
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM payroll_settlements WHERE employee_id = ?");
+        $stmt->execute([$employeeId]);
+        $exists = (int) $stmt->fetchColumn() > 0;
+
+        if ($exists) {
+            // Update existing record
+            $stmt = $pdo->prepare("
+                UPDATE payroll_settlements 
+                SET status = ?, amount = ?, remarks = ?, settled_at = IF(? = 'settled', NOW(), NULL)
+                WHERE employee_id = ?
+            ");
+            $stmt->execute([$status, $amount, $remarks, $status, $employeeId]);
+        } else {
+            // Insert new record
+            $stmt = $pdo->prepare("
+                INSERT INTO payroll_settlements (employee_id, status, amount, remarks, settled_at)
+                VALUES (?, ?, ?, ?, IF(? = 'settled', NOW(), NULL))
+            ");
+            $stmt->execute([$employeeId, $status, $amount, $remarks, $status]);
+        }
+
+        if (class_exists('ActivityLogger')) {
+            ActivityLogger::log($pdo, 'settle_payroll', "Marked payroll as {$status} (₱" . number_format($amount, 2) . ")", 'employee', $employeeId);
+        }
+
+        echo json_encode(['success' => true, 'message' => 'Payroll updated.']);
+        exit;
+    }
         
     echo json_encode(['success' => false, 'error' => 'Unknown action.']);
 } catch (PDOException $e) {

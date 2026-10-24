@@ -474,6 +474,64 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
         </div>
     </div>
 
+        <!-- ============================================ -->
+    <!-- Cancel Leave — Confirmation Modal             -->
+    <!-- ============================================ -->
+    <div id="cancelLeaveModal"
+        class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="cancelLeaveCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 transform transition-all duration-200 scale-95">
+
+            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-red-50 mx-auto mb-4">
+                <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+            </div>
+
+            <h3 class="text-lg font-bold text-[#2C3E50] text-center mb-2">Cancel Leave Request</h3>
+
+            <p class="text-sm text-[#2C3E50]/70 text-center mb-1">
+                Are you sure you want to cancel this leave request?
+            </p>
+            <p class="text-xs text-[#2C3E50]/50 text-center mb-6" id="cancelLeaveSummary">
+                This action cannot be undone.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button type="button" onclick="closeCancelLeaveModal()"
+                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
+                    Keep Request
+                </button>
+                <button type="button" id="cancelLeaveConfirmBtn"
+                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition text-sm">
+                    Cancel Leave
+                </button>
+            </div>
+        </div>
+    </div>
+
+        <!-- ============================================ -->
+    <!-- Cancel Success Modal                          -->
+    <!-- ============================================ -->
+    <div id="cancelSuccessModal"
+        class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="cancelSuccessCard"
+            class="bg-white rounded-xl shadow-xl w-full max-w-sm p-8 text-center transform transition-all duration-200 scale-95">
+            <div class="relative mx-auto mb-5 w-16 h-16">
+                <div class="absolute inset-0 rounded-full bg-red-50 animate-ping opacity-40"></div>
+                <div class="relative w-16 h-16 rounded-full bg-red-50 flex items-center justify-center text-red-600">
+                    <i data-lucide="ban" class="w-8 h-8"></i>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-[#2C3E50] mb-2">Leave Cancelled</h3>
+            <p class="text-sm text-[#2C3E50]/60 mb-6">
+                Your leave request has been successfully cancelled and removed from the pending queue.
+            </p>
+            <button type="button" onclick="finishCancelLeave()"
+                class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 rounded-lg transition text-sm">
+                Done
+            </button>
+        </div>
+    </div>
+
     <!-- File leave modal -->
     <div id="leaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4"
         data-default-start="<?= htmlspecialchars($defaultStartDate) ?>">

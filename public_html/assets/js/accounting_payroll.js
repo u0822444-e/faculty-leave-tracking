@@ -6,6 +6,7 @@ let settleStatus = null;
 let settleDefaultAmount = 0;
 let pvCurrentEmployeeId = null;
 let editSalaryEmployeeId = null;
+let editLeavePayEmployeeId = null;
 
 // ============================================
 // Helpers
@@ -114,6 +115,7 @@ function openPayrollView(row) {
   const employeeAmount = num(d.leavePayValue);
   const employeeId = parseInt(d.id) || null;
   const employeeSalary = num(d.salary);
+  const employeeLeavePayRate = num(d.leavePayRate);
   pvCurrentEmployeeId = employeeId;
 
   // Edit Salary Button
@@ -125,6 +127,20 @@ function openPayrollView(row) {
     openEditSalaryModal({ id: employeeId, name: employeeName, salary: employeeSalary });
   };
   actionBar.appendChild(btnEditSalary);
+
+  // Edit Leave Pay Button
+  const btnEditLeavePay = document.createElement("button");
+  btnEditLeavePay.type = "button";
+  btnEditLeavePay.className = "px-4 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2 rounded-md transition text-sm flex items-center gap-1.5 mr-auto";
+  btnEditLeavePay.innerHTML = '<i data-lucide="banknote" class="w-4 h-4"></i><span>Edit Leave Pay</span>';
+  btnEditLeavePay.onclick = () => {
+    openEditLeavePayModal({
+      id: employeeId,
+      name: employeeName,
+      leavePayRate: employeeLeavePayRate,
+    });
+  };
+  actionBar.appendChild(btnEditLeavePay);
 
   if (status !== "settled") {
     const btnSettle = document.createElement("button");
@@ -213,6 +229,74 @@ async function confirmEditSalary() {
     if (data.success) {
       document.getElementById("successTitle").textContent = "Salary Updated";
       document.getElementById("successMessage").textContent = "The employee's monthly salary has been successfully updated.";
+      showModal("successModal", "successCard");
+      if (typeof initIcons === "function") initIcons();
+    } else {
+      showError("Could not save", data.error || "Unknown error");
+    }
+  } catch (err) {
+    hideLoading();
+    console.error(err);
+    showError("Connection error", "Unable to reach the server.");
+  }
+}
+
+// ============================================
+// Edit Leave Pay Modal
+// ============================================
+function openEditLeavePayModal(employee) {
+  editLeavePayEmployeeId = employee.id;
+
+  document.getElementById("editLeavePayName").textContent = employee.name;
+  document.getElementById("editLeavePayEmployeeId").value = employee.id;
+  document.getElementById("editLeavePayInput").value =
+    employee.leavePayRate > 0 ? Number(employee.leavePayRate).toFixed(2) : "0.00";
+
+  showModal("editLeavePayModal", "editLeavePayCard");
+  if (typeof initIcons === "function") initIcons();
+}
+
+function closeEditLeavePayModal() {
+  hideModal("editLeavePayModal", "editLeavePayCard");
+  editLeavePayEmployeeId = null;
+}
+
+async function confirmEditLeavePay() {
+  if (!editLeavePayEmployeeId) return;
+
+  const rate = parseFloat(document.getElementById("editLeavePayInput").value) || 0;
+  if (rate < 0) {
+    showError("Invalid rate", "Leave pay rate cannot be negative.");
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append("action", "update_leave_pay");
+  fd.append("employee_id", editLeavePayEmployeeId);
+  fd.append("leave_pay", rate);
+
+  closeEditLeavePayModal();
+  showLoading("Saving leave pay...", "Updating the employee's leave pay rate.");
+
+  try {
+    const res = await fetch("/api/accounting/payroll", { method: "POST", body: fd });
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      hideLoading();
+      showError("Server error", "The server returned a non-JSON response.");
+      return;
+    }
+
+    await new Promise((r) => setTimeout(r, 400));
+    hideLoading();
+
+    if (data.success) {
+      document.getElementById("successTitle").textContent = "Leave Pay Updated";
+      document.getElementById("successMessage").textContent =
+        "The employee's leave pay rate has been successfully updated.";
       showModal("successModal", "successCard");
       if (typeof initIcons === "function") initIcons();
     } else {

@@ -50,6 +50,57 @@ foreach ($byType as $row) {
     }
 }
 
+// ============================================
+// Calendar data — approved leaves for the current month
+// (extend to a 3-month window so month navigation works)
+// ============================================
+$calendarStart = date('Y-m-01', strtotime('-1 month'));
+$calendarEnd   = date('Y-m-t', strtotime('+1 month'));
+
+$stmt = $pdo->prepare("
+    SELECT 
+        lr.id, lr.leave_type, lr.start_date, lr.end_date, lr.days_count,
+        e.first_name, e.last_name, e.sub_category, e.position,
+        e.leave_credits
+    FROM leave_requests lr
+    INNER JOIN employees e ON lr.employee_id = e.id
+    WHERE lr.status = 'approved'
+      AND NOT (lr.end_date < ? OR lr.start_date > ?)
+    ORDER BY lr.start_date ASC
+");
+$stmt->execute([$calendarStart, $calendarEnd]);
+$calendarLeaves = $stmt->fetchAll();
+
+// Also fetch pending leaves so the calendar can show a "pending" style dot
+$stmt = $pdo->prepare("
+    SELECT 
+        lr.id, lr.leave_type, lr.start_date, lr.end_date, lr.days_count,
+        e.first_name, e.last_name, e.sub_category, e.position
+    FROM leave_requests lr
+    INNER JOIN employees e ON lr.employee_id = e.id
+    WHERE lr.status = 'pending'
+      AND NOT (lr.end_date < ? OR lr.start_date > ?)
+    ORDER BY lr.start_date ASC
+");
+$stmt->execute([$calendarStart, $calendarEnd]);
+$calendarPending = $stmt->fetchAll();
+
+// Leaves happening *this* month (for the sidebar list)
+$monthStart = date('Y-m-01');
+$monthEnd   = date('Y-m-t');
+$stmt = $pdo->prepare("
+    SELECT 
+        lr.id, lr.leave_type, lr.start_date, lr.end_date, lr.days_count,
+        e.first_name, e.last_name, e.sub_category, e.position
+    FROM leave_requests lr
+    INNER JOIN employees e ON lr.employee_id = e.id
+    WHERE lr.status = 'approved'
+      AND NOT (lr.end_date < ? OR lr.start_date > ?)
+    ORDER BY lr.start_date ASC
+");
+$stmt->execute([$monthStart, $monthEnd]);
+$upcomingLeaves = $stmt->fetchAll();
+
 // Pending requests (top 5, oldest first — FIFO)
 $stmt = $pdo->query("
     SELECT lr.*, e.first_name, e.last_name, e.sub_category
@@ -137,6 +188,64 @@ function timeAgo($ts) {
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/css/app.css">
+    <style>
+        /* Calendar cell styling */
+        .cal-day {
+            position: relative;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 6px;
+            font-size: 11px;
+            color: #2C3E50;
+            border-radius: 6px;
+            transition: background-color 0.15s ease;
+            cursor: default;
+        }
+        .cal-day:hover {
+            background-color: rgba(15, 94, 61, 0.04);
+        }
+        .cal-day.is-today {
+            background-color: #F1FDF6;
+            color: #0F5E3D;
+            font-weight: 600;
+        }
+        .cal-day.is-outside {
+            color: #CBD5E1;
+            cursor: not-allowed;
+        }
+        .cal-day.is-outside:hover {
+            background-color: transparent;
+        }
+        .cal-day .cal-dots {
+            display: flex;
+            gap: 2px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 90%;
+        }
+        .cal-day .cal-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .cal-day .cal-count {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 8px;
+            font-weight: 600;
+            background: #0F5E3D;
+            color: #fff;
+            padding: 0 3px;
+            border-radius: 4px;
+            line-height: 1.2;
+        }
+    </style>
 </head>
 <body class="bg-gradient-to-br from-[#F1FDF6] via-[#eafaf1] to-[#dcf3e5] min-h-screen">
 
@@ -173,6 +282,119 @@ function timeAgo($ts) {
                         <i data-lucide="calendar-check" class="w-4 h-4"></i>
                         <span>Review Requests</span>
                     </a>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- CALENDAR ROW — leaves this month            -->
+                <!-- ============================================ -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+
+                    <!-- Calendar -->
+                    <div class="lg:col-span-2 animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
+                        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                            <div>
+                                <h2 class="text-base font-bold text-[#2C3E50] flex items-center gap-2">
+                                    <i data-lucide="calendar" class="w-4 h-4 text-[#0F5E3D]"></i>
+                                    Leave Calendar
+                                </h2>
+                                <p class="text-xs text-[#2C3E50]/50 mt-0.5">Approved leaves this month</p>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button type="button" onclick="calendarPrevMonth()"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
+                                    title="Previous month">
+                                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                </button>
+                                <span id="calMonthLabel" class="text-sm font-semibold text-[#2C3E50] px-3 min-w-[120px] text-center"></span>
+                                <button type="button" onclick="calendarNextMonth()"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
+                                    title="Next month">
+                                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Weekday header -->
+                        <div class="grid grid-cols-7 gap-1 mb-1">
+                            <div class="text-center text-[10px] font-semibold uppercase tracking-wider text-[#2C3E50]/40 py-1">Sun</div>
+                            <div class="text-center text-[10px] font-semibold uppercase tracking-wider text-[#2C3E50]/40 py-1">Mon</div>
+                            <div class="text-center text-[10px] font-semibold uppercase tracking-wider text-[#2C3E50]/40 py-1">Tue</div>
+                            <div class="text-center text-[10px] font-semibold uppercase tracking-wider text-[#2C3E50]/40 py-1">Wed</div>
+                            <div class="text-center text-[10px] font-semibold uppercase tracking-wider text-[#2C3E50]/40 py-1">Thu</div>
+                            <div class="text-center text-[10px] font-semibold uppercase tracking-wider text-[#2C3E50]/40 py-1">Fri</div>
+                            <div class="text-center text-[10px] font-semibold uppercase tracking-wider text-[#2C3E50]/40 py-1">Sat</div>
+                        </div>
+
+                        <!-- Days grid -->
+                        <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+
+                        <!-- Legend -->
+                        <div class="flex flex-wrap items-center gap-3 mt-4 pt-3 border-t border-[#E0E0E0]">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+                                <span class="text-[10px] text-[#2C3E50]/60">Vacation</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                <span class="text-[10px] text-[#2C3E50]/60">Sick</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                                <span class="text-[10px] text-[#2C3E50]/60">Other</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 ml-auto">
+                                <span class="w-3 h-3 rounded bg-[#F1FDF6] border border-[#0F5E3D]/20"></span>
+                                <span class="text-[10px] text-[#2C3E50]/60">Today</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upcoming leaves list (this month) -->
+                    <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <h2 class="text-sm font-bold text-[#2C3E50] flex items-center gap-1.5">
+                                    <i data-lucide="users" class="w-3.5 h-3.5 text-[#0F5E3D]"></i>
+                                    On Leave This Month
+                                </h2>
+                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5"><?= count($upcomingLeaves) ?> employee<?= count($upcomingLeaves) === 1 ? '' : 's' ?></p>
+                            </div>
+                        </div>
+
+                        <?php if (empty($upcomingLeaves)): ?>
+                            <div class="flex-1 flex flex-col items-center justify-center py-6 text-center">
+                                <div class="w-10 h-10 rounded-full bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] mb-2">
+                                    <i data-lucide="calendar-x" class="w-4 h-4"></i>
+                                </div>
+                                <p class="text-xs font-medium text-[#2C3E50]">No leaves this month</p>
+                                <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">Everyone's in the office.</p>
+                            </div>
+                        <?php else: ?>
+                            <div class="space-y-2 overflow-y-auto pr-1" style="max-height: 260px;">
+                                <?php foreach ($upcomingLeaves as $l):
+                                    $name = trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? '')) ?: 'Unknown';
+                                    $typeLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
+                                    $typeColor = $typeColors[$l['leave_type']] ?? '#64748b';
+                                    $startTs = strtotime($l['start_date']);
+                                    $endTs   = strtotime($l['end_date']);
+                                    $startLbl = date('M j', $startTs);
+                                    $endLbl   = date('M j', $endTs);
+                                    $range = ($l['start_date'] === $l['end_date']) ? $startLbl : "{$startLbl}–{$endLbl}";
+                                ?>
+                                    <div class="flex items-start gap-2 p-2 rounded-lg hover:bg-[#F1FDF6]/60 transition">
+                                        <span class="w-2 h-2 rounded-full mt-1.5 shrink-0" style="background: <?= $typeColor ?>"></span>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-xs font-medium text-[#2C3E50] truncate"><?= htmlspecialchars($name) ?></p>
+                                            <p class="text-[10px] text-[#2C3E50]/50 truncate">
+                                                <?= htmlspecialchars($typeLabel) ?> · <?= $range ?>
+                                            </p>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
                 </div>
 
                 <!-- ROW 1: Hero cards -->
@@ -468,6 +690,44 @@ function timeAgo($ts) {
         </div>
     </div>
 
+        <!-- ============================================ -->
+    <!-- Calendar Day Details Modal                   -->
+    <!-- ============================================ -->
+    <div id="leaveCalendarModal"
+        class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div id="leaveCalendarCard"
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-200 scale-95 overflow-hidden max-h-[85vh] flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-start justify-between px-6 py-4 border-b border-[#E0E0E0] bg-[#F1FDF6]/40 shrink-0">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <i data-lucide="calendar-days" class="w-4 h-4 text-[#0F5E3D]"></i>
+                        <h3 class="text-base font-bold text-[#2C3E50]">Leaves on This Day</h3>
+                    </div>
+                    <p class="text-xs text-[#2C3E50]/50" id="calModalDate">—</p>
+                </div>
+                <button onclick="closeDayDetails()"
+                    class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition shrink-0 ml-3">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-5 overflow-y-auto flex-1" id="calModalBody">
+                <!-- populated by JS -->
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-3 border-t border-[#E0E0E0] bg-white shrink-0">
+                <button onclick="closeDayDetails()"
+                    class="w-full border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <?php require_once __DIR__ . '/../components/logout_modal.php'; ?>
 
     <script>
@@ -488,6 +748,41 @@ function timeAgo($ts) {
             colors: <?= json_encode(array_values($typeColors)) ?>
         }
     };
+
+    // ============================================
+    // Leave Calendar data — approved + pending
+    // (fetched from -1 month to +1 month so navigation works)
+    // ============================================
+    window.LEAVE_CALENDAR_DATA = {
+        approved: <?= json_encode(array_map(function ($l) {
+            return [
+                'id'         => (int) $l['id'],
+                'type'       => $l['leave_type'],
+                'start'      => $l['start_date'],
+                'end'        => $l['end_date'],
+                'days'       => (float) $l['days_count'],
+                'name'       => trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? '')),
+                'department' => $l['sub_category'] ?? '',
+                'position'   => $l['position'] ?? '',
+                'status'     => 'approved'
+            ];
+        }, $calendarLeaves)) ?>,
+        pending: <?= json_encode(array_map(function ($l) {
+            return [
+                'id'         => (int) $l['id'],
+                'type'       => $l['leave_type'],
+                'start'      => $l['start_date'],
+                'end'        => $l['end_date'],
+                'days'       => (float) $l['days_count'],
+                'name'       => trim(($l['first_name'] ?? '') . ' ' . ($l['last_name'] ?? '')),
+                'department' => $l['sub_category'] ?? '',
+                'position'   => $l['position'] ?? '',
+                'status'     => 'pending'
+            ];
+        }, $calendarPending)) ?>
+    };
+
+    window.LEAVE_TYPE_COLORS = <?= json_encode($typeColors) ?>;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -495,5 +790,6 @@ function timeAgo($ts) {
     <script src="/assets/js/notifications.js"></script>
     <script src="/assets/js/profile.js"></script>
     <script src="/assets/js/hr_dashboard.js"></script>
+    <script src="/assets/js/hr_dashboard_calendar.js"></script>
 </body>
 </html>

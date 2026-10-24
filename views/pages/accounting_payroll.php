@@ -9,7 +9,6 @@ require_once __DIR__ . '/../../config/database.php';
 $userId = (int) $_SESSION['user_id'];
 $workingDaysPerMonth = 22;
 
-// Verify this staff member is in Accounting Section
 $stmt = $pdo->prepare("
     SELECT e.sub_category
     FROM users u
@@ -24,7 +23,7 @@ if (($stmt->fetchColumn() ?: '') !== 'Accounting Section') {
 }
 
 // ============================================
-// Filters & Search (Server-side)
+// Filters & Search
 // ============================================
 $searchQuery = trim($_GET['q'] ?? '');
 $searchQuery = substr($searchQuery, 0, 100);
@@ -59,19 +58,18 @@ if (in_array($categoryFilter, ['faculty', 'staff'], true)) {
 $whereSql = ' WHERE ' . implode(' AND ', $whereClauses);
 
 // ============================================
-// Pagination Setup
+// Pagination
 // ============================================
 $perPage = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $perPage;
 
-$countSql = "
+$countStmt = $pdo->prepare("
     SELECT COUNT(*)
     FROM employees e
     LEFT JOIN payroll_settlements ps ON ps.employee_id = e.id
     {$whereSql}
-";
-$countStmt = $pdo->prepare($countSql);
+");
 $countStmt->execute($bindings);
 $totalEmployees = (int) $countStmt->fetchColumn();
 $totalPages = max(1, (int) ceil($totalEmployees / $perPage));
@@ -141,14 +139,13 @@ foreach ($employees as $e) {
     $lwopDays     = (float) $e['lwop_days'];
     $remaining    = max(0, $allocated - $approved);
 
-    $dailyRate        = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
-    $lwopDeduction    = $dailyRate * $lwopDays;
-    
-    // Convertible Leave Pay = Remaining SICK credits (cap 7.5) × Leave Pay Rate
-    $sickCap           = 7.5;
-    $sickRemaining     = max(0, $sickCap - $sickUsed);
-    $leavePayValue     = $leavePayRate * $sickRemaining;
-    $convertibleLeavePay = $leavePayValue;
+    $dailyRate     = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
+    $lwopDeduction = $dailyRate * $lwopDays;
+
+    // Convertible Leave Pay = remaining SICK credits (cap 7.5) × Leave Pay Rate
+    $sickCap             = 7.5;
+    $sickRemaining       = max(0, $sickCap - $sickUsed);
+    $convertibleLeavePay = $leavePayRate * $sickRemaining;
 
     $rows[] = [
         'employee_id'           => (int) $e['employee_id'],
@@ -163,10 +160,10 @@ foreach ($employees as $e) {
         'allocated_credits'     => $allocated,
         'approved_days'         => $approved,
         'remaining_credits'     => $remaining,
+        'sick_remaining'        => $sickRemaining,
         'lwop_days'             => $lwopDays,
         'lwop_deduction'        => $lwopDeduction,
         'leave_pay_rate'        => $leavePayRate,
-        'leave_pay_value'       => $leavePayValue,
         'convertible_leave_pay' => $convertibleLeavePay,
         'settlement_status'     => $e['settlement_status'],
         'settlement_amount'     => (float) ($e['settlement_amount'] ?? 0),
@@ -176,7 +173,7 @@ foreach ($employees as $e) {
 }
 
 // ============================================
-// Global aggregates (across ALL employees)
+// Global aggregates
 // ============================================
 $agg = $pdo->query("
     SELECT
@@ -204,34 +201,29 @@ $agg = $pdo->query("
     WHERE e.category IN ('faculty', 'staff')
 ")->fetchAll();
 
-$totalSalaryPool             = 0;
-$totalLeavePayValue          = 0;
-$totalLwopDeduction          = 0;
-$totalConvertibleLeavePay    = 0;
-$totalSettled                = 0;
-$totalOutstanding            = 0;
-$settledCount                = 0;
-$outstandingCount            = 0;
-$pendingCount                = 0;
+$totalSalaryPool          = 0;
+$totalLwopDeduction       = 0;
+$totalConvertibleLeavePay = 0;
+$totalSettled             = 0;
+$totalOutstanding         = 0;
+$settledCount             = 0;
+$outstandingCount         = 0;
+$pendingCount             = 0;
 
 foreach ($agg as $a) {
     $salary       = (float) $a['basic_salary'];
     $leavePayRate = (float) $a['leave_pay'];
-    $allocated    = (float) $a['leave_credits'];
-    $approved     = (float) $a['approved_days'];
     $sickUsed     = (float) $a['sick_used'];
     $lwopDays     = (float) $a['lwop_days'];
-    
+
     $dailyRate     = $salary > 0 ? $salary / $workingDaysPerMonth : 0;
     $lwopDeduction = $dailyRate * $lwopDays;
-    
+
     $sickCap             = 7.5;
     $sickRemaining       = max(0, $sickCap - $sickUsed);
-    $leavePayValue       = $leavePayRate * $sickRemaining;
-    $convertibleLeavePay = $leavePayValue;
+    $convertibleLeavePay = $leavePayRate * $sickRemaining;
 
     $totalSalaryPool          += $salary;
-    $totalLeavePayValue       += $leavePayValue;
     $totalLwopDeduction       += $lwopDeduction;
     $totalConvertibleLeavePay += $convertibleLeavePay;
 
@@ -291,18 +283,17 @@ $pageIcon   = 'receipt';
                             </div>
                         </div>
                         <p class="text-xl font-bold text-[#2C3E50]">₱<?= number_format($totalSalaryPool, 2) ?></p>
-                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">monthly base across <?= $totalActiveEmployees ?> employee(s)</p>
+                        
                     </div>
 
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
                         <div class="flex items-start justify-between gap-2 mb-2">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Leave Pay Value</p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Convertible Leave Pay</p>
                             <div class="w-7 h-7 rounded-md bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
                                 <i data-lucide="banknote" class="w-3.5 h-3.5"></i>
                             </div>
                         </div>
-                        <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($totalLeavePayValue, 2) ?></p>
-                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">convertible from remaining sick credits</p>
+                        <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($totalConvertibleLeavePay, 2) ?></p>
                     </div>
 
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
@@ -313,7 +304,6 @@ $pageIcon   = 'receipt';
                             </div>
                         </div>
                         <p class="text-xl font-bold text-[#0F5E3D]">₱<?= number_format($totalSettled, 2) ?></p>
-                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5"><?= $settledCount ?> payment(s) recorded</p>
                     </div>
 
                     <div class="bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-4 shadow-sm">
@@ -324,7 +314,6 @@ $pageIcon   = 'receipt';
                             </div>
                         </div>
                         <p class="text-xl font-bold text-amber-600">₱<?= number_format($totalOutstanding, 2) ?></p>
-                        <p class="text-[10px] text-[#2C3E50]/50 mt-0.5"><?= $outstandingCount ?> awaiting payment<?= $pendingCount > 0 ? ' · ' . $pendingCount . ' not yet recorded' : '' ?></p>
                     </div>
                 </div>
 
@@ -346,6 +335,13 @@ $pageIcon   = 'receipt';
                                 <option value="faculty" <?= $categoryFilter === 'faculty' ? 'selected' : '' ?>>Faculty</option>
                                 <option value="staff" <?= $categoryFilter === 'staff' ? 'selected' : '' ?>>Staff</option>
                             </select>
+
+                            <button type="button" onclick="togglePayrollAmounts()"
+                                class="payroll-amount-toggle flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#2C3E50]/70 hover:text-[#2C3E50] hover:bg-[#F1FDF6] transition"
+                                title="Show / hide amounts">
+                                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                                <span id="payrollAmountToggleLabel">Hide amounts</span>
+                            </button>
                         </div>
 
                         <div class="relative flex-1 sm:w-72">
@@ -377,9 +373,9 @@ $pageIcon   = 'receipt';
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Employee</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Monthly Salary</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Credits</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay Value</th>
-                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">LWOP Deduction</th>
+                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Convertible Leave Pay</th>
+                                        <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">LWOP Deduction</th>
                                         <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Payment Status</th>
                                         <th class="text-right text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Action</th>
                                     </tr>
@@ -413,10 +409,10 @@ $pageIcon   = 'receipt';
                                             data-allocated="<?= (float)$r['allocated_credits'] ?>"
                                             data-approved="<?= (float)$r['approved_days'] ?>"
                                             data-remaining="<?= (float)$r['remaining_credits'] ?>"
+                                            data-sick-remaining="<?= (float)$r['sick_remaining'] ?>"
                                             data-lwop-days="<?= (float)$r['lwop_days'] ?>"
                                             data-lwop-deduction="<?= (float)$r['lwop_deduction'] ?>"
                                             data-leave-pay-rate="<?= (float)$r['leave_pay_rate'] ?>"
-                                            data-leave-pay-value="<?= (float)$r['leave_pay_value'] ?>"
                                             data-convertible="<?= (float)$r['convertible_leave_pay'] ?>"
                                             data-settlement-amount="<?= (float)$r['settlement_amount'] ?>"
                                             data-settled-at="<?= htmlspecialchars($r['settled_at'] ?? '') ?>"
@@ -438,7 +434,9 @@ $pageIcon   = 'receipt';
                                                 </div>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-[#2C3E50] font-medium">
+                                                <span class="payroll-amount text-sm text-[#2C3E50] font-medium"
+                                                      data-amount="<?= (float)$r['monthly_salary'] ?>"
+                                                      data-prefix="₱" data-empty="—">
                                                     <?= $r['monthly_salary'] > 0 ? '₱' . number_format($r['monthly_salary'], 2) : '—' ?>
                                                 </span>
                                             </td>
@@ -446,20 +444,30 @@ $pageIcon   = 'receipt';
                                                 <span class="text-sm text-[#2C3E50] font-medium"><?= number_format($r['remaining_credits']) ?></span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm font-semibold text-[#0F5E3D]">₱<?= number_format($r['leave_pay_value'], 2) ?></span>
-                                            </td>
-                                            <td class="px-4 py-0 text-right">
-                                                <span class="text-sm text-red-600 font-medium">
-                                                    <?= $r['lwop_deduction'] > 0 ? '−₱' . number_format($r['lwop_deduction'], 2) : '—' ?>
+                                                <span class="payroll-amount text-sm text-[#2C3E50] font-medium"
+                                                      data-amount="<?= (float)$r['leave_pay_rate'] ?>"
+                                                      data-prefix="₱">
+                                                    ₱<?= number_format($r['leave_pay_rate'], 2) ?>
                                                 </span>
                                             </td>
                                             <td class="px-4 py-0 text-right">
-                                                <span class="text-sm font-semibold text-amber-600">₱<?= number_format($r['convertible_leave_pay'], 2) ?></span>
+                                                <span class="payroll-amount text-sm font-semibold text-amber-600"
+                                                      data-amount="<?= (float)$r['convertible_leave_pay'] ?>"
+                                                      data-prefix="₱">
+                                                    ₱<?= number_format($r['convertible_leave_pay'], 2) ?>
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-0 text-right">
+                                                <span class="payroll-amount text-sm text-red-600 font-medium"
+                                                      data-amount="<?= (float)$r['lwop_deduction'] ?>"
+                                                      data-prefix="−₱" data-empty="—">
+                                                    <?= $r['lwop_deduction'] > 0 ? '−₱' . number_format($r['lwop_deduction'], 2) : '—' ?>
+                                                </span>
                                             </td>
                                             <td class="px-4 py-0">
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium <?= $statusClass ?>"><?= $statusLabel ?></span>
                                                 <?php if ($statusKey === 'settled' && !empty($r['settled_at'])): ?>
-                                                    <p class="text-[10px] text-[#2C3E50]/40 mt-0.5"><?= date('M j, Y', strtotime($r['settled_at'])) ?></p>
+                                                    
                                                 <?php endif; ?>
                                             </td>
                                             <td class="px-4 py-0">
@@ -477,23 +485,32 @@ $pageIcon   = 'receipt';
 
                                 <tfoot class="border-t-2 border-[#E0E0E0] bg-[#F1FDF6]/40">
                                     <tr class="h-14">
-                                        <td class="px-4 py-0" colspan="1">
+                                        <td class="px-4 py-0">
                                             <span class="text-xs uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total (all employees)</span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-[#2C3E50]">₱<?= number_format($totalSalaryPool, 2) ?></span>
+                                            <span class="payroll-amount text-sm font-bold text-[#2C3E50]"
+                                                  data-amount="<?= (float)$totalSalaryPool ?>" data-prefix="₱">
+                                                ₱<?= number_format($totalSalaryPool, 2) ?>
+                                            </span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
                                             <span class="text-xs text-[#2C3E50]/50">—</span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-[#0F5E3D]">₱<?= number_format($totalLeavePayValue, 2) ?></span>
+                                            <span class="text-xs text-[#2C3E50]/50">—</span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-red-600">−₱<?= number_format($totalLwopDeduction, 2) ?></span>
+                                            <span class="payroll-amount text-sm font-bold text-amber-600"
+                                                  data-amount="<?= (float)$totalConvertibleLeavePay ?>" data-prefix="₱">
+                                                ₱<?= number_format($totalConvertibleLeavePay, 2) ?>
+                                            </span>
                                         </td>
                                         <td class="px-4 py-0 text-right">
-                                            <span class="text-sm font-bold text-amber-600">₱<?= number_format($totalConvertibleLeavePay, 2) ?></span>
+                                            <span class="payroll-amount text-sm font-bold text-red-600"
+                                                  data-amount="<?= (float)$totalLwopDeduction ?>" data-prefix="−₱">
+                                                −₱<?= number_format($totalLwopDeduction, 2) ?>
+                                            </span>
                                         </td>
                                         <td class="px-4 py-0">
                                             <span class="text-xs text-[#2C3E50]/50">
@@ -528,10 +545,10 @@ $pageIcon   = 'receipt';
                                     data-allocated="<?= (float)$r['allocated_credits'] ?>"
                                     data-approved="<?= (float)$r['approved_days'] ?>"
                                     data-remaining="<?= (float)$r['remaining_credits'] ?>"
+                                    data-sick-remaining="<?= (float)$r['sick_remaining'] ?>"
                                     data-lwop-days="<?= (float)$r['lwop_days'] ?>"
                                     data-lwop-deduction="<?= (float)$r['lwop_deduction'] ?>"
                                     data-leave-pay-rate="<?= (float)$r['leave_pay_rate'] ?>"
-                                    data-leave-pay-value="<?= (float)$r['leave_pay_value'] ?>"
                                     data-convertible="<?= (float)$r['convertible_leave_pay'] ?>"
                                     data-settlement-amount="<?= (float)$r['settlement_amount'] ?>"
                                     data-settled-at="<?= htmlspecialchars($r['settled_at'] ?? '') ?>"
@@ -552,23 +569,39 @@ $pageIcon   = 'receipt';
                                     <div class="grid grid-cols-2 gap-2 text-xs">
                                         <div>
                                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Monthly Salary</p>
-                                            <p class="text-[#2C3E50] font-medium"><?= $r['monthly_salary'] > 0 ? '₱' . number_format($r['monthly_salary'], 2) : '—' ?></p>
+                                            <p class="payroll-amount text-[#2C3E50] font-medium"
+                                               data-amount="<?= (float)$r['monthly_salary'] ?>"
+                                               data-prefix="₱" data-empty="—">
+                                                <?= $r['monthly_salary'] > 0 ? '₱' . number_format($r['monthly_salary'], 2) : '—' ?>
+                                            </p>
                                         </div>
                                         <div>
                                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Credits</p>
                                             <p class="text-[#2C3E50] font-medium"><?= number_format($r['remaining_credits'], 0) ?></p>
                                         </div>
                                         <div>
-                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Pay Value</p>
-                                            <p class="text-[#0F5E3D] font-bold">₱<?= number_format($r['leave_pay_value'], 2) ?></p>
+                                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Leave Pay</p>
+                                            <p class="payroll-amount text-[#2C3E50] font-medium"
+                                               data-amount="<?= (float)$r['leave_pay_rate'] ?>"
+                                               data-prefix="₱">
+                                                ₱<?= number_format($r['leave_pay_rate'], 2) ?> <span class="text-[10px] text-[#2C3E50]/40"></span>
+                                            </p>
                                         </div>
                                         <div>
                                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">LWOP Deduction</p>
-                                            <p class="text-red-600 font-medium"><?= $r['lwop_deduction'] > 0 ? '−₱' . number_format($r['lwop_deduction'], 2) : '—' ?></p>
+                                            <p class="payroll-amount text-red-600 font-medium"
+                                               data-amount="<?= (float)$r['lwop_deduction'] ?>"
+                                               data-prefix="−₱" data-empty="—">
+                                                <?= $r['lwop_deduction'] > 0 ? '−₱' . number_format($r['lwop_deduction'], 2) : '—' ?>
+                                            </p>
                                         </div>
                                         <div class="col-span-2">
                                             <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/40 mb-0.5">Convertible Leave Pay</p>
-                                            <p class="text-amber-600 font-bold">₱<?= number_format($r['convertible_leave_pay'], 2) ?></p>
+                                            <p class="payroll-amount text-amber-600 font-bold"
+                                               data-amount="<?= (float)$r['convertible_leave_pay'] ?>"
+                                               data-prefix="₱">
+                                                ₱<?= number_format($r['convertible_leave_pay'], 2) ?>
+                                            </p>
                                         </div>
                                     </div>
 
@@ -646,9 +679,7 @@ $pageIcon   = 'receipt';
         </div>
     </div>
 
-    <!-- ============================================ -->
-    <!-- PAYROLL VIEW MODAL — Profile Style             -->
-    <!-- ============================================ -->
+    <!-- PAYROLL VIEW MODAL -->
     <div id="payrollViewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div id="payrollViewCard"
             class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[80vh] transform transition-all duration-200 scale-95 overflow-hidden flex flex-col">
@@ -705,7 +736,8 @@ $pageIcon   = 'receipt';
 
                 <section class="flex-1 flex flex-col min-h-0 bg-white">
                     <div class="flex-1 overflow-y-auto px-8 py-6 space-y-6">
-                        
+
+                        <!-- HEADER CARDS: Monthly Salary + Leave Pay (the RATE) -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="bg-[#F1FDF6]/50 border border-[#E0E0E0] rounded-xl p-4">
                                 <div class="flex items-center gap-2 mb-2">
@@ -722,12 +754,13 @@ $pageIcon   = 'receipt';
                                     <div class="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-[#0F5E3D] shrink-0">
                                         <i data-lucide="banknote" class="w-4 h-4"></i>
                                     </div>
-                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Leave Pay Value</p>
+                                    <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Leave Pay Rate</p>
                                 </div>
-                                <p id="pvLeavePayValue" class="text-xl font-bold text-[#0F5E3D]">—</p>
+                                <p id="pvLeavePayRate" class="text-xl font-bold text-[#0F5E3D]">—</p>
                             </div>
                         </div>
 
+                        <!-- BREAKDOWN TABLE -->
                         <div class="border border-[#E0E0E0] rounded-lg overflow-hidden">
                             <table class="w-full">
                                 <thead class="bg-[#F9FAFB] border-b border-[#E0E0E0]">
@@ -750,16 +783,24 @@ $pageIcon   = 'receipt';
                                         <td class="px-4 py-0 text-sm font-bold text-[#0F5E3D] text-right" id="pvRemaining">—</td>
                                     </tr>
                                     <tr class="h-12">
+                                        <td class="px-4 py-0 text-sm text-[#2C3E50]">Remaining Sick Credits (cap 7.5)</td>
+                                        <td class="px-4 py-0 text-sm text-[#2C3E50] text-right font-medium" id="pvSickRemaining">—</td>
+                                    </tr>
+                                    <tr class="h-12">
+                                        <td class="px-4 py-0 text-sm text-[#2C3E50]">Leave Pay Rate</td>
+                                        <td class="px-4 py-0 text-sm text-[#2C3E50] text-right font-medium" id="pvLeavePayRateRow">—</td>
+                                    </tr>
+                                    <tr class="h-12 bg-amber-50/30">
+                                        <td class="px-4 py-0 text-sm font-medium text-amber-700">Convertible Leave Pay</td>
+                                        <td class="px-4 py-0 text-sm font-bold text-amber-600 text-right" id="pvConvertible">—</td>
+                                    </tr>
+                                    <tr class="h-12">
                                         <td class="px-4 py-0 text-sm text-[#2C3E50]">LWOP Days</td>
                                         <td class="px-4 py-0 text-sm text-[#2C3E50] text-right font-medium" id="pvLwopDays">—</td>
                                     </tr>
                                     <tr class="h-12">
                                         <td class="px-4 py-0 text-sm text-[#2C3E50]">LWOP Deduction</td>
                                         <td class="px-4 py-0 text-sm text-red-600 text-right font-medium" id="pvLwopAmount">—</td>
-                                    </tr>
-                                    <tr class="h-12 bg-amber-50/30">
-                                        <td class="px-4 py-0 text-sm font-medium text-amber-700">Convertible Leave Pay</td>
-                                        <td class="px-4 py-0 text-sm font-bold text-amber-600 text-right" id="pvConvertible">—</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -809,6 +850,41 @@ $pageIcon   = 'receipt';
         </div>
     </div>
 
+    <!-- EDIT LEAVE PAY MODAL -->
+    <div id="editLeavePayModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm transform transition-all duration-200 scale-95" id="editLeavePayCard">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
+                        <i data-lucide="banknote" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-[#2C3E50]">Edit Leave Pay Rate</h3>
+                        <p class="text-xs text-[#2C3E50]/50" id="editLeavePayName">—</p>
+                    </div>
+                </div>
+                <button onclick="closeEditLeavePayModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <form id="editLeavePayForm" class="p-6 space-y-4">
+                <input type="hidden" name="employee_id" id="editLeavePayEmployeeId">
+                <div>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay Rate (₱ per credit) *</label>
+                    <input type="number" step="0.01" min="0" name="leave_pay" id="editLeavePayInput" required
+                        class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
+                    <p class="text-[10px] text-[#2C3E50]/40 mt-1.5">Leave Pay Rate × remaining sick credits = Convertible Leave Pay</p>
+                </div>
+            </form>
+            <div class="flex gap-3 px-6 py-4 border-t border-[#E0E0E0]">
+                <button type="button" onclick="closeEditLeavePayModal()"
+                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
+                <button type="button" onclick="confirmEditLeavePay()" id="editLeavePayConfirmBtn"
+                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Save Leave Pay Rate</button>
+            </div>
+        </div>
+    </div>
+
     <!-- PAYMENT MODAL -->
     <div id="settleModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md transform transition-all duration-200 scale-95" id="settleCard">
@@ -829,21 +905,18 @@ $pageIcon   = 'receipt';
             <form id="settleForm" class="p-6 space-y-4">
                 <input type="hidden" name="employee_id" id="settleEmployeeId">
                 <input type="hidden" name="status" id="settleStatus">
-
                 <div class="bg-[#F1FDF6] border border-[#0F5E3D]/10 rounded-lg p-3">
                     <p class="text-xs text-[#2C3E50]/70">
                         <span class="font-semibold text-[#2C3E50]" id="settleEmployeeName">—</span>
-                        has a leave-pay liability of
-                        <span class="font-semibold text-[#0F5E3D]" id="settleAmountLabel">—</span>.
+                        has a convertible leave pay of
+                        <span class="font-semibold text-amber-600" id="settleAmountLabel">—</span>.
                     </p>
                 </div>
-
                 <div>
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Amount Paid (₱) *</label>
                     <input type="number" step="0.01" min="0" name="amount" id="settleAmount" required
                         class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
                 </div>
-
                 <div>
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Remarks <span class="text-[#2C3E50]/40">(optional)</span></label>
                     <textarea name="remarks" id="settleRemarks" rows="2"
@@ -860,41 +933,7 @@ $pageIcon   = 'receipt';
         </div>
     </div>
 
-    <!-- EDIT LEAVE PAY MODAL -->
-    <div id="editLeavePayModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-sm transform transition-all duration-200 scale-95" id="editLeavePayCard">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] shrink-0">
-                        <i data-lucide="banknote" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-base font-bold text-[#2C3E50]">Edit Leave Pay</h3>
-                        <p class="text-xs text-[#2C3E50]/50" id="editLeavePayName">—</p>
-                    </div>
-                </div>
-                <button onclick="closeEditLeavePayModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <form id="editLeavePayForm" class="p-6 space-y-4">
-                <input type="hidden" name="employee_id" id="editLeavePayEmployeeId">
-                <div>
-                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay Rate (₱/credit) *</label>
-                    <input type="number" step="0.01" min="0" name="leave_pay" id="editLeavePayInput" required
-                        class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition">
-                </div>
-            </form>
-            <div class="flex gap-3 px-6 py-4 border-t border-[#E0E0E0]">
-                <button type="button" onclick="closeEditLeavePayModal()"
-                    class="flex-1 border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 font-medium py-2.5 rounded-lg transition text-sm">Cancel</button>
-                <button type="button" onclick="confirmEditLeavePay()" id="editLeavePayConfirmBtn"
-                    class="flex-1 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Save Leave Pay</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Loading, Error, Success -->
+    <!-- Loading / Error / Success -->
     <div id="loadingOverlay" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-xs p-8 text-center">
             <svg class="animate-spin h-10 w-10 text-[#0F5E3D] mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

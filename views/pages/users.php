@@ -10,6 +10,9 @@ if ($_SESSION['role'] !== 'hr') {
 
 require_once __DIR__ . '/../../config/database.php';
 
+// Fetch dynamic positions for the dropdowns
+$dbPositions = $pdo->query("SELECT * FROM positions WHERE is_active = 1 ORDER BY title ASC")->fetchAll();
+
 // ============================================
 // Status filter
 // ============================================
@@ -481,9 +484,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                     "year_level" => $u["year_level"] ?? "",
                                     "position" => $u["position"] ?? "",
                                     "emp" => $u["employment_type"] ?? "full-time",
-                                    "basic_salary" => $u["basic_salary"] ?? 0,
-                                    "leave_pay" => $u["leave_pay"] ?? 0,
-                                    "credits" => $u["leave_credits"] ?? 0,
                                     "status" => $u["status"],
                                 ]) ?>)'
                                     class="w-8 h-8 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
@@ -527,9 +527,8 @@ $statusLabelText = $statusFilter === 'inactive'
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Name</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Email</th>
                                     <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Role</th>
-                                    <th class="text-center text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Profile Approval</th>
-                                    <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Leave Pay</th>
-                                    <th class="text-left text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Credits</th>
+                                    <th class="text-center text-xs font-medium text-[#2C3E50]/50 px-4 py-0">Profile
+                                        Approval</th>
                                     <th class="w-40 px-4 py-0 text-right text-xs font-medium text-[#2C3E50]/50">Actions
                                     </th>
                                 </tr>
@@ -537,7 +536,7 @@ $statusLabelText = $statusFilter === 'inactive'
                             <tbody id="usersTableBody" class="divide-y divide-[#E0E0E0]">
                                 <?php if (empty($users)): ?>
                                     <tr>
-                                        <td colspan="7" class="text-center text-sm text-[#2C3E50]/50 py-8">No users found.
+                                        <td colspan="5" class="text-center text-sm text-[#2C3E50]/50 py-8">No users found.
                                         </td>
                                     </tr>
                                 <?php else: ?>
@@ -549,8 +548,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                         $roleClass = $roleStyles[$u['role']] ?? 'text-slate-600 bg-slate-100';
                                         $roleLabel = $roleLabels[$u['role']] ?? ucfirst($u['role']);
                                         $avatarUrl = !empty($u['avatar']) ? '/uploads/avatars/' . htmlspecialchars($u['avatar']) : null;
-                                        $creditsInt = number_format((float) ($u['leave_credits'] ?? 0), 0);
-                                        $leavePayFormatted = '₱' . number_format((float) ($u['leave_pay'] ?? 0), 2);
                                         ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12" data-id="<?= $u['user_id'] ?>"
                                             data-name="<?= strtolower($fullName) ?>"
@@ -607,13 +604,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                                 </div>
                                             </td>
                                             <td class="px-4 py-0">
-                                                <span
-                                                    class="text-sm font-semibold text-[#0F5E3D]"><?= $leavePayFormatted ?></span>
-                                            </td>
-                                            <td class="px-4 py-0">
-                                                <span class="text-sm text-[#2C3E50]/70"><?= $creditsInt ?></span>
-                                            </td>
-                                            <td class="px-4 py-0">
                                                 <div class="flex items-center justify-end gap-1">
                                                     <a href="/users/<?= $u['user_id'] ?>"
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
@@ -633,9 +623,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                                         "year_level" => $u["year_level"] ?? "",
                                                         "position" => $u["position"] ?? "",
                                                         "emp" => $u["employment_type"] ?? "full-time",
-                                                        "basic_salary" => $u["basic_salary"] ?? 0,
-                                                        "leave_pay" => $u["leave_pay"] ?? 0,
-                                                        "credits" => $u["leave_credits"] ?? 0,
                                                         "status" => $u["status"],
                                                     ]) ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
@@ -756,9 +743,6 @@ $statusLabelText = $statusFilter === 'inactive'
                                                     "year_level" => $u["year_level"] ?? "",
                                                     "position" => $u["position"] ?? "",
                                                     "emp" => $u["employment_type"] ?? "full-time",
-                                                    "basic_salary" => $u["basic_salary"] ?? 0,
-                                                    "leave_pay" => $u["leave_pay"] ?? 0,
-                                                    "credits" => $u["leave_credits"] ?? 0,
                                                     "status" => $u["status"],
                                                 ]) ?>)'
                                                     class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition">
@@ -990,13 +974,18 @@ $statusLabelText = $statusFilter === 'inactive'
                             <option value="">Select a sub-category first</option>
                         </select>
                     </div>
+                    
+                    <!-- FIXED: Position Select -->
                     <div>
-                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Position / Designation *</label>
-                        <select name="position" id="addPosition" required
-                            class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
-                            <option value="">Select position</option>
+                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Position *</label>
+                        <select name="position" id="addPosition" required class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                            <option value="">Select Position</option>
+                            <?php foreach ($dbPositions as $pos): ?>
+                                <option value="<?= htmlspecialchars($pos['title']) ?>"><?= htmlspecialchars($pos['title']) ?></option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Employment *</label>
@@ -1006,28 +995,10 @@ $statusLabelText = $statusFilter === 'inactive'
                                 <option value="part-time">Part-time</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱)</label>
-                            <input type="number" step="0.01" min="0" name="basic_salary" id="addBasicSalary" value="0" readonly
-                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition bg-gray-50 text-gray-500 cursor-not-allowed"
-                                placeholder="0.00">
-                            <p class="text-[10px] text-[#2C3E50]/40 mt-1">Managed by Accounting</p>
-                        </div>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay (₱/credit)</label>
-                            <input type="number" step="0.01" min="0" name="leave_pay" id="addLeavePay" value="0"
-                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
-                                placeholder="0.00">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Credits</label>
-                            <input type="number" step="1" name="leave_credits" id="addLeaveCredits" value="15" min="0"
-                                class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition disabled:bg-gray-50 disabled:text-[#2C3E50]/40 disabled:cursor-not-allowed"
-                                placeholder="0">
-                        </div>
-                    </div>
+                    <!-- REMOVED: Monthly Salary input -->
+                    <!-- REMOVED: Leave Pay & Leave Credits inputs -->
+                    
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">
                             Password <span class="text-[#2C3E50]/40">(editable — user can change on first login)</span>
@@ -1153,13 +1124,18 @@ $statusLabelText = $statusFilter === 'inactive'
                         <option value="">Select a sub-category first</option>
                     </select>
                 </div>
+                
+                <!-- FIXED: Edit Position Select -->
                 <div>
-                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Position / Designation *</label>
-                    <select name="position" id="editPosition" required
-                        class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
-                        <option value="">Select position</option>
+                    <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Position *</label>
+                    <select name="position" id="editPosition" required class="custom-select w-full pl-3 py-2.5 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                        <option value="">Select Position</option>
+                        <?php foreach ($dbPositions as $pos): ?>
+                            <option value="<?= htmlspecialchars($pos['title']) ?>"><?= htmlspecialchars($pos['title']) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Employment</label>
@@ -1169,28 +1145,10 @@ $statusLabelText = $statusFilter === 'inactive'
                             <option value="part-time">Part-time</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Monthly Salary (₱)</label>
-                        <input type="number" step="0.01" min="0" name="basic_salary" id="editBasicSalary" readonly
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition bg-gray-50 text-gray-500 cursor-not-allowed"
-                            placeholder="0.00">
-                        <p class="text-[10px] text-[#2C3E50]/40 mt-1">Managed by Accounting</p>
-                    </div>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Pay (₱/credit)</label>
-                        <input type="number" step="0.01" min="0" name="leave_pay" id="editLeavePay"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition"
-                            placeholder="0.00">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Leave Credits</label>
-                        <input type="number" step="1" name="leave_credits" id="editCredits" min="0"
-                            class="w-full px-3 py-2.5 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition disabled:bg-gray-50 disabled:text-[#2C3E50]/40 disabled:cursor-not-allowed"
-                            placeholder="0">
-                    </div>
-                </div>
+                <!-- REMOVED: Monthly Salary input -->
+                <!-- REMOVED: Leave Pay & Leave Credits inputs -->
+                
                 <div>
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Status</label>
                     <select name="status" id="editStatus"

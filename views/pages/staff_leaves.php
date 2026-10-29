@@ -126,14 +126,13 @@ $statusLabels = [
     'rejected' => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
-$leaveTypes = [
-    'vacation' => 'Vacation',
-    'sick' => 'Sick',
-    'maternity' => 'Maternity',
-    'paternity' => 'Paternity',
-    'terminal' => 'Terminal',
-    'other' => 'Other',
-];
+
+// Dynamic leave types
+$dbLeaveTypes = $pdo->query("SELECT * FROM leave_types ORDER BY name ASC")->fetchAll();
+$leaveTypes = [];
+foreach ($dbLeaveTypes as $lt) {
+    $leaveTypes[strtolower($lt['name'])] = $lt['name'];
+}
 
 $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
 ?>
@@ -272,7 +271,6 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                         $isPending = $l['status'] === 'pending';
                                         $payStatus = $l['pay_status'] ?? null;
 
-                                        // Build the JSON payload once and escape it for the HTML attribute
                                         $leavePayload = htmlspecialchars(json_encode([
                                             "id" => (int) $l["id"],
                                             "name" => $meName,
@@ -477,12 +475,11 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
 
                 <div>
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1">Leave Type *</label>
-                    <select name="leave_type" id="leaveType" required
-                        class="custom-select w-full pl-3 py-2 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                    <select name="leave_type" id="leaveType" required class="custom-select w-full pl-3 py-2 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                         <option value="">Select leave type</option>
-                        <option value="vacation">Vacation/Mandaroy</option>
-                        <option value="sick">Sick</option>
-                        <option value="other">Other</option>
+                        <?php foreach ($dbLeaveTypes as $lt): ?>
+                            <option value="<?= strtolower($lt['name']) ?>"><?= htmlspecialchars($lt['name']) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 

@@ -126,14 +126,13 @@ $statusLabels = [
     'rejected' => 'Rejected',
     'cancelled' => 'Cancelled',
 ];
-$leaveTypes = [
-    'vacation' => 'Vacation',
-    'sick' => 'Sick',
-    'maternity' => 'Maternity',
-    'paternity' => 'Paternity',
-    'terminal' => 'Terminal',
-    'other' => 'Other',
-];
+
+// Dynamic leave types
+$dbLeaveTypes = $pdo->query("SELECT * FROM leave_types ORDER BY name ASC")->fetchAll();
+$leaveTypes = [];
+foreach ($dbLeaveTypes as $lt) {
+    $leaveTypes[strtolower($lt['name'])] = $lt['name'];
+}
 
 $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
 ?>
@@ -271,6 +270,35 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                         $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
                                         $isPending = $l['status'] === 'pending';
                                         $payStatus = $l['pay_status'] ?? null;
+
+                                        // ESCAPE THE JSON FOR THE VIEW BUTTON
+                                        $leavePayload = htmlspecialchars(json_encode([
+                                            "id" => (int) $l["id"],
+                                            "name" => $meName,
+                                            "email" => $me["email"] ?? "—",
+                                            "category" => ucfirst($me["category"] ?? "—"),
+                                            "subcat" => $me["sub_category"] ?? "—",
+                                            "year_level" => $me["year_level"] ?? "—",
+                                            "position" => $me["position"] ?? "—",
+                                            "employment" => ucfirst($me["employment_type"] ?? "—"),
+                                            "type" => $tLabel,
+                                            "start" => $l["start_date"],
+                                            "end" => $l["end_date"],
+                                            "days" => $l["days_count"],
+                                            "reason" => $l["reason"] ?? "",
+                                            "status" => $l["status"],
+                                            "remarks" => $l["remarks"] ?? "",
+                                            "created" => $l["created_at"],
+                                            "approver" => $l["approver_username"] ?? "",
+                                            "approved" => $l["approved_at"] ?? "",
+                                            "pay_status" => $payStatus,
+                                            "attachment" => !empty($l['attachment_path']) ? [
+                                                "path" => $l['attachment_path'],
+                                                "name" => $l['attachment_name'],
+                                                "size" => (int) ($l['attachment_size'] ?? 0),
+                                                "mime" => $l['attachment_mime'],
+                                            ] : null,
+                                        ]), ENT_QUOTES, "UTF-8");
                                         ?>
                                         <tr class="hover:bg-[#F1FDF6]/40 transition h-12 leave-row"
                                             data-search="<?= strtolower($tLabel . ' ' . $sLabel . ' ' . ($l['reason'] ?? '')) ?>">
@@ -306,33 +334,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                                             <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
                                                         </a>
                                                     <?php endif; ?>
-                                                    <button onclick='openViewLeave(<?= json_encode([
-                                                        "id" => (int) $l["id"],
-                                                        "name" => $meName,
-                                                        "email" => $me["email"] ?? "—",
-                                                        "category" => ucfirst($me["category"] ?? "—"),
-                                                        "subcat" => $me["sub_category"] ?? "—",
-                                                        "year_level" => $me["year_level"] ?? "—",
-                                                        "position" => $me["position"] ?? "—",
-                                                        "employment" => ucfirst($me["employment_type"] ?? "—"),
-                                                        "type" => $tLabel,
-                                                        "start" => $l["start_date"],
-                                                        "end" => $l["end_date"],
-                                                        "days" => $l["days_count"],
-                                                        "reason" => $l["reason"] ?? "",
-                                                        "status" => $l["status"],
-                                                        "remarks" => $l["remarks"] ?? "",
-                                                        "created" => $l["created_at"],
-                                                        "approver" => $l["approver_username"] ?? "",
-                                                        "approved" => $l["approved_at"] ?? "",
-                                                        "pay_status" => $payStatus,
-                                                        "attachment" => !empty($l['attachment_path']) ? [
-                                                            "path" => $l['attachment_path'],
-                                                            "name" => $l['attachment_name'],
-                                                            "size" => (int) ($l['attachment_size'] ?? 0),
-                                                            "mime" => $l['attachment_mime'],
-                                                        ] : null,
-                                                    ]) ?>)'
+                                                    <button onclick='openViewLeave(<?= $leavePayload ?>)'
                                                         class="w-7 h-7 rounded-lg flex items-center justify-center text-[#2C3E50]/60 hover:bg-[#F1FDF6] hover:text-[#0F5E3D] transition"
                                                         title="View details">
                                                         <i data-lucide="eye" class="w-3.5 h-3.5"></i>
@@ -368,6 +370,34 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                 $tLabel = $leaveTypes[$l['leave_type']] ?? ucfirst($l['leave_type']);
                                 $isPending = $l['status'] === 'pending';
                                 $payStatus = $l['pay_status'] ?? null;
+
+                                $leavePayload = htmlspecialchars(json_encode([
+                                    "id" => (int) $l["id"],
+                                    "name" => $meName,
+                                    "email" => $me["email"] ?? "—",
+                                    "category" => ucfirst($me["category"] ?? "—"),
+                                    "subcat" => $me["sub_category"] ?? "—",
+                                    "year_level" => $me["year_level"] ?? "—",
+                                    "position" => $me["position"] ?? "—",
+                                    "employment" => ucfirst($me["employment_type"] ?? "—"),
+                                    "type" => $tLabel,
+                                    "start" => $l["start_date"],
+                                    "end" => $l["end_date"],
+                                    "days" => $l["days_count"],
+                                    "reason" => $l["reason"] ?? "",
+                                    "status" => $l["status"],
+                                    "remarks" => $l["remarks"] ?? "",
+                                    "created" => $l["created_at"],
+                                    "approver" => $l["approver_username"] ?? "",
+                                    "approved" => $l["approved_at"] ?? "",
+                                    "pay_status" => $payStatus,
+                                    "attachment" => !empty($l['attachment_path']) ? [
+                                        "path" => $l['attachment_path'],
+                                        "name" => $l['attachment_name'],
+                                        "size" => (int) ($l['attachment_size'] ?? 0),
+                                        "mime" => $l['attachment_mime'],
+                                    ] : null,
+                                ]), ENT_QUOTES, "UTF-8");
                                 ?>
                                 <div class="p-4 leave-row" data-search="<?= strtolower($tLabel . ' ' . $sLabel) ?>">
                                     <div class="flex items-start justify-between gap-2 mb-2">
@@ -398,33 +428,7 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
                                                 <span>File</span>
                                             </a>
                                         <?php endif; ?>
-                                        <button onclick='openViewLeave(<?= json_encode([
-                                            "id" => (int) $l["id"],
-                                            "name" => $meName,
-                                            "email" => $me["email"] ?? "—",
-                                            "category" => ucfirst($me["category"] ?? "—"),
-                                            "subcat" => $me["sub_category"] ?? "—",
-                                            "year_level" => $me["year_level"] ?? "—",
-                                            "position" => $me["position"] ?? "—",
-                                            "employment" => ucfirst($me["employment_type"] ?? "—"),
-                                            "type" => $tLabel,
-                                            "start" => $l["start_date"],
-                                            "end" => $l["end_date"],
-                                            "days" => $l["days_count"],
-                                            "reason" => $l["reason"] ?? "",
-                                            "status" => $l["status"],
-                                            "remarks" => $l["remarks"] ?? "",
-                                            "created" => $l["created_at"],
-                                            "approver" => $l["approver_username"] ?? "",
-                                            "approved" => $l["approved_at"] ?? "",
-                                            "pay_status" => $payStatus,
-                                            "attachment" => !empty($l['attachment_path']) ? [
-                                                "path" => $l['attachment_path'],
-                                                "name" => $l['attachment_name'],
-                                                "size" => (int) ($l['attachment_size'] ?? 0),
-                                                "mime" => $l['attachment_mime'],
-                                            ] : null,
-                                        ]) ?>)'
+                                        <button onclick='openViewLeave(<?= $leavePayload ?>)'
                                             class="flex-1 text-xs py-2 rounded-lg border border-[#E0E0E0] text-[#2C3E50] hover:bg-gray-50 transition">
                                             View
                                         </button>
@@ -472,12 +476,11 @@ $meName = trim(($me['first_name'] ?? '') . ' ' . ($me['last_name'] ?? ''));
 
                 <div>
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1">Leave Type *</label>
-                    <select name="leave_type" id="leaveType" required
-                        class="custom-select w-full pl-3 py-2 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
+                    <select name="leave_type" id="leaveType" required class="custom-select w-full pl-3 py-2 bg-white border border-[#E0E0E0] rounded-lg text-sm text-[#2C3E50] focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition cursor-pointer">
                         <option value="">Select leave type</option>
-                        <option value="vacation">Vacation/Mandaroy</option>
-                        <option value="sick">Sick</option>
-                        <option value="other">Other</option>
+                        <?php foreach ($dbLeaveTypes as $lt): ?>
+                            <option value="<?= strtolower($lt['name']) ?>"><?= htmlspecialchars($lt['name']) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
 

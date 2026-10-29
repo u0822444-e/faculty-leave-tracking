@@ -25,8 +25,7 @@ const YEAR_LEVELS_OR_DEPARTMENTS = {
 };
 
 // Only faculty sub-categories have a position list.
-// Staff sub-categories are intentionally absent — they fall to DEFAULT_POSITIONS,
-// which now contains only "N/A" (the field is hidden for staff anyway).
+// Staff sub-categories are intentionally absent — they fall to DEFAULT_POSITIONS.
 const POSITIONS_BY_CONTEXT = {
   Elementary: [
     "N/A", "Elementary Principal", "Assistant Principal", "Department Head",
@@ -192,31 +191,12 @@ function goToStep(step) {
 // Employment change
 // ============================================
 function handleEmploymentChange(prefix = "add") {
-  const employment =
-    document.getElementById(`${prefix}Employment`) ||
-    document.getElementById(`${prefix}EmpType`);
-  const leaveCredits =
-    document.getElementById(`${prefix}LeaveCredits`) ||
-    document.getElementById(`${prefix}Credits`);
-  if (!employment || !leaveCredits) return;
-
-  if (employment.value === "part-time") {
-    leaveCredits.disabled = true;
-    leaveCredits.value = "0";
-    leaveCredits.placeholder = "Not applicable";
-  } else {
-    leaveCredits.disabled = false;
-    leaveCredits.placeholder = "0";
-    if (prefix === "add" && (!leaveCredits.value || leaveCredits.value === "0")) {
-      leaveCredits.value = "15";
-    }
-  }
+  // Leave Credits input has been removed from the UI.
+  // This function is kept for backward compatibility but does nothing.
 }
 
 // ============================================
 // Position visibility
-//   Position / Designation applies only to FACULTY.
-//   For staff & hr it is hidden and stored as "N/A".
 // ============================================
 function shouldShowPosition(prefix) {
   const catEl = document.getElementById(`${prefix}Category`);
@@ -230,7 +210,6 @@ function togglePositionField(prefix) {
     document.getElementById(`${prefix}PositionSelect`);
   if (!positionEl) return;
 
-  // Find the wrapper (label + select) — prefer explicit ID, fall back to closest div
   const wrap =
     document.getElementById(`${prefix}PositionWrap`) ||
     positionEl.closest("[data-field='position']") ||
@@ -243,7 +222,6 @@ function togglePositionField(prefix) {
   }
 
   if (!show) {
-    // Store "N/A" via hidden input so the POST still gets a value
     let hidden = document.getElementById(`${prefix}PositionHidden`);
     if (!hidden) {
       hidden = document.createElement("input");
@@ -518,17 +496,13 @@ function openAddUserModal() {
   const addCatHidden = document.getElementById("addCategoryHidden");
   if (addCatHidden) addCatHidden.value = "";
 
-  const leavePayEl = document.getElementById("addLeavePay");
-  if (leavePayEl) leavePayEl.value = 0;
-    const basicSalaryEl = document.getElementById("addBasicSalary");
-  if (basicSalaryEl) basicSalaryEl.value = 0;
+  // REMOVED: Leave Pay, Basic Salary, Leave Credits inputs no longer exist
 
   const pwdEl = document.getElementById("addTempPassword");
   if (!pwdEl.value) regeneratePassword();
 
   populatePositionDropdown("addPosition", "N/A", "");
   togglePositionField("add");
-  handleEmploymentChange("add");
 
   currentStep = 1;
   goToStep(1);
@@ -573,22 +547,9 @@ function openEditUserModal(data) {
 
   document.getElementById("editEmpType").value = data.emp || "full-time";
 
-  const editBasicSalaryEl = document.getElementById("editBasicSalary");
-  if (editBasicSalaryEl) {
-    editBasicSalaryEl.value =
-      data.basic_salary !== undefined && data.basic_salary !== null ? data.basic_salary : 0;
-  }
+  // REMOVED: editBasicSalary, editLeavePay, editCredits inputs no longer exist
 
-  const editLeavePayEl = document.getElementById("editLeavePay");
-  if (editLeavePayEl) {
-    editLeavePayEl.value =
-      data.leave_pay !== undefined && data.leave_pay !== null ? data.leave_pay : 0;
-  }
-
-  document.getElementById("editCredits").value = Math.round(Number(data.credits) || 0);
   document.getElementById("editStatus").value = data.status || "active";
-
-  handleEmploymentChange("edit");
 
   showModal("editUserModal", "editUserCard");
 }

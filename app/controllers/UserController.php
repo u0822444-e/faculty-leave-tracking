@@ -46,7 +46,7 @@ try {
                     e.year_level,
                     e.position,
                     e.employment_type,
-                     e.basic_salary,
+                    e.basic_salary,
                     e.leave_credits,
                     e.leave_pay,
                     u.created_at
@@ -113,16 +113,6 @@ try {
             $yearLevel = trim($_POST['year_level'] ?? '');
             $position = trim($_POST['position'] ?? '');
             $empType = $_POST['employment_type'] ?? 'full-time';
-            $basicSalary = floatval($_POST['basic_salary'] ?? 0);
-            $leavePay = floatval($_POST['leave_pay'] ?? 0);
-            $creditsRaw = $_POST['leave_credits'] ?? '';
-            $credits = ($creditsRaw === '' || $creditsRaw === null)
-                ? 15.0
-                : floatval($creditsRaw);
-
-            if ($empType === 'part-time') {
-                $credits = 0;
-            }
 
             if ($position === '') {
                 $position = 'N/A';
@@ -189,10 +179,12 @@ try {
             $pdo->beginTransaction();
 
             try {
+                // Basic salary, leave_pay, and leave_credits default to 0/15.
+                // Accounting will edit these later.
                 $stmt = $pdo->prepare("
-                                        INSERT INTO employees 
+                    INSERT INTO employees 
                         (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_pay, leave_credits)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 15.00)
                 ");
                 $stmt->execute([
                     $first,
@@ -204,9 +196,6 @@ try {
                     $yearLevel,
                     $position,
                     $empType,
-                     $basicSalary,
-                    $leavePay,
-                    $credits,
                 ]);
                 $employeeId = $pdo->lastInsertId();
 
@@ -311,19 +300,8 @@ try {
             $subCat = trim($_POST['sub_category'] ?? '');
             $yearLevel = trim($_POST['year_level'] ?? '');
             $position = trim($_POST['position'] ?? '');
-                        $empType = $_POST['employment_type'] ?? 'full-time';
-            $basicSalary = floatval($_POST['basic_salary'] ?? 0);
-            $leavePay = floatval($_POST['leave_pay'] ?? 0);
+            $empType = $_POST['employment_type'] ?? 'full-time';
             $status = $_POST['status'] ?? 'active';
-
-            $creditsRaw = $_POST['leave_credits'] ?? '';
-            $credits = ($creditsRaw === '' || $creditsRaw === null)
-                ? 15.0
-                : floatval($creditsRaw);
-
-            if ($empType === 'part-time') {
-                $credits = 0;
-            }
 
             if ($position === '') {
                 $position = 'N/A';
@@ -357,7 +335,7 @@ try {
                     u.id AS user_id, u.username, u.role, u.status, u.employee_id,
                     e.first_name, e.middle_name, e.last_name, e.email,
                     e.category, e.sub_category, e.year_level, e.position,
-                                        e.employment_type, e.basic_salary, e.leave_pay, e.leave_credits
+                    e.employment_type, e.basic_salary, e.leave_pay, e.leave_credits
                 FROM users u
                 LEFT JOIN employees e ON u.employee_id = e.id
                 WHERE u.id = ?
@@ -438,11 +416,12 @@ try {
 
             try {
                 if ($employeeId !== null) {
+                    // Financial fields are intentionally omitted from this UPDATE
                     $stmt = $pdo->prepare("
-                                                UPDATE employees 
+                        UPDATE employees 
                         SET first_name = ?, middle_name = ?, last_name = ?, email = ?, 
                             category = ?, sub_category = ?, year_level = ?, position = ?,
-                            employment_type = ?, basic_salary = ?, leave_pay = ?, leave_credits = ?
+                            employment_type = ?
                         WHERE id = ?
                     ");
                     $stmt->execute([
@@ -455,16 +434,15 @@ try {
                         $yearLevel,
                         $position,
                         $empType,
-                        $basicSalary,
-                        $leavePay,
-                        $credits,
                         $employeeId,
                     ]);
                 } else {
+                    // Creating a missing employee profile for an existing user
+                    // Default financials to 0
                     $stmt = $pdo->prepare("
                         INSERT INTO employees 
-                            (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, leave_pay, leave_credits)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            (first_name, middle_name, last_name, email, category, sub_category, year_level, position, employment_type, basic_salary, leave_pay, leave_credits)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 15.00)
                     ");
                     $stmt->execute([
                         $first,
@@ -476,8 +454,6 @@ try {
                         $yearLevel,
                         $position,
                         $empType,
-                        $leavePay,
-                        $credits,
                     ]);
                     $employeeId = (int) $pdo->lastInsertId();
 
@@ -541,21 +517,6 @@ try {
                 }
             }
 
-                        $beforeSalary = (float) ($before['basic_salary'] ?? 0);
-            if (abs($beforeSalary - $basicSalary) > 0.001) {
-                $changes[] = 'Basic salary: ₱' . number_format($beforeSalary, 2) . ' → ₱' . number_format($basicSalary, 2);
-            }
-
-            $beforeLeavePay = (float) ($before['leave_pay'] ?? 0);
-            if (abs($beforeLeavePay - $leavePay) > 0.001) {
-                $changes[] = 'Leave pay: ₱' . number_format($beforeLeavePay, 2) . ' → ₱' . number_format($leavePay, 2);
-            }
-
-            $beforeCredits = (float) ($before['leave_credits'] ?? 0);
-            if (abs($beforeCredits - $credits) > 0.001) {
-                $changes[] = 'Leave credits: ' . number_format($beforeCredits, 2) . ' → ' . number_format($credits, 2);
-            }
-
             if ($passwordChanged) {
                 $changes[] = 'Password was reset';
             }
@@ -563,19 +524,9 @@ try {
             // In-app notification to the affected user
             try {
                 if (!empty($changes)) {
-                    $creditsOnly =
-                        count($changes) === 1
-                        && str_starts_with($changes[0], 'Leave credits:');
-
-                    if ($creditsOnly) {
-                        $title = 'Your leave credits were updated';
-                        $message = $changes[0] . ' by ' . ($_SESSION['username'] ?? 'an admin');
-                        $type = 'leave_credits_updated';
-                    } else {
-                        $title = 'Your account was updated';
-                        $message = implode(' · ', $changes);
-                        $type = 'account_updated';
-                    }
+                    $title = 'Your account was updated';
+                    $message = implode(' · ', $changes);
+                    $type = 'account_updated';
 
                     NotificationService::notify(
                         $pdo,
@@ -603,16 +554,12 @@ try {
                 error_log('Notify admins failed (update_user): ' . $e->getMessage());
             }
 
-            // ============================================
             // Password-change confirmation email
-            // ============================================
             $passwordEmailSent = false;
             $passwordEmailError = null;
 
             if ($passwordChanged) {
                 try {
-                    // Resolve the recipient's email + display name (in case
-                    // the admin edited the email field in the same submit)
                     $stmtMail = $pdo->prepare("
                         SELECT u.username, e.first_name, e.middle_name, e.last_name, e.email
                         FROM users u
@@ -629,7 +576,6 @@ try {
                         ($recipient['middle_name'] ?? '') . ' ' .
                         ($recipient['last_name'] ?? '')
                     );
-                    // Collapse multiple spaces from empty middle name
                     $recipientName = preg_replace('/\s+/', ' ', $recipientName);
                     if ($recipientName === '') {
                         $recipientName = $recipient['username'] ?? 'User';
@@ -673,9 +619,6 @@ try {
 
         // ============================================
         // Approve Profile Edit
-        // ============================================
-        // ============================================
-        // Approve Profile Edit — applies ALL pending values
         // ============================================
         case 'approve_profile_edit':
             $id = intval($_POST['id'] ?? 0);
@@ -736,7 +679,6 @@ try {
                     $old = $row['avatar'];
 
                     if ($pendingAvatar === '') {
-                        // Sentinel = pending removal
                         $pdo->prepare("UPDATE users SET avatar = NULL, pending_avatar = NULL WHERE id = ?")
                             ->execute([$id]);
                         if (!empty($old)) {
@@ -745,7 +687,6 @@ try {
                                 @unlink($path);
                         }
                     } else {
-                        // New avatar: swap and delete the previous live file
                         $pdo->prepare("UPDATE users SET avatar = ?, pending_avatar = NULL WHERE id = ?")
                             ->execute([$pendingAvatar, $id]);
                         if (!empty($old) && $old !== $pendingAvatar) {
@@ -791,7 +732,7 @@ try {
             break;
 
         // ============================================
-        // Reject Profile Edit — discards ALL pending values
+        // Reject Profile Edit
         // ============================================
         case 'reject_profile_edit':
             $id = intval($_POST['id'] ?? 0);
@@ -870,6 +811,7 @@ try {
             header('Content-Type: application/json');
             echo json_encode(['success' => true, 'message' => 'Profile edit rejected.']);
             break;
+
         // ============================================
         // Archive user (soft delete)
         // ============================================

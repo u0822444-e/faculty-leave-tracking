@@ -80,7 +80,7 @@ const TYPE_CLASSES = {
 const STATUS_LABELS = {
   pending: "Pending",
   approved: "Approved",
-  rejected: "Rejected",
+  rejected: "Disapproved",
   cancelled: "Cancelled",
 };
 
@@ -366,10 +366,15 @@ function renderReview(leave) {
 
   // ── Decision ──
   const decisionSection = document.getElementById("rvDecisionSection");
+  
+  // Clean up any previous Undo button
+  const existingUndo = document.getElementById("rvUndoBtn");
+  if (existingUndo) existingUndo.remove();
+
   if (status === "approved" || status === "rejected") {
     decisionSection.classList.remove("hidden");
 
-    const verb = status === "approved" ? "Approved" : "Rejected";
+    const verb = status === "approved" ? "Approved" : "Disapproved";
     const approver = full.approver || "an administrator";
     const when = formatDateTime(full.approved);
     document.getElementById(
@@ -383,8 +388,31 @@ function renderReview(leave) {
     } else {
       remarksWrap.classList.add("hidden");
     }
+
+    // NEW: Add Undo button
+    const undoBtn = document.createElement('button');
+    undoBtn.type = 'button';
+    undoBtn.id = 'rvUndoBtn';
+    undoBtn.className = 'mt-3 w-full border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 font-medium py-2.5 rounded-md transition text-sm flex items-center justify-center gap-2';
+    undoBtn.innerHTML = '<i data-lucide="rotate-ccw" class="w-4 h-4"></i> Undo Decision & Set to Pending';
+    undoBtn.onclick = rvUndoDecision;
+    decisionSection.appendChild(undoBtn);
+    
   } else {
     decisionSection.classList.add("hidden");
+  }
+
+  // ── Intelligent Pay Suggestion ──
+  const payWith = document.getElementById("rvPayWith");
+  const payWithout = document.getElementById("rvPayWithout");
+  
+  if (payWith && payWithout) {
+    // If employee has enough remaining credits for the requested days, suggest With Pay
+    if (credits.remaining >= full.days) {
+        payWith.checked = true;
+    } else {
+        payWithout.checked = true;
+    }
   }
 
   // ── Attachment ──
@@ -394,6 +422,9 @@ function renderReview(leave) {
   const canDecide =
     status === "pending" && myDeanInfo && myDeanInfo.dean_approved;
   document.getElementById("rvDecideBar").classList.toggle("hidden", !canDecide);
+
+  // Refresh icons so the undo icon appears
+  if (typeof initIcons === "function") initIcons();
 }
 
 // ============================================
@@ -499,12 +530,16 @@ async function rvSubmitDecision(decision) {
   if (!rvCurrentId) return;
 
   const remarks = document.getElementById("rvRemarksInput").value.trim();
-
-  let payStatus = "without_pay";
-  const leave = rvAllLeaves.find((l) => l.id === rvCurrentId);
-  if (leave && leave.type === "sick") {
-    payStatus = "with_pay";
+  
+  // NEW: Require remarks for disapproval
+  if (decision === 'rejected' && !remarks) {
+      showError("Reason required", "You must provide remarks when disapproving a leave request.");
+      document.getElementById("rvRemarksInput").focus();
+      return;
   }
+
+  // Get the selected pay status from the radio buttons
+  const selectedPayStatus = document.querySelector('input[name="rvPayStatus"]:checked')?.value || 'without_pay';
 
   const fd = new FormData();
   fd.append("action", "decide");
@@ -513,14 +548,14 @@ async function rvSubmitDecision(decision) {
   fd.append("remarks", remarks);
 
   if (decision === "approved") {
-    fd.append("pay_status", payStatus);
+    fd.append("pay_status", selectedPayStatus);
   }
 
   showLoading(
     "Saving…",
     decision === "approved"
       ? "Approving leave request."
-      : "Rejecting leave request."
+      : "Disapproving leave request."
   );
 
   try {
@@ -533,11 +568,11 @@ async function rvSubmitDecision(decision) {
     if (data.success) {
       closeReview();
       document.getElementById("successTitle").textContent =
-        decision === "approved" ? "Leave Approved" : "Leave Rejected";
+        decision === "approved" ? "Leave Approved" : "Leave Disapproved";
       document.getElementById("successMessage").textContent =
         decision === "approved"
-          ? "The faculty member will see the approval."
-          : "The faculty member will see the rejection.";
+          ? "The employee will see the approval."
+          : "The employee will see the disapproval.";
       showModal("successModal", "successCard");
       if (typeof initIcons === "function") initIcons();
     } else {
@@ -546,6 +581,35 @@ async function rvSubmitDecision(decision) {
   } catch (err) {
     hideLoading();
     console.error(err);
+    showError("Connection error", "Unable to reach the server.");
+  }
+}
+
+async function rvUndoDecision() {
+  if (!rvCurrentId) return;
+  
+  if (!confirm("Are you sure you want to revert this decision and set it back to Pending?")) return;
+
+  const fd = new FormData();
+  fd.append("action", "undo_decision");
+  fd.append("id", rvCurrentId);
+
+  showLoading("Reverting...", "Setting the request back to pending.");
+  
+  try {
+    const res = await fetch("/api/leaves", { method: "POST", body: fd });
+    const data = await res.json();
+    await new Promise((r) => setTimeout(r, 400));
+    hideLoading();
+
+    if (data.success) {
+      closeReview();
+      location.reload();
+    } else {
+      showError("Could not revert", data.error || "Unknown error");
+    }
+  } catch (err) {
+    hideLoading();
     showError("Connection error", "Unable to reach the server.");
   }
 }

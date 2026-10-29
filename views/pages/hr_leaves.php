@@ -60,6 +60,13 @@ $statusStyles = [
     'rejected' => 'text-red-700 bg-red-50',
     'cancelled' => 'text-slate-700 bg-slate-100',
 ];
+
+$statusLabels = [
+    'pending' => 'Pending',
+    'approved' => 'Approved',
+    'rejected' => 'Disapproved', 
+    'cancelled' => 'Cancelled',
+];
 $leaveLabels = [
     'vacation' => 'Vacation',
     'sick' => 'Sick',
@@ -278,10 +285,9 @@ $leaveLabels = [
                                                     class="text-sm text-[#2C3E50]/70"><?= rtrim(rtrim(number_format((float) $l['days_count'], 2, '.', ''), '0'), '.') ?></span>
                                             </td>
                                             <td class="px-4 py-0">
-                                                <span
-                                                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize <?= $statusClass ?>">
-                                                    <?= htmlspecialchars($l['status']) ?>
-                                                </span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize <?= $statusClass ?>">
+    <?= $statusLabels[$l['status']] ?? ucfirst($l['status']) ?>
+</span>
                                                 <?php if ($l['status'] === 'pending' && empty($l['dean_approved_at'])): ?>
                                                     <p class="text-[9px] text-amber-600 mt-0.5">Waiting for Dean</p>
                                                 <?php elseif ($l['status'] === 'pending' && !empty($l['dean_approved_at'])): ?>
@@ -641,24 +647,44 @@ $leaveLabels = [
                     </div>
 
                     <!-- Decision bar (pinned) -->
-                    <div id="rvDecideBar" class="hidden border-t border-[#E0E0E0] bg-white px-8 py-4 shrink-0">
-                        <div class="flex items-center gap-3">
-                            <input type="text" id="rvRemarksInput"
-                                class="flex-1 min-w-0 px-3 py-2 border border-[#E0E0E0] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition bg-white"
-                                placeholder="Add remarks (optional)…">
+<div id="rvDecideBar" class="hidden border-t border-[#E0E0E0] bg-[#F9FAFB] px-8 py-4 shrink-0">
+    <div class="flex flex-col gap-3">
+        <label class="text-xs font-semibold text-[#2C3E50]">Review Action</label>
 
-                            <div class="flex gap-2 shrink-0">
-                                <button type="button" onclick="rvSubmitDecision('rejected')"
-                                    class="px-4 border border-red-200 text-red-700 hover:bg-red-50 font-medium py-2 rounded-md transition text-sm whitespace-nowrap">
-                                    Reject
-                                </button>
-                                <button type="button" onclick="rvSubmitDecision('approved')"
-                                    class="px-4 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2 rounded-md transition text-sm whitespace-nowrap">
-                                    Approve
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+        <div class="flex items-center gap-2 text-xs">
+                <span class="text-[#2C3E50]/60">Suggested Pay Status:</span>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="rvPayStatus" value="with_pay" id="rvPayWith" class="accent-[#0F5E3D]">
+                    <span class="font-medium text-[#0F5E3D]">With Pay</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer ml-2">
+                    <input type="radio" name="rvPayStatus" value="without_pay" id="rvPayWithout" class="accent-amber-600">
+                    <span class="font-medium text-amber-700">Without Pay (LWOP)</span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row items-start gap-3">
+            <!-- Remarks Input -->
+            <textarea id="rvRemarksInput" rows="2"
+                class="flex-1 w-full min-w-0 px-3 py-2 border border-[#E0E0E0] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] focus:border-transparent transition bg-white resize-none"
+                placeholder="Add remarks here..."></textarea>
+
+            <!-- Horizontal Action Buttons -->
+            <div class="flex items-center gap-2 shrink-0">
+                <button type="button" onclick="rvSubmitDecision('rejected')"
+                    class="px-5 border border-red-200 text-red-700 bg-white hover:bg-red-50 font-medium py-2.5 rounded-md transition text-sm flex items-center justify-center gap-2">
+                    <i data-lucide="x" class="w-4 h-4"></i> Disapprove
+                </button>
+                <button type="button" onclick="rvSubmitDecision('approved')"
+                    class="px-5 bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-md transition text-sm flex items-center justify-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4"></i> Approve
+                </button>
+            </div>
+        </div>
+        
+    </div>
+</div>
 
                 </section>
 

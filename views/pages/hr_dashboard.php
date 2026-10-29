@@ -489,24 +489,22 @@ function timeAgo($ts) {
             <main class="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
 
                 <!-- Welcome banner -->
-                <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                <!-- Welcome banner -->
+                <div class="animate-fade-in-up bg-gradient-to-r from-[#0F5E3D] to-[#0a4a2f] rounded-xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center gap-4 text-white">
                     <div class="flex-1 min-w-0">
-                        <h2 class="text-lg font-bold text-[#2C3E50]">Hello, <?= htmlspecialchars($firstName) ?>!</h2>
-                        <p class="text-sm text-[#2C3E50]/60 mt-0.5">
-                            You have <span class="font-semibold text-amber-600"><?= (int) $stats['pending'] ?></span>
-                            pending leave request<?= ((int)$stats['pending'] === 1) ? '' : 's' ?> to review.
+                        <h2 class="text-xl font-bold">Welcome back, <?= htmlspecialchars($firstName) ?>!</h2>
+                        <p class="text-sm text-white/80 mt-1">
+                            Here is your daily summary. You have <strong class="text-white bg-white/20 px-1.5 py-0.5 rounded"><?= (int) $stats['pending'] ?></strong> request(s) waiting for your review.
                         </p>
                     </div>
                     <div class="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
-                        <a href="/hr/dashboard?export=xlsx"
-                           class="flex items-center justify-center gap-2 border border-[#0F5E3D]/30 text-[#0F5E3D] hover:bg-[#F1FDF6] active:scale-[0.99] font-medium py-2.5 px-4 rounded-lg transition text-sm shadow-sm">
+                        <a href="/hr/dashboard?export=xlsx" class="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white font-medium py-2.5 px-4 rounded-lg transition text-sm border border-white/20">
                             <i data-lucide="download" class="w-4 h-4"></i>
-                            <span>Export to Excel</span>
+                            <span>Export Report</span>
                         </a>
-                        <a href="/hr/leaves"
-                           class="flex items-center justify-center gap-2 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2.5 px-4 rounded-lg transition text-sm shadow-sm hover:shadow-md">
+                        <a href="/hr/leaves" class="flex items-center justify-center gap-2 bg-white text-[#0F5E3D] hover:bg-gray-50 font-medium py-2.5 px-4 rounded-lg transition text-sm shadow-sm">
                             <i data-lucide="calendar-check" class="w-4 h-4"></i>
-                            <span>Review Requests</span>
+                            <span>Review Queue</span>
                         </a>
                     </div>
                 </div>
@@ -735,24 +733,20 @@ function timeAgo($ts) {
                     </div>
                 </div>
 
-                <!-- ROW 2.5: Leave Types -->
-                <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 sm:p-6 shadow-sm">
-                    <div class="flex items-start justify-between mb-4">
-                        <div>
-                            <h2 class="text-base sm:text-lg font-bold text-[#2C3E50]">Leave Types</h2>
-                            <p class="text-xs text-[#2C3E50]/50 mt-0.5">Total requests by type · all statuses</p>
+                                <!-- ROW 2.5: Leave Types Breakdown (Simplified) -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
+                        <div class="mb-3">
+                            <h2 class="text-sm font-bold text-[#2C3E50]">Leave Distribution</h2>
+                            <p class="text-[10px] text-[#2C3E50]/50 mt-0.5">All-time requests by type</p>
                         </div>
-                        <div class="flex items-center gap-1.5 text-[10px] text-[#2C3E50]/60">
-                            <span class="w-2 h-2 rounded-full bg-[#0F5E3D]"></span>
-                            <span>Requests</span>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div class="lg:col-span-2 relative h-56">
+                        <div class="relative h-48 flex items-center justify-center">
                             <canvas id="leaveTypesChart"></canvas>
                         </div>
-                        <div class="space-y-2">
+                    </div>
+                    
+                    <div class="lg:col-span-2 animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm flex flex-col justify-center">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <?php
                             $typeTotal = array_sum($typeCounts) ?: 1;
                             foreach ($typeCounts as $t => $c):
@@ -760,17 +754,17 @@ function timeAgo($ts) {
                                 $color = $typeColors[$t] ?? '#64748b';
                                 $label = $leaveTypes[$t] ?? ucfirst($t);
                             ?>
-                                <div>
-                                    <div class="flex items-center justify-between mb-1">
-                                        <div class="flex items-center gap-2">
-                                            <span class="inline-block w-2 h-2 rounded-full" style="background:<?= $color ?>"></span>
-                                            <span class="text-xs font-medium text-[#2C3E50]"><?= htmlspecialchars($label) ?></span>
-                                        </div>
-                                        <span class="text-xs text-[#2C3E50]/50"><?= $c ?> · <?= $pct ?>%</span>
+                                <div class="bg-[#F9FAFB] border border-[#E0E0E0] rounded-lg p-3">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="w-2.5 h-2.5 rounded-full" style="background:<?= $color ?>"></span>
+                                        <span class="text-xs font-semibold text-[#2C3E50]"><?= htmlspecialchars($label) ?></span>
                                     </div>
-                                    <div class="h-1.5 bg-[#F1FDF6] rounded-full overflow-hidden">
-                                        <div class="h-full rounded-full transition-all"
-                                             style="width: <?= $pct ?>%; background: <?= $color ?>"></div>
+                                    <div class="flex items-end justify-between">
+                                        <span class="text-2xl font-bold text-[#2C3E50]"><?= $c ?></span>
+                                        <span class="text-xs font-medium text-[#2C3E50]/50 mb-1"><?= $pct ?>%</span>
+                                    </div>
+                                    <div class="h-1.5 bg-[#E0E0E0] rounded-full overflow-hidden mt-2">
+                                        <div class="h-full rounded-full" style="width: <?= $pct ?>%; background: <?= $color ?>"></div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>

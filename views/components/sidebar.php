@@ -37,7 +37,7 @@ function navClass($key, $activePage)
     <div class="flex items-center gap-3 py-6 px-5 border-b border-white/10">
         <img src="/assets/images/dammc-logo.png" alt="DAMMC Logo" class="w-11 h-11 object-contain shrink-0">
         <span class="font-bold text-white tracking-wide text-sm leading-tight">
-            Faculty Leave Tracking <br> and Payroll Integration System
+            Employee Leave Tracking <br> and Payroll Integration System
         </span>
         <button onclick="closeSidebar()" class="md:hidden ml-auto text-white/80 hover:text-white transition shrink-0">
             <i data-lucide="x" class="w-5 h-5"></i>
@@ -59,17 +59,21 @@ function navClass($key, $activePage)
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>
                 <span>Leave Requests</span>
             </a>
-            <!-- <a href="/hr/payroll" class="<?= navClass('hr_payroll', $activePage) ?>">
-                <i data-lucide="wallet" class="w-5 h-5"></i>
-                <span>Payroll</span>
-            </a> -->
             <a href="/activity-logs" class="<?= navClass('activity-logs', $activePage) ?>">
                 <i data-lucide="history" class="w-5 h-5"></i>
                 <span>Activity Logs</span>
             </a>
+            
+            <!-- NEW: Manage Options (Leave Types & Positions) -->
+            <a href="/hr/manage-options" class="<?= navClass('hr_manage_options', $activePage) ?>">
+                <i data-lucide="list-plus" class="w-5 h-5"></i>
+                <span>Manage Options</span>
+            </a>
+            
+            <!-- Renamed: Account Settings -->
             <a href="/hr/settings" class="<?= navClass('hr_settings', $activePage) ?>">
                 <i data-lucide="settings" class="w-5 h-5"></i>
-                <span>Settings</span>
+                <span>Account Settings</span>
             </a>
 
         <?php elseif ($role === 'faculty'): ?>

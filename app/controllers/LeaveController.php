@@ -17,11 +17,12 @@ if (!isset($_SESSION['user_id'])) {
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $userId = (int) $_SESSION['user_id'];
-$role   = $_SESSION['role'] ?? '';
+$role = $_SESSION['role'] ?? '';
 
 if (!function_exists('fmt_days')) {
-    function fmt_days($n) {
-        return rtrim(rtrim(number_format((float)$n, 2, '.', ''), '0'), '.');
+    function fmt_days($n)
+    {
+        return rtrim(rtrim(number_format((float) $n, 2, '.', ''), '0'), '.');
     }
 }
 
@@ -34,7 +35,7 @@ $myEmployeeId = $row['employee_id'] !== null ? (int) $row['employee_id'] : null;
 // Leave-type caps
 $TYPE_CAPS = [
     'vacation' => 7.5,
-    'sick'     => 7.5,
+    'sick' => 7.5,
 ];
 
 try {
@@ -121,14 +122,15 @@ try {
             $usageRows = $stmt->fetchAll();
 
             $usage = [
-                'approved'  => ['total_days' => 0, 'by_type' => []],
-                'pending'   => ['total_days' => 0, 'by_type' => []],
-                'rejected'  => ['total_days' => 0, 'by_type' => []],
+                'approved' => ['total_days' => 0, 'by_type' => []],
+                'pending' => ['total_days' => 0, 'by_type' => []],
+                'rejected' => ['total_days' => 0, 'by_type' => []],
                 'cancelled' => ['total_days' => 0, 'by_type' => []],
             ];
             foreach ($usageRows as $r) {
                 $s = $r['status'];
-                if (!isset($usage[$s])) continue;
+                if (!isset($usage[$s]))
+                    continue;
                 $usage[$s]['total_days'] += (float) $r['days'];
                 $usage[$s]['by_type'][$r['leave_type']] = (float) $r['days'];
             }
@@ -140,8 +142,8 @@ try {
                 $used = $usage['approved']['by_type'][$t] ?? 0;
 
                 $remainingByType[$t] = [
-                    'cap'       => $cap,
-                    'used'      => $used,
+                    'cap' => $cap,
+                    'used' => $used,
                     'remaining' => $cap !== null ? max(0, $cap - $used) : null,
                 ];
             }
@@ -150,43 +152,43 @@ try {
             $totalRemainingOverall = max(0, $totalCredits - $totalUsedApproved);
 
             echo json_encode([
-                'success'  => true,
+                'success' => true,
                 'employee' => [
-                    'id'              => (int) $employee['id'],
-                    'first_name'      => $employee['first_name'],
-                    'middle_name'     => $employee['middle_name'],
-                    'last_name'       => $employee['last_name'],
-                    'full_name'       => trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
-                    'email'           => $employee['email'],
-                    'category'        => $employee['category'],
-                    'sub_category'    => $employee['sub_category'],
-                    'year_level'      => $employee['year_level'],
-                    'position'        => $employee['position'],
+                    'id' => (int) $employee['id'],
+                    'first_name' => $employee['first_name'],
+                    'middle_name' => $employee['middle_name'],
+                    'last_name' => $employee['last_name'],
+                    'full_name' => trim(($employee['first_name'] ?? '') . ' ' . ($employee['last_name'] ?? '')),
+                    'email' => $employee['email'],
+                    'category' => $employee['category'],
+                    'sub_category' => $employee['sub_category'],
+                    'year_level' => $employee['year_level'],
+                    'position' => $employee['position'],
                     'employment_type' => $employee['employment_type'],
-                    'basic_salary'    => (float) $employee['basic_salary'],
-                    'leave_credits'   => $totalCredits,
+                    'basic_salary' => (float) $employee['basic_salary'],
+                    'leave_credits' => $totalCredits,
                 ],
                 'credits' => [
-                    'total'         => $totalCredits,
-                    'used'          => $totalUsedApproved,
-                    'remaining'     => $totalRemainingOverall,
-                    'by_type'       => $remainingByType,
+                    'total' => $totalCredits,
+                    'used' => $totalUsedApproved,
+                    'remaining' => $totalRemainingOverall,
+                    'by_type' => $remainingByType,
                 ],
-                'usage'   => $usage,
+                'usage' => $usage,
                 'history' => array_map(function ($l) {
                     return [
-                        'id'         => (int) $l['id'],
-                        'type'       => $l['leave_type'],
-                        'start'      => $l['start_date'],
-                        'end'        => $l['end_date'],
-                        'days'       => (float) $l['days_count'],
-                        'reason'     => $l['reason'],
-                        'status'     => $l['status'],
+                        'id' => (int) $l['id'],
+                        'type' => $l['leave_type'],
+                        'start' => $l['start_date'],
+                        'end' => $l['end_date'],
+                        'days' => (float) $l['days_count'],
+                        'reason' => $l['reason'],
+                        'status' => $l['status'],
                         'pay_status' => $l['pay_status'] ?? null,
-                        'remarks'    => $l['remarks'] ?? '',
-                        'created'    => $l['created_at'],
-                        'approver'   => $l['approver_username'] ?? '',
-                        'approved'   => $l['approved_at'] ?? '',
+                        'remarks' => $l['remarks'] ?? '',
+                        'created' => $l['created_at'],
+                        'approver' => $l['approver_username'] ?? '',
+                        'approved' => $l['approved_at'] ?? '',
                         'attachment' => !empty($l['attachment_path']) ? [
                             'path' => $l['attachment_path'],
                             'name' => $l['attachment_name'],
@@ -219,14 +221,16 @@ try {
                 break;
             }
 
-            $type   = $_POST['leave_type'] ?? '';
-            $start  = $_POST['start_date'] ?? '';
-            $end    = $_POST['end_date'] ?? '';
+            $type = $_POST['leave_type'] ?? '';
+            $start = $_POST['start_date'] ?? '';
+            $end = $_POST['end_date'] ?? '';
             $reason = trim($_POST['reason'] ?? '');
 
-            $allowedTypes = ['vacation', 'sick', 'maternity', 'paternity', 'terminal', 'other'];
-            if (!in_array($type, $allowedTypes, true)) {
-                echo json_encode(['success' => false, 'error' => 'Invalid leave type.']);
+            // Check if the leave type exists in the database
+            $stmtCheck = $pdo->prepare("SELECT id FROM leave_types WHERE LOWER(name) = LOWER(?) AND is_active = 1 LIMIT 1");
+            $stmtCheck->execute([$type]);
+            if (!$stmtCheck->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Invalid or archived leave type.']);
                 break;
             }
             if (!$start || !$end || !$reason) {
@@ -238,8 +242,8 @@ try {
             $e = new DateTime($end);
             $today = new DateTime('today');
 
-            if ($s < $today) {
-                echo json_encode(['success' => false, 'error' => 'Leave start date cannot be in the past.']);
+            if ($s < $today && $type !== 'sick') {
+                echo json_encode(['success' => false, 'error' => 'Only sick leaves can be filed with a past start date.']);
                 break;
             }
             if ($e < $s) {
@@ -292,10 +296,10 @@ try {
                     echo json_encode([
                         'success' => false,
                         'error' => "{$typeLabel} leave is capped at "
-                                 . fmt_days($TYPE_CAPS[$type])
-                                 . " day(s). You have "
-                                 . fmt_days($typeRemaining)
-                                 . " day(s) remaining for this type."
+                            . fmt_days($TYPE_CAPS[$type])
+                            . " day(s). You have "
+                            . fmt_days($typeRemaining)
+                            . " day(s) remaining for this type."
                     ]);
                     break;
                 }
@@ -308,7 +312,7 @@ try {
                   AND NOT (end_date < ? OR start_date > ?)
             ");
             $stmt->execute([$myEmployeeId, $start, $end]);
-            if ((int)$stmt->fetchColumn() > 0) {
+            if ((int) $stmt->fetchColumn() > 0) {
                 echo json_encode(['success' => false, 'error' => 'You already have a leave request overlapping these dates.']);
                 break;
             }
@@ -336,9 +340,9 @@ try {
                 }
 
                 $allowedMimes = [
-                    'image/jpeg'      => 'jpg',
-                    'image/png'       => 'png',
-                    'image/webp'      => 'webp',
+                    'image/jpeg' => 'jpg',
+                    'image/png' => 'png',
+                    'image/webp' => 'webp',
                     'application/pdf' => 'pdf',
                 ];
 
@@ -382,8 +386,16 @@ try {
                 VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
             ");
             $stmt->execute([
-                $myEmployeeId, $type, $start, $end, $days, $reason,
-                $attachmentPath, $attachmentName, $attachmentSize, $attachmentMime
+                $myEmployeeId,
+                $type,
+                $start,
+                $end,
+                $days,
+                $reason,
+                $attachmentPath,
+                $attachmentName,
+                $attachmentSize,
+                $attachmentMime
             ]);
             $newId = (int) $pdo->lastInsertId();
 
@@ -399,23 +411,44 @@ try {
 
             if (class_exists('NotificationService')) {
                 $facultyName = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? ''));
-                if ($facultyName === '') $facultyName = $_SESSION['username'] ?? 'A faculty member';
+                if ($facultyName === '')
+                    $facultyName = $_SESSION['username'] ?? 'An employee';
 
                 $typeLabel = ucfirst($type);
                 $range = date('M j', strtotime($start))
-                       . ($start !== $end ? ' – ' . date('M j, Y', strtotime($end)) : '');
-
+                    . ($start !== $end ? ' – ' . date('M j, Y', strtotime($end)) : '');
                 $halfLabel = $isHalfDay ? ' — half day' : '';
                 $attachLabel = $attachmentPath ? ' · 📎 attachment' : '';
 
-                NotificationService::notifyAdmins(
-                    $pdo,
-                    'leave_filed',
-                    "New leave request",
-                    "{$facultyName} filed {$typeLabel} leave ({$range}, "
-                        . fmt_days($days) . " day(s){$halfLabel}{$attachLabel})",
-                    '/leaves'
-                );
+                $message = "{$facultyName} filed {$typeLabel} leave ({$range}, " . fmt_days($days) . " day(s){$halfLabel}{$attachLabel})";
+
+                // 1. Notify the Academic Dean for endorsement
+                $stmtDeans = $pdo->prepare("SELECT u.id FROM users u JOIN employees e ON u.employee_id = e.id WHERE e.position = 'Academic Dean' AND u.role = 'faculty' AND u.status = 'active'");
+                $stmtDeans->execute();
+                while ($dean = $stmtDeans->fetch()) {
+                    NotificationService::notify(
+                        $pdo,
+                        $dean['id'],
+                        'leave_filed',
+                        "New leave request for endorsement",
+                        $message,
+                        '/leave-monitoring'
+                    );
+                }
+
+                // 2. Notify HR (so they know it's coming)
+                $stmtHRs = $pdo->prepare("SELECT id FROM users WHERE role = 'hr' AND status = 'active'");
+                $stmtHRs->execute();
+                while ($hr = $stmtHRs->fetch()) {
+                    NotificationService::notify(
+                        $pdo,
+                        $hr['id'],
+                        'leave_filed',
+                        "New leave request (pending Dean)",
+                        $message,
+                        '/hr/leaves'
+                    );
+                }
             }
 
             echo json_encode(['success' => true, 'message' => 'Leave filed.']);
@@ -441,7 +474,7 @@ try {
             }
 
             if ($role !== 'admin' && $role !== 'hr') {
-                if ($myEmployeeId === null || (int)$leave['employee_id'] !== $myEmployeeId) {
+                if ($myEmployeeId === null || (int) $leave['employee_id'] !== $myEmployeeId) {
                     echo json_encode(['success' => false, 'error' => 'You can only cancel your own requests.']);
                     break;
                 }
@@ -460,7 +493,8 @@ try {
 
             if (class_exists('NotificationService')) {
                 $facultyName = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? ''));
-                if ($facultyName === '') $facultyName = $_SESSION['username'] ?? 'A faculty member';
+                if ($facultyName === '')
+                    $facultyName = $_SESSION['username'] ?? 'A faculty member';
 
                 NotificationService::notifyAdmins(
                     $pdo,
@@ -518,7 +552,7 @@ try {
             if (class_exists('ActivityLogger')) {
                 ActivityLogger::log($pdo, 'endorse_leave', "Endorsed leave request #{$id} to HR", 'leave_request', $id);
             }
-            
+
             if (class_exists('NotificationService')) {
                 NotificationService::notifyAdmins(
                     $pdo,
@@ -541,13 +575,19 @@ try {
                 break;
             }
 
-            $id        = (int) ($_POST['id'] ?? 0);
-            $decision  = $_POST['decision'] ?? '';
-            $remarks   = trim($_POST['remarks'] ?? '');
+            $id = (int) ($_POST['id'] ?? 0);
+            $decision = $_POST['decision'] ?? '';
+            $remarks = trim($_POST['remarks'] ?? '');
             $payStatus = $_POST['pay_status'] ?? '';
 
             if ($id <= 0 || !in_array($decision, ['approved', 'rejected'], true)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid input.']);
+                break;
+            }
+
+            // NEW: Require remarks for rejection
+            if ($decision === 'rejected' && empty($remarks)) {
+                echo json_encode(['success' => false, 'error' => 'You must provide a reason/remarks when rejecting a leave request.']);
                 break;
             }
 
@@ -598,12 +638,12 @@ try {
 
             if (class_exists('NotificationService')) {
                 $employeeId = (int) $leave['employee_id'];
-                $typeLabel  = ucfirst($leave['leave_type']);
+                $typeLabel = ucfirst($leave['leave_type']);
 
                 $range = date('M j', strtotime($leave['start_date']))
-                       . ($leave['start_date'] !== $leave['end_date']
-                            ? ' – ' . date('M j, Y', strtotime($leave['end_date']))
-                            : '');
+                    . ($leave['start_date'] !== $leave['end_date']
+                        ? ' – ' . date('M j, Y', strtotime($leave['end_date']))
+                        : '');
 
                 $title = $decision === 'approved'
                     ? "Your {$typeLabel} leave was approved"
@@ -640,6 +680,28 @@ try {
             }
 
             echo json_encode(['success' => true, 'message' => 'Leave ' . $decision . '.']);
+            break;
+
+        case 'undo_decision':
+            if (!in_array($role, ['admin', 'hr'], true)) {
+                echo json_encode(['success' => false, 'error' => 'Unauthorized.']);
+                break;
+            }
+            $id = (int) ($_POST['id'] ?? 0);
+
+            $stmt = $pdo->prepare("SELECT status FROM leave_requests WHERE id = ? LIMIT 1");
+            $stmt->execute([$id]);
+            $leave = $stmt->fetch();
+
+            if (!$leave || $leave['status'] === 'pending') {
+                echo json_encode(['success' => false, 'error' => 'Invalid request or already pending.']);
+                break;
+            }
+
+            $pdo->prepare("UPDATE leave_requests SET status = 'pending', approved_by = NULL, approved_at = NULL, remarks = NULL, pay_status = NULL WHERE id = ?")->execute([$id]);
+
+            // Optional: Add ActivityLog here
+            echo json_encode(['success' => true, 'message' => 'Leave reverted to pending.']);
             break;
 
         default:

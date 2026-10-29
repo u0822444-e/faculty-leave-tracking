@@ -294,7 +294,7 @@ $statusLabels = [
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3 mb-2">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total Payroll Liability</p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total Convertible Leave Pay (Owed)</p>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 <button type="button" onclick="toggleAmountVisibility()"
                                     class="w-8 h-8 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] hover:bg-[#e8faf0] transition amount-toggle-btn"
@@ -312,7 +312,7 @@ $statusLabels = [
 
                     <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3 mb-2">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Settled This Month</p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#0F5E3D]/70 font-semibold">Paid Out This Month</p>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 <button type="button" onclick="toggleAmountVisibility()"
                                     class="w-8 h-8 rounded-lg bg-[#F1FDF6] flex items-center justify-center text-[#0F5E3D] hover:bg-[#e8faf0] transition amount-toggle-btn"
@@ -330,7 +330,7 @@ $statusLabels = [
 
                     <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3 mb-2">
-                            <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Pending Settlement</p>
+                            <p class="text-[10px] uppercase tracking-wider text-[#0F5E3D]/70 font-semibold">Paid Out This Month</p>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 <button type="button" onclick="toggleAmountVisibility()"
                                     class="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition amount-toggle-btn"

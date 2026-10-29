@@ -37,7 +37,7 @@ $dashboard = match ($role) {
                 <img src="/assets/images/dammc-logo.png" alt="DAMMC" class="w-10 h-10 object-contain">
                 <div>
                     <p class="text-xs uppercase tracking-wider text-gray-400 font-semibold">Welcome</p>
-                    <p class="text-sm font-semibold text-[#2C3E50]">Faculty Leave Tracking &amp; Payroll System</p>
+                    <p class="text-sm font-semibold text-[#2C3E50]">Employee Leave Tracking &amp; Payroll System</p>
                 </div>
             </div>
 

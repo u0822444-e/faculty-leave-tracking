@@ -151,13 +151,23 @@ if ($uri === '/hr/payroll' || $uri === '/payroll') {
     exit;
 }
 
-// HR settings
+// HR Account Settings
 if ($uri === '/hr/settings' || $uri === '/settings') {
     require __DIR__ . '/../views/pages/settings.php';
     exit;
 }
 if ($uri === '/api/settings') {
     require __DIR__ . '/../app/controllers/SettingsController.php';
+    exit;
+}
+
+// HR Manage Options (Leave Types & Positions)
+if ($uri === '/hr/manage-options') {
+    require __DIR__ . '/../views/pages/hr_manage_options.php';
+    exit;
+}
+if ($uri === '/api/hr/options') {
+    require __DIR__ . '/../app/controllers/HrOptionsController.php';
     exit;
 }
 
@@ -205,6 +215,9 @@ if ($uri === '/api/leaves') {
     exit;
 }
 
+// ============================================
+// ACCOUNTING ROUTES
+// ============================================
 if ($uri === '/accounting/dashboard') {
     require __DIR__ . '/../views/pages/accounting_dashboard.php';
     exit;
@@ -218,9 +231,7 @@ if ($uri === '/accounting/leaves') {
     exit;
 }
 
-// ============================================
-// ACCOUNTING PAYROLL API
-// ============================================
+// Accounting Payroll API
 if ($uri === '/api/accounting/payroll') {
     require __DIR__ . '/../app/controllers/AccountingPayrollController.php';
     exit;

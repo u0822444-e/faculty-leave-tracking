@@ -434,8 +434,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const startDate = new Date(start + "T00:00:00");
       const endDate = new Date(end + "T00:00:00");
 
-      if (startDate < today) {
-        showError("Invalid start date", "You cannot file a leave with a start date in the past.");
+      if (startDate < today && type !== 'sick') {
+        showError("Invalid start date", "You cannot file a non-sick leave with a start date in the past.");
         return;
       }
       if (endDate < startDate) {

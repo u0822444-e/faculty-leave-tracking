@@ -7,8 +7,8 @@ const SUB_CATEGORIES = {
   staff: [
     "Accounting Section",
     "Registrar's Office",
-    "Library & Guidance",
-    "Registrar's Head",
+    "Library",
+    "Guidance Office",
   ],
 };
 
@@ -398,7 +398,22 @@ function updateYearLevelOrDepartment(prefix, selectedValue = null) {
 function populatePositionDropdown(selectId, selectedValue = null, subCategory = "") {
   const el = document.getElementById(selectId);
   if (!el) return;
-  const allowed = POSITIONS_BY_CONTEXT[subCategory] || DEFAULT_POSITIONS;
+
+  // Filter positions based on the selected department
+  let allowed = [];
+  if (subCategory === "Elementary") {
+    allowed = ["Elementary Principal", "Teacher I", "Teacher II", "Teacher III", "Master Teacher"];
+  } else if (subCategory === "High School") {
+    allowed = ["High School Principal", "Teacher I", "Teacher II", "Teacher III", "Master Teacher"];
+  } else if (subCategory === "College") {
+    allowed = ["Academic Dean", "Program Head", "Instructor"];
+  } else if (["Accounting Section", "Registrar's Office", "Library", "Guidance Office"].includes(subCategory)) {
+    allowed = ["Staff"];
+  } else {
+    // Default: show everything
+    allowed = ["Academic Dean", "Program Head", "Elementary Principal", "High School Principal", "Instructor", "Teacher I", "Teacher II", "Teacher III", "Master Teacher", "Staff"];
+  }
+
   const options = [...allowed];
   if (selectedValue && !options.includes(selectedValue)) options.push(selectedValue);
   el.innerHTML = '<option value="">Select position</option>';

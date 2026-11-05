@@ -128,7 +128,7 @@ $statusLabelText = $statusFilter === 'inactive'
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Users | DAMMC Admin</title>
+    <title>Employees | DAMMC Admin</title>
     <link rel="icon" type="image/png" href="/assets/images/dammc-logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -783,7 +783,7 @@ $statusLabelText = $statusFilter === 'inactive'
                             class="w-12 h-12 rounded-full bg-[#F1FDF6] flex items-center justify-center mx-auto mb-3 text-[#0F5E3D]">
                             <i data-lucide="search-x" class="w-5 h-5"></i>
                         </div>
-                        <p class="text-sm font-medium text-[#2C3E50]">No users found</p>
+                        <p class="text-sm font-medium text-[#2C3E50]">No employees found</p>
                         <p class="text-xs text-[#2C3E50]/50 mt-1">
                             <?= $searchQuery !== '' ? 'Try a different search term.' : 'Try adjusting your filters.' ?>
                         </p>
@@ -796,7 +796,7 @@ $statusLabelText = $statusFilter === 'inactive'
                             <span class="font-medium text-[#2C3E50]"><?= count($users) ?></span>
                             of
                             <span class="font-medium text-[#2C3E50]"><?= $totalUsers ?></span>
-                            users
+                            employees
                             <?php if ($searchQuery !== ''): ?>
                                 · matching "<span
                                     class="font-medium text-[#2C3E50]"><?= htmlspecialchars($searchQuery) ?></span>"
@@ -867,7 +867,7 @@ $statusLabelText = $statusFilter === 'inactive'
             id="addUserCard">
             <div class="flex items-center justify-between px-6 py-4 border-b border-[#E0E0E0]">
                 <div>
-                    <h3 class="text-base font-bold text-[#2C3E50]">Add New User</h3>
+                    <h3 class="text-base font-bold text-[#2C3E50]">Add New Employee</h3>
                     <p class="text-xs text-[#2C3E50]/50" id="addModalSubtitle">Step 1 of 2 — Personal Information</p>
                 </div>
                 <button onclick="closeAddUserModal()" class="text-[#2C3E50]/40 hover:text-[#2C3E50] transition">

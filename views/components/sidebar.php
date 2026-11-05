@@ -53,7 +53,7 @@ function navClass($key, $activePage)
             </a>
             <a href="/hr/users" class="<?= navClass('hr_users', $activePage) ?>">
                 <i data-lucide="users" class="w-5 h-5"></i>
-                <span>Faculty</span>
+                <span>Employee</span>
             </a>
             <a href="/hr/leaves" class="<?= navClass('hr_leaves', $activePage) ?>">
                 <i data-lucide="calendar-days" class="w-5 h-5"></i>

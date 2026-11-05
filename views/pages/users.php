@@ -385,7 +385,7 @@ $statusLabelText = $statusFilter === 'inactive'
                             <button onclick="openAddUserModal()"
                                 class="flex items-center gap-1.5 bg-[#0F5E3D] hover:bg-[#0a4a2f] active:scale-[0.99] text-white font-medium py-2 px-4 rounded-lg transition text-xs shadow-sm hover:shadow-md whitespace-nowrap">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                                <span>Add Faculty</span>
+                                <span>Add Employee</span>
                             </button>
                         </div>
 

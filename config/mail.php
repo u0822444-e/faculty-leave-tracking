@@ -7,6 +7,6 @@ return [
     'username'   => 'testuser98234@gmail.com',
     'password'   => 'lkqx wefw kxya bqev',
     'encryption' => 'tls',
-    'from_email' => 'no-reply@dammc.edu.ph',
-    'from_name'  => 'DAMMC Faculty Leave & Payroll System',
+    'from_email' => 'testuser98234@gmail.com',
+    'from_name'  => 'DAMMC Employee Leave & Payroll Integration System',
 ];

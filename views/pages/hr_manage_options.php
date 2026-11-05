@@ -154,7 +154,7 @@ $positions = $pdo->query("SELECT * FROM positions ORDER BY category ASC, title A
                                                 <p class="text-xs text-[#2C3E50]/50 capitalize"><?= htmlspecialchars($pos['category']) ?></p>
                                             </td>
                                             <td class="px-5 py-3 text-sm text-[#2C3E50]/70">
-                                                <?= ucfirst($pos['category']) ?> Role
+                                                <?= ucfirst($pos['category']) ?>
                                             </td>
                                             <td class="px-5 py-3">
                                                 <?php if ($pos['is_active']): ?>
@@ -213,7 +213,7 @@ $positions = $pdo->query("SELECT * FROM positions ORDER BY category ASC, title A
             <form id="formAddPosition" class="hidden">
                 <div class="mb-4">
                     <label class="block text-xs font-medium text-[#2C3E50] mb-1.5">Position Title *</label>
-                    <input type="text" name="title" required placeholder="e.g. Registrar" 
+                    <input type="text" name="title" required placeholder="e.g. Instructor" 
                         class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D]">
                 </div>
                 <div class="mb-5">
@@ -221,7 +221,6 @@ $positions = $pdo->query("SELECT * FROM positions ORDER BY category ASC, title A
                     <select name="category" required class="w-full px-3 py-2 border border-[#E0E0E0] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5E3D] bg-white cursor-pointer">
                         <option value="faculty">Faculty</option>
                         <option value="staff">Staff</option>
-                        <option value="leadership">Leadership</option>
                     </select>
                 </div>
                 <button type="submit" class="w-full bg-[#0F5E3D] hover:bg-[#0a4a2f] text-white font-medium py-2.5 rounded-lg transition text-sm">Save Position</button>

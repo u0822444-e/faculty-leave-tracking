@@ -71,11 +71,11 @@ $countStmt = $pdo->prepare("
         SELECT ps1.*
         FROM payroll_settlements ps1
         INNER JOIN (
-            SELECT employee_id, MAX(settled_at) AS max_settled_at
+            SELECT employee_id, MAX(COALESCE(settled_at, created_at)) AS max_settled_at
             FROM payroll_settlements
             GROUP BY employee_id
         ) ps2 ON ps2.employee_id = ps1.employee_id
-             AND ps2.max_settled_at = ps1.settled_at
+             AND COALESCE(ps1.settled_at, ps1.created_at) = ps2.max_settled_at
     ) ps ON ps.employee_id = e.id
     {$whereSql}
 ");
@@ -127,11 +127,11 @@ $stmt = $pdo->prepare("
         SELECT ps1.*
         FROM payroll_settlements ps1
         INNER JOIN (
-            SELECT employee_id, MAX(settled_at) AS max_settled_at
+            SELECT employee_id, MAX(COALESCE(settled_at, created_at)) AS max_settled_at
             FROM payroll_settlements
             GROUP BY employee_id
         ) ps2 ON ps2.employee_id = ps1.employee_id
-             AND ps2.max_settled_at = ps1.settled_at
+             AND COALESCE(ps1.settled_at, ps1.created_at) = ps2.max_settled_at
     ) ps ON ps.employee_id = e.id
     {$whereSql}
     ORDER BY e.last_name ASC, e.first_name ASC
@@ -225,7 +225,7 @@ if (!empty($employeeIds)) {
         SELECT employee_id, status, amount, settled_at, remarks
         FROM payroll_settlements
         WHERE employee_id IN ($placeholders)
-        ORDER BY settled_at DESC
+        ORDER BY COALESCE(settled_at, created_at) DESC
     ");
     $stmt->execute($employeeIds);
 
@@ -274,11 +274,11 @@ $agg = $pdo->query("
         SELECT ps1.*
         FROM payroll_settlements ps1
         INNER JOIN (
-            SELECT employee_id, MAX(settled_at) AS max_settled_at
+            SELECT employee_id, MAX(COALESCE(settled_at, created_at)) AS max_settled_at
             FROM payroll_settlements
             GROUP BY employee_id
         ) ps2 ON ps2.employee_id = ps1.employee_id
-             AND ps2.max_settled_at = ps1.settled_at
+             AND COALESCE(ps1.settled_at, ps1.created_at) = ps2.max_settled_at
     ) ps ON ps.employee_id = e.id
     WHERE e.category IN ('faculty', 'staff')
 ")->fetchAll();

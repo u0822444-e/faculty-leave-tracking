@@ -42,7 +42,7 @@ $isPartTime = (($me['employment_type'] ?? 'full-time') === 'part-time');
 $leavePayRate = (float) ($me['leave_pay'] ?? 0);
 
 // ============================================
-// Leave stats (PERSONAL — staff role)
+// Leave stats
 // ============================================
 $creditsUsed = 0;
 $typeUsed = [
@@ -113,7 +113,7 @@ if ($employeeId > 0) {
 }
 
 // ============================================
-// Payroll settlement (PERSONAL — staff role)
+// Payroll settlement (personal)
 // ============================================
 $settlementStatus  = null;
 $settlementAmount  = 0.0;
@@ -124,7 +124,7 @@ if ($employeeId > 0) {
         SELECT status, amount, settled_at
         FROM payroll_settlements
         WHERE employee_id = ?
-        ORDER BY settled_at DESC
+        ORDER BY COALESCE(settled_at, created_at) DESC
         LIMIT 1
     ");
     $stmt->execute([$employeeId]);
@@ -154,20 +154,16 @@ $sickUsed      = (float) ($typeUsed['sick'] ?? 0);
 $sickRemaining = max(0, $sickCap - $sickUsed);
 $potentialConvertible = $leavePayRate * $sickRemaining;
 
+// NEW BEHAVIOR:
+// Always show the actual calculated convertible amount.
+// The "settled" flag is now shown as a badge, not as ₱0.00.
 $convertibleLeavePay = $potentialConvertible;
-$isFullySettled      = false;
-
-if ($settlementStatus === 'settled') {
-    $convertibleLeavePay = 0;
-    $isFullySettled      = true;
-} elseif ($settlementStatus === 'outstanding') {
-    $convertibleLeavePay = $potentialConvertible;
-}
+$isFullySettled      = ($settlementStatus === 'settled');
 
 $leaveDeduction = $leavePayRate * $lwopDays;
 
 // ============================================
-// PAYROLL SUMMARY (ACCOUNTING ROLE)
+// PAYROLL SUMMARY (accounting role)
 // ============================================
 $payrollTotalLiability    = 0;
 $payrollTotalSettled      = 0;
@@ -290,7 +286,6 @@ $statusLabels = [
 
                     <!-- 3 Summary Cards -->
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                        <!-- Card 1: Total Liability -->
                         <div class="animate-fade-in-up bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                             <div class="flex items-start justify-between gap-3 mb-2">
                                 <p class="text-[10px] uppercase tracking-wider text-[#2C3E50]/50 font-semibold">Total Convertible Leave Pay (Owed)</p>
@@ -309,7 +304,6 @@ $statusLabels = [
                             <p class="text-[11px] text-[#2C3E50]/50 mt-1">Convertible from unused sick credits (cap 7.5)</p>
                         </div>
 
-                        <!-- Card 2: Paid Out -->
                         <div class="animate-fade-in-up-delay-1 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                             <div class="flex items-start justify-between gap-3 mb-2">
                                 <p class="text-[10px] uppercase tracking-wider text-[#0F5E3D]/70 font-semibold">Paid Out (All Time)</p>
@@ -328,7 +322,6 @@ $statusLabels = [
                             <p class="text-[11px] text-[#2C3E50]/50 mt-1"><?= $payrollSettledCount ?> settlement(s) · ₱<?= number_format($payrollSettledThisMonth, 2) ?> this month</p>
                         </div>
 
-                        <!-- Card 3: Unpaid / Pending -->
                         <div class="animate-fade-in-up-delay-2 bg-white/80 backdrop-blur-sm border border-[#E0E0E0] rounded-xl p-5 shadow-sm">
                             <div class="flex items-start justify-between gap-3 mb-2">
                                 <p class="text-[10px] uppercase tracking-wider text-amber-600/70 font-semibold">Unpaid Balance (Pending)</p>
@@ -507,18 +500,23 @@ $statusLabels = [
                                 </span>
 
                                 <?php if ($isFullySettled): ?>
-                                    <p class="text-[10px] text-[#0F5E3D] mt-1.5 inline-flex items-center gap-1">
-                                        <i data-lucide="check-circle-2" class="w-3 h-3"></i>
-                                        <span>Fully settled<?= $settledAt ? ' · ' . date('M j, Y', strtotime($settledAt)) : '' ?></span>
-                                    </p>
-                                <?php elseif ($settlementStatus === 'settled' && $settlementAmount > 0): ?>
-                                    <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
-                                        ₱<?= number_format($settlementAmount, 2) ?> already paid · balance shown above
-                                    </p>
+                                    <div class="flex flex-wrap items-center gap-2 mt-2">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-[#0F5E3D] bg-[#F1FDF6] border border-[#0F5E3D]/20">
+                                            <i data-lucide="check-circle-2" class="w-3 h-3"></i>
+                                            <span>Paid<?= $settledAt ? ' on ' . date('M j, Y', strtotime($settledAt)) : '' ?></span>
+                                        </span>
+                                        <span class="text-[10px] text-[#2C3E50]/50">
+                                            (₱<?= number_format($settlementAmount, 2) ?> received)
+                                        </span>
+                                    </div>
                                 <?php elseif ($settlementStatus === 'outstanding'): ?>
                                     <p class="text-[10px] text-amber-600 mt-1.5 inline-flex items-center gap-1">
                                         <i data-lucide="clock" class="w-3 h-3"></i>
-                                        <span>Marked unpaid by Accounting</span>
+                                        <span>Marked unpaid by Accounting — still owed</span>
+                                    </p>
+                                <?php else: ?>
+                                    <p class="text-[10px] text-[#2C3E50]/50 mt-1.5">
+                                        Not yet settled. This is what Accounting owes you for unused sick credits.
                                     </p>
                                 <?php endif; ?>
                             </div>
@@ -766,7 +764,8 @@ $statusLabels = [
                     } else if (id === 'payrollPending') {
                         el.classList.add('text-amber-600');
                     } else if (id === 'convertiblePayAmount') {
-                        const isSettled = parseFloat(real) === 0;
+                        // Green if fully settled, amber otherwise
+                        const isSettled = <?= $isFullySettled ? 'true' : 'false' ?>;
                         el.classList.add(isSettled ? 'text-[#0F5E3D]' : 'text-amber-600');
                     } else {
                         el.classList.add('text-[#2C3E50]');

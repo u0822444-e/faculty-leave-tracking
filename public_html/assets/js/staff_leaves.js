@@ -27,7 +27,7 @@ function initLeaveDatePickers() {
     altFormat: "M j, Y",
     allowInput: false,
     disable: blocked,
-    minDate: "today",
+    minDate: null,
     disableMobile: true,
   };
 
@@ -84,7 +84,7 @@ function openLeaveModal() {
 
   if (fpStart) fpStart.setDate(defaultStart, false);
   if (fpEnd) fpEnd.setDate(defaultStart, false);
-  if (fpEnd) fpEnd.set("minDate", defaultStart);
+  if (fpEnd) fpEnd.set("minDate", null);
 
   document.getElementById("leaveDateHint")?.classList.add("hidden");
   updateDaysCount();
@@ -434,11 +434,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const startDate = new Date(start + "T00:00:00");
       const endDate = new Date(end + "T00:00:00");
 
-      if (startDate < today && type !== 'sick') {
-        showError("Invalid start date", "You cannot file a non-sick leave with a start date in the past.");
-        return;
-      }
-      if (endDate < startDate) {
+      if (startDate < today) {
+        if (!confirm("You are filing a leave for a past date. HR will review this retroactive request. Continue?")) { return; }
+      }if (endDate < startDate) {
         showError("Invalid date range", "End date cannot be before the start date.");
         return;
       }

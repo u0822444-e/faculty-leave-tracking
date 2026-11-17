@@ -242,10 +242,6 @@ try {
             $e = new DateTime($end);
             $today = new DateTime('today');
 
-            if ($s < $today && $type !== 'sick') {
-                echo json_encode(['success' => false, 'error' => 'Only sick leaves can be filed with a past start date.']);
-                break;
-            }
             if ($e < $s) {
                 echo json_encode(['success' => false, 'error' => 'End date cannot be before start date.']);
                 break;
